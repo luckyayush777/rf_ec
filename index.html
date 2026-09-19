@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#292b30" />
+    <meta name="description" content="A small graphics card, a quiet workbench. An interactive 3D hardware study." />
+    <title>BENCH — GPU study</title>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene" aria-label="Repair desk with a GPU, work light, and interactive toolbox"></canvas>
+      <div id="interaction-status" class="interaction-status" role="status" aria-live="polite">Loading the repair desk…</div>
+      <aside class="equipment-panel" aria-label="Equipped tool">
+        <span role="status" aria-live="polite">Currently equipped: <strong id="equipped-tool">None (empty hands)</strong></span>
+        <button id="equip-tool" type="button">Equip screwdriver</button>
+      </aside>
+      <aside class="performance-panel" aria-label="Performance and sound">
+        <span><output id="fps" aria-label="Rendered frames per second">—</output> <small>FPS</small></span>
+        <button id="mute-sound" type="button" aria-pressed="false" title="Toggle sound">Sound on</button>
+      </aside>
+      <div id="repair-progress" class="repair-progress" aria-live="polite"></div>
+      <div class="inspection-controls">
+        <button id="inspect-gpu" type="button">Inspect GPU</button>
+        <button id="remove-fan" type="button">Lift fan</button>
+        <button id="return-part" type="button" hidden>Refit fan</button>
+        <button id="toggle-cable" type="button" aria-pressed="false" hidden>Unplug cable</button>
+        <button id="return-gpu" type="button" hidden>Set GPU down</button>
+      </div>
+      <footer class="bottom-bar">
+        <div class="interaction-hint">
+          <svg viewBox="0 0 24 28" fill="none" aria-hidden="true"><rect x="4.5" y="2.5" width="15" height="23" rx="7.5"/><path d="M12 3v8M5 11h14"/></svg>
+          <span><strong>Repair workbench</strong><span>Click to interact <b>·</b> Drag to orbit <b>·</b> Scroll to zoom</span></span>
+        </div>
+        <div class="view-controls" role="group" aria-label="Camera views">
+          <button type="button" class="view-button active" data-view="perspective" aria-pressed="true">Perspective</button>
+          <button type="button" class="view-button" data-view="top" aria-pressed="false">Top view</button>
+          <span class="control-separator"></span>
+          <button type="button" class="reset-button" id="reset-view" aria-label="Reset camera view" title="Reset view">
+            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 7a6 6 0 1 1-.1 5M4 3v4h4"/></svg>
+          </button>
+        </div>
+        <div class="tool-controls">
+          <button id="toggle-toolbox" type="button" aria-expanded="false">Open toolbox</button>
+          <button id="return-tool" type="button" hidden>Return screwdriver</button>
+        </div>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
