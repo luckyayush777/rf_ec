@@ -23,6 +23,8 @@ export function createInteractionHighlight() {
       originals.set(child, child.material);
       const tinted = materials.map(material => {
         const clone = material.clone();
+        clone.onBeforeCompile = material.onBeforeCompile;
+        clone.customProgramCacheKey = material.customProgramCacheKey;
         if (clone instanceof THREE.MeshStandardMaterial) {
           clone.emissive.set('#ffc65c');
           clone.emissiveIntensity = .38;

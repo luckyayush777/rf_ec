@@ -6,6 +6,7 @@ import { loadGPU } from './load-gpu';
 import { createWorkbench } from './workbench';
 import { setupInteractions } from './interactions';
 import { WorkbenchSound } from './sound';
+import { setupGPUCleaning } from './gpu-cleaning';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const app = document.querySelector<HTMLElement>('#app')!;
@@ -126,7 +127,7 @@ try {
   function updateFocusVisibility() {
     const { heldPart, stored } = interactions.repair.state;
     for (const object of scene.children) {
-      if (object === gpu || object === camera || object instanceof THREE.Light || object.name === 'placement-preview') continue;
+      if (object === gpu || object === camera || object instanceof THREE.Light || object.name === 'placement-preview' || object.userData.cleaningEffect) continue;
       object.visible = focusMode ? object.name === heldPart : !stored.includes(object.name);
     }
     workbench.screwdriver.visible = !focusMode;
@@ -222,6 +223,7 @@ try {
       if (progress === 1) transition = null;
     }
     interactions.update(now);
+    cleaning.update(now);
     if (focusMode && !focusCameraApplied) applyFocusCamera();
     updateFocusVisibility();
     if (controls.enabled) controls.update();
@@ -260,13 +262,16 @@ try {
     console.error('The graphics connection was interrupted. Reload to reopen the workbench.');
   });
 
+  const cleaning = setupGPUCleaning(scene, gpu, camera, canvas, interactions, sounds,
+    () => { if (!focusMode) toggleFocusMode(); }, reducedMotion);
   resize();
+  cleaning.enter();
   renderer.compile(scene, camera);
   requestRender();
 
   // A small development inspection surface for checking the assembly and camera.
   if (import.meta.env.DEV) {
-    Object.assign(window, { __bench: { scene, gpu, camera, controls, renderer, requestRender, workbench, interactions, sounds } });
+    Object.assign(window, { __bench: { scene, gpu, camera, controls, renderer, requestRender, workbench, interactions, sounds, cleaning } });
   }
 
   window.addEventListener('pageshow', requestRender);
@@ -275,6 +280,7 @@ try {
     disposed = true;
     cancelAnimationFrame(frame);
     controls.dispose();
+    cleaning.dispose();
     interactions.dispose();
     sounds.dispose();
     muteButton.removeEventListener('click', toggleSound);

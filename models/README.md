@@ -2,6 +2,8 @@
 
 The model has a native Blender source, separate assemblies, editable cable curves, named materials, and a browser export. This is a simplified fictional card, not an accurate GT 710 or a manufacturing model.
 
+The current source includes the cleaning prototype's component and connector detail pass. `scripts/blender/detail_gpu.py` adds those details to an older source without moving its assemblies. Run it with Blender's background mode and `models/gpu.blend`; it saves that source and exports the browser GLB. It checks for `pcb-detail` to avoid adding the same components twice. Text markings remain editable FONT objects in the native source and are converted to meshes only for export. The browser batches fixed PCB and bracket meshes by material; the Blender source retains individual components.
+
 ## Run the browser scene
 
 ```sh

@@ -2,6 +2,20 @@
 
 A browser repair desk with a simplified GPU, a work light, and an interactive toolbox containing a screwdriver. Built with TypeScript, Three.js, and Vite, with an editable Blender asset workflow.
 
+## Cleaning prototype
+
+The app now opens directly into an exterior-cleaning job with the GPU held in focus.
+
+- Select **Air blower**, then hold and sweep over the dusty surfaces. On touch screens the aim point sits above your finger.
+- Select **Rotate** to turn the card; pinch or scroll to zoom. **Show back / Show front** gives a quick view of either side.
+- **Compare before** toggles the original dust without changing your progress. Cleaning pauses while comparing.
+- At 90% surface cleanliness, **Finish service** completes the job. **Next card** resets it with fresh dust strengths.
+- **Repair sandbox** returns to the existing assembly controls; use **Exit focus** to see the desk. Refit all parts and put away the screwdriver before returning to the cleaning job.
+
+This is a feedback prototype: jobs and cleaning progress live in memory, cards reuse the same fictional model, and repasting is not implemented. The first job deliberately places dust on exterior surfaces that can be reached without disassembly. Fine dust uses small per-part surface masks, buildup uses removable clumps, and the blower has a bounded particle pool and synthesized air sound. Front and back masks are independent.
+
+The Blender source now includes a populated PCB, rear silkscreen, and simplified DVI/HDMI connector faces. Fixed detail is batched at load time to reduce draw calls while remaining individually editable in Blender. It is an approximate 710-inspired card, not a reference-matched GT 710.
+
 ## Run
 
 ```sh
@@ -11,6 +25,8 @@ npm run dev -- --port 5173
 ```
 
 Open **http://127.0.0.1:5173/** (or the URL printed by Vite if that port is occupied). Leave the terminal running; Ctrl+C stops the server. Node.js 22.12+ or 24 and a browser with WebGL 2 are required. The existing GLB is included, so Blender is not needed to run the game.
+
+The following controls are available through **Repair sandbox**:
 
 - Drag to orbit, scroll or pinch to zoom, and use the camera buttons to switch views or reset.
 - Click the box labeled **TOOLBOX** to open or close its hinged lid.

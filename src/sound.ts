@@ -7,6 +7,7 @@ export class WorkbenchSound {
   private noise?: AudioBuffer;
   private screwdriver = new Audio(manualScrewdriverUrl);
   private screwPlaying = false;
+  private air?: { source: AudioBufferSourceNode; gain: GainNode; filter: BiquadFilterNode };
   muted = false;
   played = 0;
   lastEffect = '';
@@ -50,6 +51,27 @@ export class WorkbenchSound {
     this.screwPlaying = false;
     this.screwdriver.pause();
     this.screwdriver.currentTime = 0;
+  }
+
+  startAir() {
+    this.unlock();
+    if (this.air || !this.context || !this.noise || !this.master) return;
+    const source = this.context.createBufferSource(), gain = this.context.createGain(), filter = this.context.createBiquadFilter();
+    source.buffer = this.noise; source.loop = true;
+    filter.type = 'highpass'; filter.frequency.value = 1100;
+    gain.gain.setValueAtTime(0, this.context.currentTime);
+    gain.gain.setTargetAtTime(.23, this.context.currentTime, .04);
+    source.connect(filter); filter.connect(gain); gain.connect(this.master);
+    source.start(); this.air = { source, gain, filter };
+  }
+
+  stopAir() {
+    if (!this.air || !this.context) return;
+    const { source, gain, filter } = this.air;
+    gain.gain.setTargetAtTime(0, this.context.currentTime, .025);
+    source.stop(this.context.currentTime + .12);
+    source.onended = () => { source.disconnect(); gain.disconnect(); filter.disconnect(); };
+    this.air = undefined;
   }
 
   play(effect: 'open' | 'close' | 'pickup' | 'place' | 'unplug' | 'plug') {
@@ -96,5 +118,5 @@ export class WorkbenchSound {
   }
 
   get state() { return this.context?.state ?? 'uninitialized'; }
-  dispose() { this.stopUnscrew(); this.screwdriver.removeAttribute('src'); this.screwdriver.load(); if (this.context) void this.context.close(); }
+  dispose() { this.stopAir(); this.stopUnscrew(); this.screwdriver.removeAttribute('src'); this.screwdriver.load(); if (this.context) void this.context.close(); }
 }

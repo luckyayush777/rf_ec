@@ -80,3 +80,67 @@ button{font:inherit}
   .equipment-panel{top:56px}
   .action-stack{bottom:80px}
 }
+
+/* The first service job keeps the work area clear and the next action close. */
+[hidden]{display:none!important}
+.cleaning-job .equipment-panel,.cleaning-job .action-stack,.cleaning-job .bottom-bar,.cleaning-job .interaction-status,.cleaning-job #focus-gpu{display:none}
+.cleaning-job .performance-panel{top:30px;right:32px;z-index:3;flex-direction:row;align-items:center;gap:8px}
+.cleaning-job .performance-panel>span{display:none}
+.cleaning-job .performance-panel button{background:#242a2b;border-color:#ffffff19;font-family:'DM Sans',sans-serif;color:#c4c9c5}
+#cleaning-panel{position:absolute;inset:0;pointer-events:none}
+.job-header{position:absolute;top:32px;left:36px}
+.bench-wordmark{font-size:22px;font-weight:700;letter-spacing:6px;color:#e8dfca;display:flex;align-items:center;gap:20px}
+.bench-wordmark span{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:2px;color:#9ca69e;font-weight:400}
+.job-brief{margin-top:36px}
+.eyebrow{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1.6px;color:#bdcbb9}
+.job-brief h1{font-size:clamp(20px,2.5vw,32px);letter-spacing:-.8px;font-weight:450;margin:10px 0 8px}
+.job-brief p{font-size:12px;color:#acb2ae;margin:0}
+.cleaning-dock{position:absolute;bottom:28px;left:50%;transform:translateX(-50%);width:440px;max-width:calc(100% - 28px);padding:20px 22px 16px;background:#202626ee;border:1px solid #dfead41c;border-radius:14px;box-shadow:0 12px 50px #0003;backdrop-filter:blur(16px);pointer-events:auto}
+.cleaning-meter{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:9px;margin-bottom:18px}
+.cleaning-meter label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1.8px;color:#b7c2b5}
+.cleaning-meter output{font-family:'Space Mono',monospace;font-size:16px;color:#d7edb2}
+.cleaning-meter progress{appearance:none;width:100%;height:4px;border:0;border-radius:9px;background:#414940;overflow:hidden}
+.cleaning-meter progress::-webkit-progress-bar{background:#414940}
+.cleaning-meter progress::-webkit-progress-value{background:#c5dda5;border-radius:9px;transition:width .2s}
+.cleaning-meter progress::-moz-progress-bar{background:#c5dda5}
+.cleaning-tools{display:flex;gap:6px}
+.cleaning-dock button{min-height:43px;border:1px solid #ffffff1a;border-radius:7px;background:#ffffff05;color:#d8ded7;padding:10px 13px;font-size:12px;cursor:pointer;white-space:nowrap}
+.cleaning-dock button:hover{background:#ffffff10}
+.cleaning-dock button:focus-visible{outline:2px solid #d7edb2;outline-offset:3px}
+.cleaning-tools button{flex:1}
+.cleaning-tools button span{font-size:18px;margin-right:6px;vertical-align:-1px}
+.cleaning-tools button[aria-pressed="true"]{background:#d2e5b2;color:#273522;border-color:#d2e5b2}
+#cleaning-hint{font-size:11px;line-height:1.6;color:#a7b0a8;margin:12px 0 15px;min-height:35px}
+.job-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:12px;border-top:1px solid #ffffff10}
+.job-actions button{font-size:11px;min-height:36px;padding:8px 10px}
+#show-before{border:0;padding-left:0;color:#c3cbbd;background:transparent}
+#show-before[aria-pressed="true"]{color:#f1d1a2}
+#finish-cleaning:enabled,#next-job{background:#d2e5b2;color:#273522;border-color:#d2e5b2}
+#finish-cleaning:disabled{color:#a9b09f;opacity:.5;cursor:default}
+#blower-reticle{position:fixed;width:48px;height:48px;transform:translate(-50%,-50%);border:1px solid #e1edc9aa;border-radius:50%;pointer-events:none;box-shadow:0 0 0 5px #d7edb20a;z-index:4}
+#blower-reticle span{position:absolute;left:50%;top:50%;width:4px;height:4px;transform:translate(-50%,-50%);border-radius:50%;background:#e6f1d8}
+#blower-reticle.blowing{border-style:dashed;box-shadow:0 0 20px #d7edb233}
+@media(max-width:640px){
+  .cleaning-job .performance-panel{top:17px;right:14px;gap:5px}
+  .cleaning-job .performance-panel button{font-size:10px;padding:6px 9px;min-height:36px}
+  .job-header{top:22px;left:20px}
+  .bench-wordmark{font-size:17px;letter-spacing:4px}
+  .bench-wordmark span{display:none}
+  .job-brief{margin-top:33px}
+  .job-brief h1{font-size:23px;margin-top:8px}
+  .job-brief p{font-size:11px}
+  .eyebrow{font-size:8px}
+  .cleaning-dock{bottom:calc(12px + env(safe-area-inset-bottom));padding:15px 16px 12px;border-radius:12px}
+  .cleaning-meter{margin-bottom:12px}
+  .cleaning-tools button{padding:8px;font-size:11px;min-height:44px}
+  .cleaning-tools button span{margin-right:3px}
+  #cleaning-hint{margin:9px 0;font-size:10px;min-height:30px}
+  .job-actions{padding-top:9px}
+  .job-actions button{min-height:40px}
+}
+@media(max-height:540px) and (orientation:landscape){
+  .job-header{top:18px;left:20px}.job-brief{margin-top:16px}.job-brief h1{font-size:18px}.job-brief p{display:none}
+  .cleaning-dock{left:auto;right:15px;bottom:15px;transform:none;width:310px;padding:12px}
+  .cleaning-meter{margin-bottom:9px}.cleaning-tools button{min-height:36px;padding:6px;font-size:10px}
+  #cleaning-hint{min-height:0;font-size:10px;margin:8px 0}.job-actions{padding-top:6px}
+}

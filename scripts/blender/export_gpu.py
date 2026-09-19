@@ -36,14 +36,14 @@ def export_gpu(filepath):
     depsgraph = bpy.context.evaluated_depsgraph_get()
     try:
         for obj in original_objects:
-            if obj.type not in {'EMPTY', 'MESH', 'CURVE'}:
+            if obj.type not in {'EMPTY', 'MESH', 'CURVE', 'FONT'}:
                 raise RuntimeError(f'Unsupported GPU object: {obj.name} ({obj.type})')
-            copy = obj.copy() if obj.type != 'CURVE' else None
-            if obj.type in {'MESH', 'CURVE'}:
+            copy = obj.copy() if obj.type not in {'CURVE', 'FONT'} else None
+            if obj.type in {'MESH', 'CURVE', 'FONT'}:
                 # Evaluate bevels, arrays, and editable cable curves into export-only meshes.
                 mesh = bpy.data.meshes.new_from_object(obj.evaluated_get(depsgraph), depsgraph=depsgraph)
                 temporary_meshes.append(mesh)
-                if obj.type == 'CURVE':
+                if obj.type in {'CURVE', 'FONT'}:
                     copy = bpy.data.objects.new(obj.name + '-export', mesh)
                     copy.matrix_world = obj.matrix_world.copy()
                     for key in obj.keys():

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#292b30" />
     <meta name="description" content="A small graphics card, a quiet workbench. An interactive 3D hardware study." />
-    <title>BENCH — GPU study</title>
+    <title>BENCH — A little care</title>
   </head>
   <body>
     <div id="app">
@@ -17,10 +17,36 @@
         <button id="return-tool" type="button" hidden>Return screwdriver</button>
       </aside>
       <aside class="performance-panel" aria-label="Performance and sound">
+        <button id="toggle-cleaning" type="button" aria-pressed="false">Cleaning job</button>
         <span><output id="fps" aria-label="Rendered frames per second">—</output> <small>FPS</small></span>
         <button id="focus-gpu" type="button" aria-pressed="false">Focus GPU</button>
         <button id="mute-sound" type="button" aria-pressed="false" title="Toggle sound">Sound on</button>
       </aside>
+      <section id="cleaning-panel" aria-label="GPU cleaning job" hidden>
+        <header class="job-header">
+          <div class="bench-wordmark">BENCH<span>THE REPAIR ROOM</span></div>
+          <div class="job-brief">
+            <span id="job-stage" class="eyebrow">JOB 001 / EXTERIOR CLEAN</span>
+            <h1 id="job-title">A little care. A lot less dust.</h1>
+            <p>A small graphics card, ready for another chance.</p>
+          </div>
+        </header>
+        <div class="cleaning-dock">
+          <div class="cleaning-meter"><label for="clean-progress">SURFACE CLEANED</label><output id="clean-percent">0%</output><progress id="clean-progress" value="0" max="100">0%</progress></div>
+          <div class="cleaning-tools" role="group" aria-label="Cleaning controls">
+            <button id="mode-clean" type="button" aria-pressed="true"><span aria-hidden="true">↗</span> Air blower</button>
+            <button id="mode-rotate" type="button" aria-pressed="false"><span aria-hidden="true">⟳</span> Rotate</button>
+            <button id="flip-card" type="button">Show back</button>
+          </div>
+          <p id="cleaning-hint" role="status">Hold and sweep to blow away dust. Flip the card to reach the back.</p>
+          <div class="job-actions">
+            <button id="show-before" type="button" aria-pressed="false">Compare before</button>
+            <button id="finish-cleaning" type="button" disabled>Clean to 90% to finish</button>
+            <button id="next-job" type="button" hidden>Next card →</button>
+          </div>
+        </div>
+      </section>
+      <div id="blower-reticle" aria-hidden="true" hidden><span></span></div>
       <div class="action-stack">
         <div id="repair-progress" class="repair-progress" aria-live="polite"></div>
         <div class="inspection-controls">

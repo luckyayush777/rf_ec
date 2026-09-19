@@ -361,6 +361,8 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
 
   return {
     state, inspection, repair,
+    cleaningReady: () => !toolMotion && !equipPending && state.tool !== 'held',
+    clearHover: () => { hoverPoint = null; highlight.select(null); placementPreview.visible = false; },
     refreshFocus: () => { placementPreview.visible = false; message(); },
     update(now: number) {
       const delta = lastTime ? Math.min((now - lastTime) / 1000, .1) : 0;
