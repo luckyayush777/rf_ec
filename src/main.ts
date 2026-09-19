@@ -8,6 +8,8 @@ import { setupInteractions } from './interactions';
 import { WorkbenchSound } from './sound';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
+const app = document.querySelector<HTMLElement>('#app')!;
+const focusButton = document.querySelector<HTMLButtonElement>('#focus-gpu')!;
 const viewButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-view]')];
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const touchInput = window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 640;
@@ -82,8 +84,13 @@ try {
   let transition: { from: THREE.Vector3; to: THREE.Vector3; start: number } | null = null;
   let frame = 0;
   let disposed = false;
+  let focusMode = false;
+  let focusCameraApplied = false;
+  let savedCamera: { position: THREE.Vector3; quaternion: THREE.Quaternion; target: THREE.Vector3;
+    minDistance: number; maxDistance: number } | null = null;
   const sounds = new WorkbenchSound();
-  const interactions = setupInteractions(scene, camera, canvas, workbench, gpu, controls, sounds, requestRender, reducedMotion);
+  const interactions = setupInteractions(scene, camera, canvas, workbench, gpu, controls, sounds,
+    requestRender, reducedMotion, () => focusMode);
   const fpsCounter = document.querySelector<HTMLOutputElement>('#fps')!;
   const muteButton = document.querySelector<HTMLButtonElement>('#mute-sound')!;
   let fpsStart = performance.now(), fpsFrames = 0;
@@ -102,6 +109,59 @@ try {
       : new THREE.Vector3(12 * scale, 16 * scale, 23 * scale);
   }
 
+  function applyFocusCamera() {
+    if (!focusMode || interactions.inspection.state.held || interactions.inspection.state.moving) return;
+    const center = new THREE.Box3().setFromObject(gpu).getCenter(new THREE.Vector3());
+    const distance = Math.max(11, 3.6 / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(1, camera.aspect)));
+    controls.target.copy(center);
+    camera.position.copy(center).addScaledVector(new THREE.Vector3(.28, .42, .86).normalize(), distance);
+    controls.minDistance = 7;
+    controls.maxDistance = 30;
+    controls.enableDamping = false;
+    controls.update();
+    controls.enableDamping = true;
+    focusCameraApplied = true;
+  }
+
+  function updateFocusVisibility() {
+    const { heldPart, stored } = interactions.repair.state;
+    for (const object of scene.children) {
+      if (object === gpu || object === camera || object instanceof THREE.Light || object.name === 'placement-preview') continue;
+      object.visible = focusMode ? object.name === heldPart : !stored.includes(object.name);
+    }
+    workbench.screwdriver.visible = !focusMode;
+  }
+
+  function toggleFocusMode() {
+    if (!focusMode) {
+      savedCamera = { position: camera.position.clone(), quaternion: camera.quaternion.clone(),
+        target: controls.target.clone(), minDistance: controls.minDistance, maxDistance: controls.maxDistance };
+      focusMode = true;
+      transition = null;
+      focusCameraApplied = false;
+      applyFocusCamera();
+    } else {
+      focusMode = false;
+      focusCameraApplied = false;
+      if (savedCamera) {
+        controls.target.copy(savedCamera.target);
+        camera.position.copy(savedCamera.position);
+        camera.quaternion.copy(savedCamera.quaternion);
+        controls.minDistance = savedCamera.minDistance;
+        controls.maxDistance = savedCamera.maxDistance;
+        controls.update();
+      }
+      savedCamera = null;
+    }
+    app.classList.toggle('focus-mode', focusMode);
+    focusButton.textContent = focusMode ? 'Exit focus' : 'Focus GPU';
+    focusButton.setAttribute('aria-pressed', String(focusMode));
+    updateFocusVisibility();
+    interactions.refreshFocus();
+    requestRender();
+  }
+  focusButton.addEventListener('click', toggleFocusMode);
+
   function updateButtons() {
     viewButtons.forEach(button => {
       const selected = button.dataset.view === activeView;
@@ -115,7 +175,7 @@ try {
   }
 
   function selectView(view: CameraView, immediate = false) {
-    if (!controls.enabled) return;
+    if (focusMode || !controls.enabled) return;
     activeView = view;
     updateButtons();
     controls.target.set(0, -.3, 0);
@@ -141,7 +201,8 @@ try {
     camera.clearViewOffset();
     camera.fov = width <= 640 ? 43 : 35;
     camera.updateProjectionMatrix();
-    if (activeView) selectView(activeView, true);
+    if (focusMode) { focusCameraApplied = false; applyFocusCamera(); }
+    else if (activeView) selectView(activeView, true);
     requestRender();
   }
 
@@ -156,6 +217,8 @@ try {
       if (progress === 1) transition = null;
     }
     interactions.update(now);
+    if (focusMode && !focusCameraApplied) applyFocusCamera();
+    updateFocusVisibility();
     if (controls.enabled) controls.update();
     renderer.render(scene, camera);
     fpsFrames++;
@@ -210,6 +273,7 @@ try {
     interactions.dispose();
     sounds.dispose();
     muteButton.removeEventListener('click', toggleSound);
+    focusButton.removeEventListener('click', toggleFocusMode);
     scene.traverse(object => {
       if (object instanceof THREE.Mesh) {
         object.geometry.dispose();

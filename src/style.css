@@ -36,6 +36,9 @@ button{font:inherit}
 .performance-panel>span{padding:9px 12px;background:#202329dc;border:1px solid #ffffff18;border-radius:6px;font-size:18px;font-variant-numeric:tabular-nums;min-width:91px;text-align:right}
 .performance-panel small{font-size:10px;color:#aeb4bf}
 .performance-panel button,.inspection-controls button{border:1px solid #ffffff24;border-radius:6px;padding:9px 12px;background:#23252ce8;color:#e0e2e8;cursor:pointer;font-size:11px}
+#focus-gpu{display:none}
+.focus-mode #focus-gpu{display:block}
+#focus-gpu[aria-pressed="true"],#store-part{background:#e3c49e;color:#34271d;border-color:#e3c49e}
 .performance-panel button:hover,.inspection-controls button:hover{background:#393d46}
 .performance-panel button:focus-visible,.inspection-controls button:focus-visible{outline:2px solid #f4c995;outline-offset:3px}
 .action-stack{position:absolute;bottom:125px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:10px;max-width:94%;width:max-content}
@@ -45,7 +48,7 @@ button{font:inherit}
 @media(max-width:900px){.interaction-status{max-width:65%;left:4.3%;transform:none}.performance-panel{right:4.3%}}
 @media(max-width:640px){.performance-panel{top:16px}.performance-panel>span{font-size:15px;min-width:78px}.performance-panel button{font-size:10px}}
 @media(max-width:1000px){.footer-caption{display:none}.interaction-hint{width:auto}}
-@media(max-width:800px){.interaction-hint{display:none}}
+@media(max-width:800px){.interaction-hint{display:none}#focus-gpu{display:block}}
 @media(max-width:640px){.bottom-bar{left:6%;right:6%;height:130px;flex-direction:column-reverse;justify-content:center;gap:12px}.view-button{padding:9px 16px}.view-controls{padding:4px}.interaction-status{font-size:11px;width:max-content;top:16px}.tool-controls button{padding:8px 12px}}
 @media(max-height:600px) and (min-width:641px){.bottom-bar{height:76px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -64,11 +67,14 @@ button{font:inherit}
 @media(max-width:640px){
   #app{min-height:0}
   .bottom-bar{height:144px;padding-bottom:env(safe-area-inset-bottom)}
+  .performance-panel>span{display:none}
   .action-stack{bottom:calc(158px + env(safe-area-inset-bottom));max-width:94%}
   .inspection-controls button,.tool-controls button,.view-controls button,.equipment-panel button,.performance-panel button{min-height:44px}
   .reset-button{width:44px;height:44px}
   .repair-progress{font-size:10px}
 }
+.focus-mode .bottom-bar{display:none}
+.focus-mode .action-stack{bottom:calc(18px + env(safe-area-inset-bottom))}
 @media(max-height:450px) and (orientation:landscape){
   #app{min-height:0}
   .equipment-panel{top:56px}

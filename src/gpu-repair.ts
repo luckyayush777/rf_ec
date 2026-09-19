@@ -6,8 +6,10 @@ import { createServiceRules, gpuServiceExceptions, type ServiceAction, type Serv
 /** Keeps the original parent and local transform so servicing never accumulates drift. */
 export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: WorkbenchSound,
   reducedMotion: boolean, isConnected: (part: string) => boolean, toolHeld: () => boolean,
-  ready: () => boolean, setGPUDown: () => void, notify: (text: string) => void, changed: () => void) {
-  const state = { heldPart: null as string | null, moving: false, removed: [] as string[] };
+  ready: () => boolean, setGPUDown: () => void, notify: (text: string) => void, changed: () => void,
+  focused: () => boolean) {
+  const state = { heldPart: null as string | null, moving: false, removed: [] as string[], stored: [] as string[] };
+  const touchInput = window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 640;
   gpu.updateMatrixWorld(true);
   const serviceObjects: THREE.Object3D[] = [];
   gpu.traverse(object => {
@@ -18,7 +20,7 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
     const role = (object.userData.part as PartMetadata).role;
     object.userData.action = role === 'fastener' ? 'screw' : 'assembly';
     if (role === 'fastener') {
-      const pick = new THREE.Mesh(new THREE.SphereGeometry(.11, 12, 8), new THREE.MeshBasicMaterial({ visible: false }));
+      const pick = new THREE.Mesh(new THREE.SphereGeometry(touchInput ? .22 : .11, 12, 8), new THREE.MeshBasicMaterial({ visible: false }));
       pick.name = `${object.name}-pick-target`; object.add(pick);
     }
     return [object.name, { object, parent: object.parent!, position: object.position.clone(),
@@ -80,7 +82,6 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
   const button = document.querySelector<HTMLButtonElement>('#return-part')!;
   const fanButton = document.querySelector<HTMLButtonElement>('#remove-fan')!;
   const progress = document.querySelector<HTMLElement>('#repair-progress')!;
-  const touchInput = window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 640;
   let motion: { object: THREE.Object3D; from: THREE.Vector3; to: THREE.Vector3;
     rotation: THREE.Quaternion; toRotation: THREE.Quaternion; start: number; screw: boolean;
     done: () => void } | null = null;
@@ -117,8 +118,8 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
     const next = state.heldPart ?? (coolerOff() ? 'cooler-assembly' : 'fan-assembly');
     button.textContent = `Refit ${next === 'fan-assembly' ? 'fan' : 'cooler'}`;
     button.disabled = state.moving;
-    fanButton.textContent = fanOff() ? 'Pick up fan' : 'Lift fan';
-    fanButton.disabled = state.moving || Boolean(state.heldPart);
+    fanButton.textContent = state.stored.includes('fan-assembly') ? 'Fan stored' : fanOff() ? 'Pick up fan' : 'Lift fan';
+    fanButton.disabled = state.moving || Boolean(state.heldPart) || state.stored.includes('fan-assembly');
   }
   function animate(object: THREE.Object3D, to: THREE.Vector3, rotation: THREE.Quaternion, screw: boolean, done: () => void) {
     state.moving = true;
@@ -153,7 +154,7 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
     sound.stopUnscrew();
     const turn = turns.get(name);
     refresh(); changed();
-    if (turn) notify(`${Math.round(turn.progress * 100)}% ${turn.reinstall ? 'tightened' : 'removed'} · hold the screw to continue.`);
+    if (turn) notify(`${Math.round(turn.progress * 100)}% ${turn.reinstall ? 'tightened' : 'removed'} · hold ${focused() && turn.reinstall ? 'Refit screw' : 'the screw'} to continue.`);
   }
   function completeScrew(name: string) {
     const part = parts.get(name)!;
@@ -165,6 +166,7 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
     if (turn.reinstall) {
       part.parent.add(part.object); part.object.position.copy(part.position);
       part.object.quaternion.copy(part.rotation); part.object.scale.copy(part.scale);
+      part.object.visible = true;
       state.removed = state.removed.filter(item => item !== name);
       state.moving = false;
       refresh(); changed();
@@ -176,11 +178,14 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
       // Separate labelled rows keep every screw reachable and associated with its original hole.
       animate(part.object, new THREE.Vector3(3.1 + index * .48, .20, fanScrew ? 3.38 : 4.12),
         new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI / 2)), true,
-        () => notify(`${fanScrew ? 'Fan' : 'Cooler'} screw ${index + 1} in the parts tray. Hold it with the screwdriver to refit.`));
+        () => notify(focused()
+          ? `${fanScrew ? 'Fan' : 'Cooler'} screw ${index + 1} stored · ${check({ kind: 'refit', part: name }).allowed ? 'hold Refit screw to reinstall it.' : 'refit the part, then hold Refit screw.'}`
+          : `${fanScrew ? 'Fan' : 'Cooler'} screw ${index + 1} in the parts tray. Hold it with the screwdriver to refit.`));
     }
   }
   function assembly(name: string) {
     if (!ready() || state.moving || state.heldPart) return;
+    if (state.stored.includes(name)) { notify('This part is stored. Use Refit to return it.'); return; }
     const part = parts.get(name)!;
     const decision = check({ kind: removed(name) ? 'pickup' : 'remove', part: name });
     if (!decision.allowed) { notify(decision.reason); return; }
@@ -192,23 +197,46 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
     setGPUDown();
     state.heldPart = name;
     const target = part.object.position.clone().add(new THREE.Vector3(0, 1.2, 0));
-    animate(part.object, target, part.upright, false, () => notify(`${name === 'fan-assembly' ? 'Fan and cable' : 'Cooler'} lifted · ${touchInput ? 'tap' : 'click'} a clear spot on the desk to place · ${touchInput ? 'use Refit to return' : 'Esc to refit'}`));
+    animate(part.object, target, part.upright, false, () => notify(focused()
+      ? `${name === 'fan-assembly' ? 'Fan and cable' : 'Cooler'} lifted · Store part to set it aside, or Refit to return it.`
+      : `${name === 'fan-assembly' ? 'Fan and cable' : 'Cooler'} lifted · ${touchInput ? 'tap' : 'click'} a clear spot on the desk to place · ${touchInput ? 'use Refit to return' : 'Esc to refit'}`));
     sound.play('pickup');
   }
-  function place(point: THREE.Vector3, obstacles: THREE.Object3D[]) {
-    if (!state.heldPart || state.moving || !ready()) return;
+  function previewPlacement(point: THREE.Vector3, obstacles: THREE.Object3D[]) {
+    if (!state.heldPart || state.moving) return null;
     const part = parts.get(state.heldPart)!;
     const bounds = new THREE.Box3().setFromObject(part.object);
     const offset = point.clone().sub(bounds.getCenter(new THREE.Vector3()));
     offset.y = point.y + .025 - bounds.min.y;
     const proposed = bounds.clone().translate(offset);
-    if (proposed.min.x < -9.75 || proposed.max.x > 9.75 || proposed.min.z < -5.75 || proposed.max.z > 5.75 ||
-      obstacles.some(object => object !== part.object && proposed.intersectsBox(new THREE.Box3().setFromObject(object).expandByScalar(.08)))) {
-      notify('Choose a clear spot with room for the whole assembly and its cable.'); return;
-    }
-    animate(part.object, part.object.position.clone().add(offset), part.upright, false, () => {
+    const allowed = proposed.min.x >= -9.75 && proposed.max.x <= 9.75 && proposed.min.z >= -5.75 && proposed.max.z <= 5.75 &&
+      !obstacles.some(object => object !== part.object && proposed.intersectsBox(new THREE.Box3().setFromObject(object).expandByScalar(.08)));
+    return { bounds: proposed, offset, allowed };
+  }
+  function place(point: THREE.Vector3, obstacles: THREE.Object3D[]) {
+    if (!ready()) return;
+    const placement = previewPlacement(point, obstacles);
+    if (!placement) return;
+    if (!placement.allowed) { notify('Choose a clear spot with room for the whole assembly and its cable.'); return; }
+    const part = parts.get(state.heldPart!)!;
+    animate(part.object, part.object.position.clone().add(placement.offset), part.upright, false, () => {
       state.heldPart = null; sound.play('place'); notify(`Assembly on the desk · ${touchInput ? 'tap' : 'click'} to pick up, or use Refit to reconnect it to its mounts.`);
     });
+  }
+  function storePart() {
+    if (!state.heldPart || state.moving || !ready()) return;
+    const name = state.heldPart;
+    const part = parts.get(name)!.object;
+    part.position.set(0, -100, 0);
+    part.visible = false;
+    state.stored.push(name);
+    state.heldPart = null;
+    sound.play('place');
+    refresh(); changed();
+    notify(`${name === 'fan-assembly' ? 'Fan' : 'Cooler'} stored · use Refit to return it.`);
+  }
+  function nextRefittableScrew() {
+    return [...coolerScrews, ...fanScrews].find(name => removed(name) && check({ kind: 'refit', part: name }).allowed) ?? null;
   }
   function refit() {
     if (!ready() || state.moving) return;
@@ -223,15 +251,18 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
         part.parent.add(part.object); part.object.position.copy(part.position);
         part.object.quaternion.copy(part.rotation); part.object.scale.copy(part.scale);
         state.removed = state.removed.filter(item => item !== name); state.heldPart = null;
+        state.stored = state.stored.filter(item => item !== name); part.object.visible = true;
         if (name === 'fan-assembly') settleCable(false);
-        sound.play('place'); notify('Assembly seated · use the screwdriver to refit its screws from the tray.');
+        sound.play('place'); notify(focused()
+          ? 'Assembly seated · hold Refit screw to reinstall its screws.'
+          : 'Assembly seated · use the screwdriver to refit its screws from the tray.');
       });
   }
   const liftFan = () => assembly('fan-assembly');
   button.addEventListener('click', refit); fanButton.addEventListener('click', liftFan);
   refresh();
   return {
-    state, beginScrew, endScrew, assembly, place, refit, removed, check,
+    state, beginScrew, endScrew, assembly, previewPlacement, place, storePart, nextRefittableScrew, refit, removed, check,
     looseObjects: () => [...parts.values()].map(p => p.object).filter(o => removed(o.name)),
     update(now: number) {
       if (activeTurn) {

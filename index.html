@@ -14,9 +14,11 @@
       <aside class="equipment-panel" aria-label="Equipped tool">
         <span role="status" aria-live="polite">Currently equipped: <strong id="equipped-tool">None (empty hands)</strong></span>
         <button id="equip-tool" type="button">Equip screwdriver</button>
+        <button id="return-tool" type="button" hidden>Return screwdriver</button>
       </aside>
       <aside class="performance-panel" aria-label="Performance and sound">
         <span><output id="fps" aria-label="Rendered frames per second">—</output> <small>FPS</small></span>
+        <button id="focus-gpu" type="button" aria-pressed="false">Focus GPU</button>
         <button id="mute-sound" type="button" aria-pressed="false" title="Toggle sound">Sound on</button>
       </aside>
       <div class="action-stack">
@@ -25,6 +27,8 @@
           <button id="inspect-gpu" type="button">Inspect GPU</button>
           <button id="remove-fan" type="button">Lift fan</button>
           <button id="return-part" type="button" hidden>Refit fan</button>
+          <button id="store-part" type="button" hidden>Store part</button>
+          <button id="focus-refit-screw" type="button" hidden>Hold to refit screw</button>
           <button id="toggle-cable" type="button" aria-pressed="false" hidden>Unplug cable</button>
           <button id="return-gpu" type="button" hidden>Set GPU down</button>
         </div>
@@ -44,7 +48,6 @@
         </div>
         <div class="tool-controls">
           <button id="toggle-toolbox" type="button" aria-expanded="false">Open toolbox</button>
-          <button id="return-tool" type="button" hidden>Return screwdriver</button>
         </div>
       </footer>
     </div>
