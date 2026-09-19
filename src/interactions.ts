@@ -111,8 +111,8 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
       ? 'Part lifted · tap a clear spot on the desk to place · use Refit to return'
       : inspection.state.held
       ? state.equippedTool === 'screwdriver'
-        ? 'Drag GPU to find screws · hold a screw to turn · use Set GPU down to return'
-        : `Drag GPU to rotate · tap cable to ${inspection.state.cableConnected ? 'unplug' : 'reconnect'} · equip screwdriver for screws`
+        ? 'Drag GPU to find screws · pinch to zoom · move two fingers to pan · hold a screw to turn'
+        : `Drag GPU to rotate · pinch to zoom · tap cable to ${inspection.state.cableConnected ? 'unplug' : 'reconnect'}`
       : inspection.state.moving ? 'Setting the GPU down…' : state.equippedTool === 'screwdriver'
       ? 'Hold a screw to turn · tap the desk to place the screwdriver'
       : state.open ? 'Tap the screwdriver to pick it up · tap the box to close'
@@ -121,8 +121,8 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
       ? 'Part lifted · Store part to set it aside, or Refit to return it'
       : inspection.state.held
       ? state.equippedTool === 'screwdriver'
-        ? 'Drag GPU to find screws · hold a screw to turn it'
-        : `Drag GPU to rotate · tap cable to ${inspection.state.cableConnected ? 'unplug' : 'reconnect'} · equip screwdriver for screws`
+        ? 'Drag GPU to find screws · pinch to zoom · move two fingers to pan · hold a screw to turn it'
+        : `Drag GPU to rotate · pinch to zoom · tap cable to ${inspection.state.cableConnected ? 'unplug' : 'reconnect'}`
       : state.equippedTool === 'screwdriver'
       ? 'GPU focus · tap Inspect GPU, then hold a screw to turn it'
       : 'GPU focus · tap Inspect GPU to rotate · equip screwdriver for screws';
@@ -249,7 +249,13 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
     }
   }
 
-  const pointers = new Set<number>();
+  const pointers = new Map<number, { x: number; y: number }>();
+  let pinch: { distance: number; x: number; y: number } | null = null;
+  function pinchPosition() {
+    const [a, b] = [...pointers.values()];
+    if (!a || !b) return null;
+    return { distance: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
   let press: { x: number; y: number; lastX: number; lastY: number; moved: boolean;
     screw: boolean; restoreControls: boolean } | null = null;
   function finishScrew() {
@@ -260,8 +266,13 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
   function down(event: PointerEvent) {
     sound.unlock();
     hover(event.clientX, event.clientY, event.pointerType);
-    pointers.add(event.pointerId);
-    if (pointers.size > 1) { if (press) { finishScrew(); press.moved = true; } return; }
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size > 1) {
+      if (press) { finishScrew(); press.moved = true; }
+      if (inspection.state.held) canvas.setPointerCapture(event.pointerId);
+      pinch = pinchPosition();
+      return;
+    }
     const result = event.button === 0 ? hitAt(event.clientX, event.clientY) : null;
     const screw = result?.action === 'screw' && Boolean(result.target);
     const restoreControls = screw && repair.beginScrew(result!.target!.name) && controls.enabled;
@@ -279,7 +290,7 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
     const target = result?.target;
     const cableTarget = target?.name === 'fan-plug-pick-target' ? target.parent
       : target?.name === 'fan-cable' ? target.getObjectByName('fan-plug') : target;
-    highlight.select(interactive && result?.action !== 'desk' && !repair.state.moving
+    highlight.select(pointerType === 'mouse' && interactive && result?.action !== 'desk' && !repair.state.moving
       ? cableTarget ?? null : null);
     placementPreview.visible = false;
     if (pointerType === 'mouse' && !isFocusMode() && result?.action === 'desk' && repair.state.heldPart) {
@@ -297,6 +308,15 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
   function leave() { hoverPoint = null; highlight.select(null); placementPreview.visible = false; }
   function move(event: PointerEvent) {
     hoverPoint = { x: event.clientX, y: event.clientY, pointerType: event.pointerType };
+    if (pointers.has(event.pointerId)) pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size === 2 && inspection.state.held) {
+      const next = pinchPosition();
+      if (next && pinch && pinch.distance > 0 && next.distance > 0) {
+        const rect = canvas.getBoundingClientRect();
+        inspection.gesture(pinch.distance / next.distance, next.x - pinch.x, next.y - pinch.y, rect.width, rect.height);
+      }
+      pinch = next;
+    }
     if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 6) press.moved = true;
     if (press && !press.screw && pointers.size === 1 && inspection.state.held && press.moved) {
       inspection.rotate(event.clientX - press.lastX, event.clientY - press.lastY);
@@ -309,11 +329,15 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
     const activate = pointers.size === 1 && press && !press.screw && !press.moved && Math.hypot(event.clientX - press.x, event.clientY - press.y) <= 6;
     finishScrew();
     pointers.delete(event.pointerId); press = null;
+    pinch = pointers.size === 2 ? pinchPosition() : null;
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
     if (activate) click(event.clientX, event.clientY);
   }
-  function cancel(event: PointerEvent) { finishScrew(); pointers.delete(event.pointerId); press = null; }
-  function blur() { finishScrew(); refitUp(); pointers.clear(); press = null; placementPreview.visible = false; }
+  function cancel(event: PointerEvent) {
+    finishScrew(); pointers.delete(event.pointerId); press = null;
+    pinch = pointers.size === 2 ? pinchPosition() : null;
+  }
+  function blur() { finishScrew(); refitUp(); pointers.clear(); press = null; pinch = null; placementPreview.visible = false; }
   function key(event: KeyboardEvent) {
     if (event.key === 'Escape') {
       if (press?.screw) { finishScrew(); press.moved = true; return; }

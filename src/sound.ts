@@ -1,12 +1,21 @@
-/** Short, locally synthesized mechanical effects. No downloads or audio autoplay. */
+import manualScrewdriverUrl from './assets/manual-screwdriver.wav?url';
+
+/** Mechanical effects start only after a user interaction. */
 export class WorkbenchSound {
   private context?: AudioContext;
   private master?: GainNode;
   private noise?: AudioBuffer;
-  private screwSound?: { noise: AudioBufferSourceNode; tone: OscillatorNode; gain: GainNode; toneGain: GainNode };
+  private screwdriver = new Audio(manualScrewdriverUrl);
+  private screwPlaying = false;
   muted = false;
   played = 0;
   lastEffect = '';
+
+  constructor() {
+    this.screwdriver.preload = 'auto';
+    this.screwdriver.loop = true;
+    this.screwdriver.volume = .8;
+  }
 
   unlock() {
     try {
@@ -26,44 +35,21 @@ export class WorkbenchSound {
   setMuted(muted: boolean) {
     this.muted = muted;
     if (this.master && this.context) this.master.gain.setTargetAtTime(muted ? 0 : .45, this.context.currentTime, .015);
+    this.screwdriver.volume = muted ? 0 : .8;
   }
 
   startUnscrew() {
-    if (this.screwSound) return;
-    this.unlock();
-    const ctx = this.context;
-    if (!ctx || !this.master || !this.noise) return;
+    if (this.screwPlaying) return;
+    this.screwPlaying = true;
     this.played++; this.lastEffect = 'unscrew';
-    const noise = ctx.createBufferSource();
-    const filter = ctx.createBiquadFilter();
-    const gain = ctx.createGain();
-    const tone = ctx.createOscillator();
-    const toneGain = ctx.createGain();
-    noise.buffer = this.noise; noise.loop = true;
-    filter.type = 'bandpass'; filter.frequency.value = 1500; filter.Q.value = 1.2;
-    gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(.11, ctx.currentTime + .025);
-    tone.type = 'triangle'; tone.frequency.value = 115;
-    toneGain.gain.value = .012;
-    noise.connect(filter); filter.connect(gain); gain.connect(this.master);
-    tone.connect(toneGain); toneGain.connect(this.master);
-    noise.start(); tone.start();
-    this.screwSound = { noise, tone, gain, toneGain };
+    this.screwdriver.currentTime = 0;
+    void this.screwdriver.play().catch(() => {});
   }
 
   stopUnscrew() {
-    const sound = this.screwSound;
-    if (!sound || !this.context) return;
-    this.screwSound = undefined;
-    const now = this.context.currentTime;
-    sound.gain.gain.cancelScheduledValues(now);
-    sound.gain.gain.setValueAtTime(sound.gain.gain.value, now);
-    sound.gain.gain.linearRampToValueAtTime(0, now + .025);
-    sound.toneGain.gain.setTargetAtTime(0, now, .008);
-    sound.noise.stop(now + .035); sound.tone.stop(now + .035);
-    sound.noise.onended = () => {
-      sound.noise.disconnect(); sound.tone.disconnect(); sound.gain.disconnect(); sound.toneGain.disconnect();
-    };
+    this.screwPlaying = false;
+    this.screwdriver.pause();
+    this.screwdriver.currentTime = 0;
   }
 
   play(effect: 'open' | 'close' | 'pickup' | 'place' | 'unplug' | 'plug') {
@@ -110,5 +96,5 @@ export class WorkbenchSound {
   }
 
   get state() { return this.context?.state ?? 'uninitialized'; }
-  dispose() { this.stopUnscrew(); if (this.context) void this.context.close(); }
+  dispose() { this.stopUnscrew(); this.screwdriver.removeAttribute('src'); this.screwdriver.load(); if (this.context) void this.context.close(); }
 }

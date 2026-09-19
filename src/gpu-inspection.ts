@@ -25,6 +25,8 @@ export function setupGPUInspection(gpu: THREE.Object3D, camera: THREE.Perspectiv
   let motion: { start: number; position: THREE.Vector3; rotation: THREE.Quaternion; returning: boolean } | null = null;
   let cableMotion: { start: number; from: number; to: number } | null = null;
   let cableProgress = 0;
+  let zoom = 1;
+  const pan = new THREE.Vector2();
   const wires = ['fan-positive-wire', 'fan-ground-wire'].map((name, index) => {
     const wire = gpu.getObjectByName(name) as THREE.Mesh<THREE.BufferGeometry>;
     const originalGeometry = wire.geometry;
@@ -42,8 +44,8 @@ export function setupGPUInspection(gpu: THREE.Object3D, camera: THREE.Perspectiv
   });
 
   function inspectionPosition() {
-    const distance = Math.max(11, 3.9 / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(1, camera.aspect)));
-    return camera.localToWorld(new THREE.Vector3(0, -.1, -distance));
+    const distance = Math.max(11, 3.9 / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(1, camera.aspect))) * zoom;
+    return camera.localToWorld(new THREE.Vector3(pan.x, pan.y - .1, -distance));
   }
   function updateButtons() {
     button.hidden = !state.held;
@@ -55,6 +57,8 @@ export function setupGPUInspection(gpu: THREE.Object3D, camera: THREE.Perspectiv
   }
   function lift() {
     if (state.held || state.moving || !canInteract()) return;
+    zoom = 1;
+    pan.set(0, 0);
     controls.enableDamping = false; controls.update(); controls.enableDamping = true;
     controls.enabled = false;
     state.held = state.moving = true;
@@ -89,6 +93,15 @@ export function setupGPUInspection(gpu: THREE.Object3D, camera: THREE.Perspectiv
       gpu.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(up, dx * .009));
       gpu.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(right, dy * .009));
       gpu.quaternion.normalize(); requestRender();
+    },
+    gesture(scale: number, dx: number, dy: number, width: number, height: number) {
+      if (!state.held || state.moving || !canInteract()) return;
+      zoom = THREE.MathUtils.clamp(zoom * scale, .42, 1.5);
+      const distance = Math.max(11, 3.9 / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(1, camera.aspect))) * zoom;
+      const viewHeight = 2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+      pan.x = THREE.MathUtils.clamp(pan.x + dx / width * viewHeight * camera.aspect, -4, 4);
+      pan.y = THREE.MathUtils.clamp(pan.y - dy / height * viewHeight, -3, 3);
+      requestRender();
     },
     update(now: number) {
       if (motion) {

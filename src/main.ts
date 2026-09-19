@@ -87,7 +87,7 @@ try {
   let focusMode = false;
   let focusCameraApplied = false;
   let savedCamera: { position: THREE.Vector3; quaternion: THREE.Quaternion; target: THREE.Vector3;
-    minDistance: number; maxDistance: number } | null = null;
+    minDistance: number; maxDistance: number; enablePan: boolean; twoFingerAction: typeof controls.touches.TWO } | null = null;
   const sounds = new WorkbenchSound();
   const interactions = setupInteractions(scene, camera, canvas, workbench, gpu, controls, sounds,
     requestRender, reducedMotion, () => focusMode);
@@ -115,7 +115,7 @@ try {
     const distance = Math.max(11, 3.6 / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(1, camera.aspect)));
     controls.target.copy(center);
     camera.position.copy(center).addScaledVector(new THREE.Vector3(.28, .42, .86).normalize(), distance);
-    controls.minDistance = 7;
+    controls.minDistance = 4.5;
     controls.maxDistance = 30;
     controls.enableDamping = false;
     controls.update();
@@ -135,8 +135,11 @@ try {
   function toggleFocusMode() {
     if (!focusMode) {
       savedCamera = { position: camera.position.clone(), quaternion: camera.quaternion.clone(),
-        target: controls.target.clone(), minDistance: controls.minDistance, maxDistance: controls.maxDistance };
+        target: controls.target.clone(), minDistance: controls.minDistance, maxDistance: controls.maxDistance,
+        enablePan: controls.enablePan, twoFingerAction: controls.touches.TWO };
       focusMode = true;
+      controls.enablePan = true;
+      controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
       transition = null;
       focusCameraApplied = false;
       applyFocusCamera();
@@ -149,6 +152,8 @@ try {
         camera.quaternion.copy(savedCamera.quaternion);
         controls.minDistance = savedCamera.minDistance;
         controls.maxDistance = savedCamera.maxDistance;
+        controls.enablePan = savedCamera.enablePan;
+        controls.touches.TWO = savedCamera.twoFingerAction;
         controls.update();
       }
       savedCamera = null;
