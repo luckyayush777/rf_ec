@@ -49,6 +49,9 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
   let motion: { object: THREE.Object3D; from: THREE.Vector3; to: THREE.Vector3;
     rotation: THREE.Quaternion; toRotation: THREE.Quaternion; start: number; screw: boolean;
     done: () => void } | null = null;
+  const turns = new Map<string, { progress: number; reinstall: boolean; from: THREE.Vector3; rotation: THREE.Quaternion }>();
+  let activeTurn: { name: string; lastTime: number } | null = null;
+  const screwAxis = new THREE.Vector3(0, 1, 0);
   const removed = (name: string) => state.removed.includes(name);
   const fanOff = () => removed('fan-assembly');
   const coolerOff = () => removed('cooler-assembly');
@@ -69,29 +72,54 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
       toRotation: rotation, start: performance.now(), screw, done };
     refresh(); changed();
   }
-  function screw(name: string) {
-    if (!ready() || state.moving || state.heldPart) return;
-    if (!toolHeld()) { notify('Pick up the screwdriver to remove or refit a screw.'); return; }
-    const part = parts.get(name)!;
+  function beginScrew(name: string) {
+    if (!ready() || state.moving || state.heldPart || activeTurn) return false;
+    if (!toolHeld()) { notify('Pick up the screwdriver to remove or refit a screw.'); return false; }
+    const part = parts.get(name);
+    if (!part || !name.includes('screw')) return false;
     const fanScrew = name.startsWith('fan-');
     const reinstall = removed(name);
     if (reinstall && (fanScrew ? fanOff() : coolerOff())) {
-      notify(`Refit the ${fanScrew ? 'fan' : 'cooler'} before tightening its screws.`); return;
+      notify(`Refit the ${fanScrew ? 'fan' : 'cooler'} before tightening its screws.`); return false;
     }
     if (!reinstall && !fanScrew && cableConnected()) {
-      notify('Unplug the fan cable before removing the rear cooler screws.'); return;
+      notify('Unplug the fan cable before removing the rear cooler screws.'); return false;
     }
-    if (reinstall) {
-      scene.attach(part.object);
-      part.parent.updateWorldMatrix(true, false);
-      const target = part.parent.localToWorld(part.position.clone());
-      const rotation = part.parent.getWorldQuaternion(new THREE.Quaternion()).multiply(part.rotation);
-      animate(part.object, target, rotation, true, () => {
-        part.parent.add(part.object); part.object.position.copy(part.position);
-        part.object.quaternion.copy(part.rotation); part.object.scale.copy(part.scale);
-        state.removed = state.removed.filter(item => item !== name);
-        notify(`${fanScrew ? 'Fan' : 'Cooler'} screw refitted.`);
-      });
+    if (!turns.has(name)) {
+      if (reinstall) scene.attach(part.object);
+      turns.set(name, { progress: 0, reinstall, from: part.object.position.clone(), rotation: part.object.quaternion.clone() });
+    }
+    activeTurn = { name, lastTime: performance.now() };
+    state.moving = true;
+    sound.startUnscrew();
+    refresh(); changed();
+    notify(`Hold to ${reinstall ? 'tighten' : 'remove'} ${fanScrew ? 'fan' : 'cooler'} screw ${name.slice(-1)}.`);
+    return true;
+  }
+  function endScrew() {
+    if (!activeTurn) return;
+    const { name } = activeTurn;
+    activeTurn = null;
+    state.moving = false;
+    sound.stopUnscrew();
+    const turn = turns.get(name);
+    refresh(); changed();
+    if (turn) notify(`${Math.round(turn.progress * 100)}% ${turn.reinstall ? 'tightened' : 'removed'} · hold the screw to continue.`);
+  }
+  function completeScrew(name: string) {
+    const part = parts.get(name)!;
+    const turn = turns.get(name)!;
+    activeTurn = null;
+    turns.delete(name);
+    sound.stopUnscrew();
+    const fanScrew = name.startsWith('fan-');
+    if (turn.reinstall) {
+      part.parent.add(part.object); part.object.position.copy(part.position);
+      part.object.quaternion.copy(part.rotation); part.object.scale.copy(part.scale);
+      state.removed = state.removed.filter(item => item !== name);
+      state.moving = false;
+      refresh(); changed();
+      notify(`${fanScrew ? 'Fan' : 'Cooler'} screw refitted.`);
     } else {
       state.removed.push(name);
       scene.attach(part.object);
@@ -99,9 +127,8 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
       // Separate labelled rows keep every screw reachable and associated with its original hole.
       animate(part.object, new THREE.Vector3(3.1 + index * .48, .20, fanScrew ? 3.38 : 4.12),
         new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI / 2)), true,
-        () => notify(`${fanScrew ? 'Fan' : 'Cooler'} screw ${index + 1} in the parts tray. Click it with the screwdriver to refit.`));
+        () => notify(`${fanScrew ? 'Fan' : 'Cooler'} screw ${index + 1} in the parts tray. Hold it with the screwdriver to refit.`));
     }
-    sound.play('unscrew');
   }
   function assembly(name: string) {
     if (!ready() || state.moving || state.heldPart) return;
@@ -158,11 +185,30 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
   button.addEventListener('click', refit); fanButton.addEventListener('click', liftFan);
   refresh();
   return {
-    state, screw, assembly, place, refit, removed,
+    state, beginScrew, endScrew, assembly, place, refit, removed,
     canConnect: () => !fanOff() && !coolerOff() && !state.moving,
     looseObjects: () => [...parts.values()].map(p => p.object).filter(o => removed(o.name)),
     update(now: number) {
-      if (!motion) return false;
+      if (activeTurn) {
+        const { name } = activeTurn;
+        const part = parts.get(name)!;
+        const turn = turns.get(name)!;
+        turn.progress = Math.min(1, turn.progress + Math.max(0, now - activeTurn.lastTime) / 1500);
+        activeTurn.lastTime = now;
+        if (turn.reinstall) {
+          part.parent.updateWorldMatrix(true, false);
+          part.object.position.lerpVectors(turn.from, part.parent.localToWorld(part.position.clone()), turn.progress);
+          part.object.position.y += Math.sin(Math.PI * turn.progress) * .35;
+          part.object.quaternion.slerpQuaternions(turn.rotation,
+            part.parent.getWorldQuaternion(new THREE.Quaternion()).multiply(part.rotation), turn.progress);
+          part.object.rotateY(-Math.PI * 6 * turn.progress);
+        } else {
+          part.object.position.copy(part.position).addScaledVector(screwAxis, .34 * turn.progress);
+          part.object.quaternion.copy(part.rotation).multiply(new THREE.Quaternion().setFromAxisAngle(screwAxis, Math.PI * 6 * turn.progress));
+        }
+        if (turn.progress === 1) completeScrew(name);
+      }
+      if (!motion) return Boolean(activeTurn);
       const t = reducedMotion ? 1 : Math.min((now - motion.start) / (motion.screw ? 680 : 450), 1);
       const ease = t * t * (3 - 2 * t);
       motion.object.position.lerpVectors(motion.from, motion.to, ease);
@@ -175,6 +221,6 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
       }
       return Boolean(motion);
     },
-    dispose() { button.removeEventListener('click', refit); fanButton.removeEventListener('click', liftFan); },
+    dispose() { endScrew(); button.removeEventListener('click', refit); fanButton.removeEventListener('click', liftFan); },
   };
 }

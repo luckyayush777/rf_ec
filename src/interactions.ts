@@ -49,10 +49,10 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
       ? 'Assembly lifted · click a clear spot on the desk to place · Esc to refit'
       : inspection.state.held
       ? state.equippedTool === 'screwdriver'
-        ? 'GPU held · drag to expose screws · click a screw to remove / refit · Esc to set down'
+        ? 'GPU held · drag to expose screws · hold a screw to remove / refit · Esc to set down'
         : `GPU held · drag to rotate · equip screwdriver to service screws · click cable to ${inspection.state.cableConnected ? 'unplug' : 'reconnect'}`
       : inspection.state.moving ? 'Setting the GPU down…' : state.equippedTool === 'screwdriver'
-      ? 'Screwdriver held · click a screw to remove / refit · click the desk to place'
+      ? 'Screwdriver held · hold a screw to remove / refit · click the desk to place'
       : state.open ? 'Click the screwdriver to pick it up · click the box to close'
       : state.tool === 'desk' ? 'Click the screwdriver to pick it up' : 'Click the GPU to inspect · click the toolbox to open';
     toolboxButton.textContent = state.open ? 'Close toolbox' : 'Open toolbox';
@@ -139,7 +139,7 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
         scene.getObjectByName('desk-light')!, scene.getObjectByName('parts-tray')!, ...repair.looseObjects()]);
       return;
     }
-    if (result?.action === 'screw' && result.target) repair.screw(result.target.name);
+    if (result?.action === 'screw') return;
     else if (result?.action === 'assembly' && result.target) {
       const name = result.target.name;
       const screwsLeft = Array.from({ length: 4 }, (_, i) => `${name === 'fan-assembly' ? 'fan' : 'cooler'}-screw-${i + 1}`).some(id => !repair.removed(id));
@@ -175,14 +175,25 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
   }
 
   const pointers = new Set<number>();
-  let press: { x: number; y: number; lastX: number; lastY: number; moved: boolean } | null = null;
+  let press: { x: number; y: number; lastX: number; lastY: number; moved: boolean;
+    screw: boolean; restoreControls: boolean } | null = null;
+  function finishScrew() {
+    if (!press?.screw) return;
+    repair.endScrew();
+    if (press.restoreControls) controls.enabled = true;
+  }
   function down(event: PointerEvent) {
     sound.unlock();
     hover(event.clientX, event.clientY);
     pointers.add(event.pointerId);
-    if (pointers.size > 1) { if (press) press.moved = true; return; }
-    if (inspection.state.held && event.button === 0) canvas.setPointerCapture(event.pointerId);
-    press = event.button === 0 ? { x: event.clientX, y: event.clientY, lastX: event.clientX, lastY: event.clientY, moved: false } : null;
+    if (pointers.size > 1) { if (press) { finishScrew(); press.moved = true; } return; }
+    const result = event.button === 0 ? hitAt(event.clientX, event.clientY) : null;
+    const screw = result?.action === 'screw' && Boolean(result.target);
+    const restoreControls = screw && repair.beginScrew(result!.target!.name) && controls.enabled;
+    if (restoreControls) controls.enabled = false;
+    if ((inspection.state.held || screw) && event.button === 0) canvas.setPointerCapture(event.pointerId);
+    press = event.button === 0 ? { x: event.clientX, y: event.clientY, lastX: event.clientX, lastY: event.clientY,
+      moved: false, screw, restoreControls } : null;
   }
   let hoverPoint: { x: number; y: number } | null = null;
   let lastHover = 0;
@@ -200,7 +211,7 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
   function move(event: PointerEvent) {
     hoverPoint = { x: event.clientX, y: event.clientY };
     if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 6) press.moved = true;
-    if (press && pointers.size === 1 && inspection.state.held && press.moved) {
+    if (press && !press.screw && pointers.size === 1 && inspection.state.held && press.moved) {
       inspection.rotate(event.clientX - press.lastX, event.clientY - press.lastY);
     }
     if (press) { press.lastX = event.clientX; press.lastY = event.clientY; }
@@ -208,14 +219,17 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
     hover(event.clientX, event.clientY);
   }
   function up(event: PointerEvent) {
-    const activate = pointers.size === 1 && press && !press.moved && Math.hypot(event.clientX - press.x, event.clientY - press.y) <= 6;
+    const activate = pointers.size === 1 && press && !press.screw && !press.moved && Math.hypot(event.clientX - press.x, event.clientY - press.y) <= 6;
+    finishScrew();
     pointers.delete(event.pointerId); press = null;
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
     if (activate) click(event.clientX, event.clientY);
   }
-  function cancel(event: PointerEvent) { pointers.delete(event.pointerId); press = null; }
+  function cancel(event: PointerEvent) { finishScrew(); pointers.delete(event.pointerId); press = null; }
+  function blur() { finishScrew(); pointers.clear(); press = null; }
   function key(event: KeyboardEvent) {
     if (event.key === 'Escape') {
+      if (press?.screw) { finishScrew(); press.moved = true; return; }
       if (repair.state.heldPart) repair.refit(); else if (inspection.state.held) inspection.putDown(); else returnTool();
     }
   }
@@ -225,10 +239,14 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
   canvas.addEventListener('pointercancel', cancel);
   canvas.addEventListener('pointerleave', leave);
   window.addEventListener('keydown', key);
+  window.addEventListener('blur', blur);
+  document.addEventListener('visibilitychange', onVisibilityChange);
   toolboxButton.addEventListener('click', toggleBox);
   returnButton.addEventListener('click', returnTool);
   equipButton.addEventListener('click', equipTool);
   message();
+
+  function onVisibilityChange() { if (document.hidden) blur(); }
 
   return {
     state, inspection, repair,
@@ -272,6 +290,7 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
       canvas.removeEventListener('pointerdown', down); canvas.removeEventListener('pointermove', move);
       canvas.removeEventListener('pointerup', up); canvas.removeEventListener('pointercancel', cancel);
       window.removeEventListener('keydown', key); toolboxButton.removeEventListener('click', toggleBox);
+      window.removeEventListener('blur', blur); document.removeEventListener('visibilitychange', onVisibilityChange);
       returnButton.removeEventListener('click', returnTool);
       equipButton.removeEventListener('click', equipTool);
     },

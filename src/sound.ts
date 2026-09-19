@@ -3,6 +3,7 @@ export class WorkbenchSound {
   private context?: AudioContext;
   private master?: GainNode;
   private noise?: AudioBuffer;
+  private screwSound?: { noise: AudioBufferSourceNode; tone: OscillatorNode; gain: GainNode; toneGain: GainNode };
   muted = false;
   played = 0;
   lastEffect = '';
@@ -27,7 +28,45 @@ export class WorkbenchSound {
     if (this.master && this.context) this.master.gain.setTargetAtTime(muted ? 0 : .45, this.context.currentTime, .015);
   }
 
-  play(effect: 'open' | 'close' | 'pickup' | 'place' | 'unplug' | 'plug' | 'unscrew') {
+  startUnscrew() {
+    if (this.screwSound) return;
+    this.unlock();
+    const ctx = this.context;
+    if (!ctx || !this.master || !this.noise) return;
+    this.played++; this.lastEffect = 'unscrew';
+    const noise = ctx.createBufferSource();
+    const filter = ctx.createBiquadFilter();
+    const gain = ctx.createGain();
+    const tone = ctx.createOscillator();
+    const toneGain = ctx.createGain();
+    noise.buffer = this.noise; noise.loop = true;
+    filter.type = 'bandpass'; filter.frequency.value = 1500; filter.Q.value = 1.2;
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(.11, ctx.currentTime + .025);
+    tone.type = 'triangle'; tone.frequency.value = 115;
+    toneGain.gain.value = .012;
+    noise.connect(filter); filter.connect(gain); gain.connect(this.master);
+    tone.connect(toneGain); toneGain.connect(this.master);
+    noise.start(); tone.start();
+    this.screwSound = { noise, tone, gain, toneGain };
+  }
+
+  stopUnscrew() {
+    const sound = this.screwSound;
+    if (!sound || !this.context) return;
+    this.screwSound = undefined;
+    const now = this.context.currentTime;
+    sound.gain.gain.cancelScheduledValues(now);
+    sound.gain.gain.setValueAtTime(sound.gain.gain.value, now);
+    sound.gain.gain.linearRampToValueAtTime(0, now + .025);
+    sound.toneGain.gain.setTargetAtTime(0, now, .008);
+    sound.noise.stop(now + .035); sound.tone.stop(now + .035);
+    sound.noise.onended = () => {
+      sound.noise.disconnect(); sound.tone.disconnect(); sound.gain.disconnect(); sound.toneGain.disconnect();
+    };
+  }
+
+  play(effect: 'open' | 'close' | 'pickup' | 'place' | 'unplug' | 'plug') {
     this.unlock();
     const ctx = this.context;
     if (!ctx || !this.master || !this.noise || this.muted) return;
@@ -54,9 +93,7 @@ export class WorkbenchSound {
       source.start(start + delay); source.stop(start + delay + duration);
       source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect(); };
     };
-    if (effect === 'unscrew') {
-      for (let i = 0; i < 5; i++) { friction(i * .11, .065, 1600, .18); tone(i * .11, 520, .04, .025); }
-    } else if (effect === 'open') {
+    if (effect === 'open') {
       // Latch releases immediately; quiet hinge friction follows the 550 ms lid motion.
       friction(0, .065, 2300, .6); tone(.009, 870, .10, .1);
       friction(.06, .40, 600, .16, .04); tone(.43, 160, .1, .09);
@@ -73,5 +110,5 @@ export class WorkbenchSound {
   }
 
   get state() { return this.context?.state ?? 'uninitialized'; }
-  dispose() { if (this.context) void this.context.close(); }
+  dispose() { this.stopUnscrew(); if (this.context) void this.context.close(); }
 }
