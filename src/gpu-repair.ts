@@ -20,6 +20,31 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
       rotation: object.quaternion.clone(), scale: object.scale.clone(),
       upright: object.getWorldQuaternion(new THREE.Quaternion()) }];
   }));
+  const holeMaterial = new THREE.MeshStandardMaterial({ color: '#111a1b', metalness: .2, roughness: .85 });
+  const holeRimMaterial = new THREE.MeshStandardMaterial({ color: '#9ca5a4', metalness: .7, roughness: .4 });
+  const holeGeometry = new THREE.CircleGeometry(.059, 32);
+  const holeRimGeometry = new THREE.RingGeometry(.057, .092, 32);
+  const coolerHoles: THREE.Group[] = [];
+  for (let i = 1; i <= 4; i++) {
+    const name = `cooler-screw-${i}`;
+    const part = parts.get(name)!;
+    const outward = new THREE.Vector3(0, 1, 0).applyQuaternion(part.rotation);
+    const hole = new THREE.Group();
+    hole.name = `${name}-hole`;
+    hole.position.copy(part.position).addScaledVector(outward, -.052);
+    hole.quaternion.copy(part.rotation);
+    const recess = new THREE.Mesh(holeGeometry, holeMaterial);
+    recess.rotation.x = -Math.PI / 2;
+    recess.position.y = .002;
+    recess.userData.noHighlight = true;
+    const rim = new THREE.Mesh(holeRimGeometry, holeRimMaterial);
+    rim.rotation.x = -Math.PI / 2;
+    rim.position.y = .004;
+    rim.userData.noHighlight = true;
+    hole.add(recess, rim);
+    part.parent.add(hole);
+    coolerHoles.push(hole);
+  }
   const plug = gpu.getObjectByName('fan-plug')!;
   const wireMeshes = ['fan-positive-wire', 'fan-ground-wire'].map(name => gpu.getObjectByName(name) as THREE.Mesh<THREE.BufferGeometry>);
   let looseCable: { plug: THREE.Vector3; wires: Float32Array[] } | null = null;
@@ -203,7 +228,8 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
             part.parent.getWorldQuaternion(new THREE.Quaternion()).multiply(part.rotation), turn.progress);
           part.object.rotateY(-Math.PI * 6 * turn.progress);
         } else {
-          part.object.position.copy(part.position).addScaledVector(screwAxis, .34 * turn.progress);
+          const outward = screwAxis.clone().applyQuaternion(part.rotation);
+          part.object.position.copy(part.position).addScaledVector(outward, .34 * turn.progress);
           part.object.quaternion.copy(part.rotation).multiply(new THREE.Quaternion().setFromAxisAngle(screwAxis, Math.PI * 6 * turn.progress));
         }
         if (turn.progress === 1) completeScrew(name);
@@ -221,6 +247,11 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
       }
       return Boolean(motion);
     },
-    dispose() { endScrew(); button.removeEventListener('click', refit); fanButton.removeEventListener('click', liftFan); },
+    dispose() {
+      endScrew();
+      button.removeEventListener('click', refit); fanButton.removeEventListener('click', liftFan);
+      coolerHoles.forEach(hole => hole.removeFromParent());
+      holeGeometry.dispose(); holeRimGeometry.dispose(); holeMaterial.dispose(); holeRimMaterial.dispose();
+    },
   };
 }

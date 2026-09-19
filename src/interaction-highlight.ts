@@ -17,7 +17,7 @@ export function createInteractionHighlight() {
     if (object === target) return;
     clear(); target = object;
     object?.traverse(child => {
-      if (!(child instanceof THREE.Mesh) || !child.visible) return;
+      if (!(child instanceof THREE.Mesh) || !child.visible || child.userData.noHighlight) return;
       const materials = Array.isArray(child.material) ? child.material : [child.material];
       if (!materials.some(material => material.visible)) return;
       originals.set(child, child.material);
