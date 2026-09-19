@@ -19,13 +19,15 @@
         <span><output id="fps" aria-label="Rendered frames per second">—</output> <small>FPS</small></span>
         <button id="mute-sound" type="button" aria-pressed="false" title="Toggle sound">Sound on</button>
       </aside>
-      <div id="repair-progress" class="repair-progress" aria-live="polite"></div>
-      <div class="inspection-controls">
-        <button id="inspect-gpu" type="button">Inspect GPU</button>
-        <button id="remove-fan" type="button">Lift fan</button>
-        <button id="return-part" type="button" hidden>Refit fan</button>
-        <button id="toggle-cable" type="button" aria-pressed="false" hidden>Unplug cable</button>
-        <button id="return-gpu" type="button" hidden>Set GPU down</button>
+      <div class="action-stack">
+        <div id="repair-progress" class="repair-progress" aria-live="polite"></div>
+        <div class="inspection-controls">
+          <button id="inspect-gpu" type="button">Inspect GPU</button>
+          <button id="remove-fan" type="button">Lift fan</button>
+          <button id="return-part" type="button" hidden>Refit fan</button>
+          <button id="toggle-cable" type="button" aria-pressed="false" hidden>Unplug cable</button>
+          <button id="return-gpu" type="button" hidden>Set GPU down</button>
+        </div>
       </div>
       <footer class="bottom-bar">
         <div class="interaction-hint">

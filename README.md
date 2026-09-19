@@ -36,6 +36,29 @@ npm run preview -- --port 4173
 
 Open **http://127.0.0.1:4173/**. The production site is in `dist/` and can be hosted statically; `preview` is a local preview server.
 
+## Share a browser version with testers
+
+The repository includes a GitHub Actions workflow that builds and publishes the app to GitHub Pages. Your friends only need the HTTPS link and a phone browser with WebGL 2. There is no app installation, account, or backend setup.
+
+1. In the [rf_ec repository](https://github.com/luckyayush777/rf_ec), open **Settings → Pages** and set **Build and deployment → Source** to **GitHub Actions**.
+2. Commit the changes and push `main` to `origin`:
+
+   ```sh
+   git add .github/workflows/deploy.yml README.md index.html src/style.css src/main.ts src/interactions.ts src/gpu-repair.ts
+   git commit -m "Prepare browser deployment"
+   git push origin main
+   ```
+
+3. Watch **Actions → Deploy to GitHub Pages** for a successful run. Then open `https://luckyayush777.github.io/rf_ec/` on your phone and share that link. GitHub also shows the live address under **Settings → Pages**. Later pushes to `main` publish updates automatically.
+
+The workflow runs `npm ci`, tests, and a production build with the `/rf_ec/` asset path. The built files in `dist/` are the only files published. [Vite's GitHub Pages guide](https://vite.dev/guide/static-deploy#github-pages) explains the required path, and [GitHub's Pages setup guide](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site) covers the repository setting.
+
+To check that exact build locally before pushing, run `npm run build -- --base /rf_ec/` and then `npm run preview -- --base /rf_ec/`. Open the `/rf_ec/` URL Vite prints. The build and preview base paths must match.
+
+GitHub Pages sites are publicly accessible. On GitHub Free, the repository must also be public to use Pages. If you want to keep the repository private on that plan, import it into Netlify instead: use `npm run build` as the build command and `dist` as the publish directory, then share the HTTPS URL Netlify gives you. The GitHub Pages workflow's `/rf_ec/` path applies only to its own build. See [Vite's Netlify instructions](https://vite.dev/guide/static-deploy#netlify).
+
+Before sending the link around, check one Android and one iPhone browser if available: load the scene, tap **Inspect GPU**, open the toolbox, equip the screwdriver, rotate and zoom, and turn sound on or off. Ask testers what they tried first and where they got stuck. The app does not currently collect analytics or feedback automatically.
+
 ## Model
 
 Use `npm run model:build` to generate `models/gpu.blend` and the browser asset `src/assets/gpu.glb`. Edit and save the `.blend` file in Blender, then run `npm run model:export` to update the viewer without rebuilding your model. Blender 4.5 LTS or newer is required for these commands.

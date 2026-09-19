@@ -38,19 +38,20 @@ button{font:inherit}
 .performance-panel button,.inspection-controls button{border:1px solid #ffffff24;border-radius:6px;padding:9px 12px;background:#23252ce8;color:#e0e2e8;cursor:pointer;font-size:11px}
 .performance-panel button:hover,.inspection-controls button:hover{background:#393d46}
 .performance-panel button:focus-visible,.inspection-controls button:focus-visible{outline:2px solid #f4c995;outline-offset:3px}
-.inspection-controls{position:absolute;bottom:125px;left:50%;transform:translateX(-50%);display:flex;gap:8px;white-space:nowrap}
+.action-stack{position:absolute;bottom:125px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:10px;max-width:94%;width:max-content}
+.inspection-controls{display:flex;gap:8px;white-space:nowrap}
 .inspection-controls [hidden]{display:none}
 .view-controls button:disabled{opacity:.4;cursor:default}
 @media(max-width:900px){.interaction-status{max-width:65%;left:4.3%;transform:none}.performance-panel{right:4.3%}}
-@media(max-width:640px){.performance-panel{top:16px}.performance-panel>span{font-size:15px;min-width:78px}.performance-panel button{font-size:10px}.inspection-controls{bottom:148px}}
+@media(max-width:640px){.performance-panel{top:16px}.performance-panel>span{font-size:15px;min-width:78px}.performance-panel button{font-size:10px}}
 @media(max-width:1000px){.footer-caption{display:none}.interaction-hint{width:auto}}
 @media(max-width:800px){.interaction-hint{display:none}}
 @media(max-width:640px){.bottom-bar{left:6%;right:6%;height:130px;flex-direction:column-reverse;justify-content:center;gap:12px}.view-button{padding:9px 16px}.view-controls{padding:4px}.interaction-status{font-size:11px;width:max-content;top:16px}.tool-controls button{padding:8px 12px}}
 @media(max-height:600px) and (min-width:641px){.bottom-bar{height:76px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 
-.repair-progress{padding:6px 10px;border-radius:5px;background:#202329dc;position:absolute;bottom:174px;left:50%;transform:translateX(-50%);font-size:11px;color:#d6d8dd;text-align:center;max-width:90%;pointer-events:none}
-.inspection-controls{flex-wrap:wrap;justify-content:center;max-width:94%;width:max-content}
+.repair-progress{padding:6px 10px;border-radius:5px;background:#202329dc;font-size:11px;color:#d6d8dd;text-align:center;max-width:100%;pointer-events:none}
+.inspection-controls{flex-wrap:wrap;justify-content:center;max-width:100%;width:max-content}
 .inspection-controls button:disabled{opacity:.45;cursor:default}
 .equipment-panel{position:absolute;top:88px;left:4.3%;display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:11px 13px;border:1px solid #ffffff24;border-radius:7px;background:#202329ed;font-size:11px;color:#b7bbc5}
 .equipment-panel strong{color:#f3d9b9;font-weight:600}
@@ -60,4 +61,16 @@ button{font:inherit}
 .equipment-panel button:disabled{opacity:.45;cursor:default}
 .equipment-panel button[hidden]{display:none}
 @media(max-width:640px){.equipment-panel{top:108px;font-size:10px;max-width:90%}}
-@media(max-width:640px){.inspection-controls{bottom:148px;max-width:90%}.repair-progress{bottom:238px;font-size:10px;width:90%}}
+@media(max-width:640px){
+  #app{min-height:0}
+  .bottom-bar{height:144px;padding-bottom:env(safe-area-inset-bottom)}
+  .action-stack{bottom:calc(158px + env(safe-area-inset-bottom));max-width:94%}
+  .inspection-controls button,.tool-controls button,.view-controls button,.equipment-panel button,.performance-panel button{min-height:44px}
+  .reset-button{width:44px;height:44px}
+  .repair-progress{font-size:10px}
+}
+@media(max-height:450px) and (orientation:landscape){
+  #app{min-height:0}
+  .equipment-panel{top:56px}
+  .action-stack{bottom:80px}
+}

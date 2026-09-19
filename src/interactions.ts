@@ -15,6 +15,7 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
   const returnButton = document.querySelector<HTMLButtonElement>('#return-tool')!;
   const equipButton = document.querySelector<HTMLButtonElement>('#equip-tool')!;
   const equippedLabel = document.querySelector<HTMLElement>('#equipped-tool')!;
+  const touchInput = window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 640;
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const state = {
@@ -49,7 +50,7 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
   }
 
   function message() {
-    status.textContent = repair.state.heldPart
+    const desktopMessage = repair.state.heldPart
       ? 'Assembly lifted · click a clear spot on the desk to place · Esc to refit'
       : inspection.state.held
       ? state.equippedTool === 'screwdriver'
@@ -59,6 +60,17 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
       ? 'Screwdriver held · hold a screw to remove / refit · click the desk to place'
       : state.open ? 'Click the screwdriver to pick it up · click the box to close'
       : state.tool === 'desk' ? 'Click the screwdriver to pick it up' : 'Click the GPU to inspect · click the toolbox to open';
+    const touchMessage = repair.state.heldPart
+      ? 'Part lifted · tap a clear spot on the desk to place · use Refit to return'
+      : inspection.state.held
+      ? state.equippedTool === 'screwdriver'
+        ? 'Drag GPU to find screws · hold a screw to turn · use Set GPU down to return'
+        : `Drag GPU to rotate · tap cable to ${inspection.state.cableConnected ? 'unplug' : 'reconnect'} · equip screwdriver for screws`
+      : inspection.state.moving ? 'Setting the GPU down…' : state.equippedTool === 'screwdriver'
+      ? 'Hold a screw to turn · tap the desk to place the screwdriver'
+      : state.open ? 'Tap the screwdriver to pick it up · tap the box to close'
+      : state.tool === 'desk' ? 'Tap the screwdriver to pick it up' : 'Tap the GPU to inspect · tap the toolbox to open';
+    status.textContent = touchInput ? touchMessage : desktopMessage;
     toolboxButton.textContent = state.open ? 'Close toolbox' : 'Open toolbox';
     toolboxButton.setAttribute('aria-expanded', String(state.open));
     returnButton.hidden = state.tool === 'toolbox';

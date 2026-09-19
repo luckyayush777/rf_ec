@@ -10,11 +10,12 @@ import { WorkbenchSound } from './sound';
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const viewButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-view]')];
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const touchInput = window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 640;
 
 async function start() {
 try {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, touchInput ? 1.5 : 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -58,7 +59,7 @@ try {
   const key = new THREE.DirectionalLight('#fff3e2', 2.3);
   key.position.set(-5, 11, 6);
   key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.mapSize.set(touchInput ? 1024 : 2048, touchInput ? 1024 : 2048);
   key.shadow.camera.left = -11;
   key.shadow.camera.right = 11;
   key.shadow.camera.top = 9;
@@ -133,8 +134,9 @@ try {
   }
 
   function resize() {
-    const width = window.innerWidth, height = window.innerHeight;
-    renderer.setSize(width, height);
+    const width = canvas.clientWidth || window.innerWidth;
+    const height = canvas.clientHeight || window.innerHeight;
+    renderer.setSize(width, height, false);
     camera.aspect = width / height;
     camera.clearViewOffset();
     camera.fov = width <= 640 ? 43 : 35;
@@ -186,6 +188,7 @@ try {
     cancelAnimationFrame(frame);
     frame = 0;
     disposed = true;
+    document.querySelector('#interaction-status')!.textContent = 'The graphics connection was interrupted. Reload the page to reopen the workbench.';
     console.error('The graphics connection was interrupted. Reload to reopen the workbench.');
   });
 
@@ -222,6 +225,7 @@ try {
   });
 } catch (cause) {
   console.error(cause);
+  document.querySelector('#interaction-status')!.textContent = 'The workbench could not load. Reload the page to try again.';
 }
 }
 

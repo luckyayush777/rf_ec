@@ -80,6 +80,7 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
   const button = document.querySelector<HTMLButtonElement>('#return-part')!;
   const fanButton = document.querySelector<HTMLButtonElement>('#remove-fan')!;
   const progress = document.querySelector<HTMLElement>('#repair-progress')!;
+  const touchInput = window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 640;
   let motion: { object: THREE.Object3D; from: THREE.Vector3; to: THREE.Vector3;
     rotation: THREE.Quaternion; toRotation: THREE.Quaternion; start: number; screw: boolean;
     done: () => void } | null = null;
@@ -191,7 +192,7 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
     setGPUDown();
     state.heldPart = name;
     const target = part.object.position.clone().add(new THREE.Vector3(0, 1.2, 0));
-    animate(part.object, target, part.upright, false, () => notify(`${name === 'fan-assembly' ? 'Fan and cable' : 'Cooler'} lifted · click a clear spot on the desk to place · Esc to refit`));
+    animate(part.object, target, part.upright, false, () => notify(`${name === 'fan-assembly' ? 'Fan and cable' : 'Cooler'} lifted · ${touchInput ? 'tap' : 'click'} a clear spot on the desk to place · ${touchInput ? 'use Refit to return' : 'Esc to refit'}`));
     sound.play('pickup');
   }
   function place(point: THREE.Vector3, obstacles: THREE.Object3D[]) {
@@ -206,7 +207,7 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
       notify('Choose a clear spot with room for the whole assembly and its cable.'); return;
     }
     animate(part.object, part.object.position.clone().add(offset), part.upright, false, () => {
-      state.heldPart = null; sound.play('place'); notify('Assembly on the desk · click to pick up, or use Refit to reconnect it to its mounts.');
+      state.heldPart = null; sound.play('place'); notify(`Assembly on the desk · ${touchInput ? 'tap' : 'click'} to pick up, or use Refit to reconnect it to its mounts.`);
     });
   }
   function refit() {
