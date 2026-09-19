@@ -4,8 +4,8 @@ import type { PartMetadata } from './gpu';
 import { createServiceRules, gpuServiceExceptions, type ServiceAction, type ServicePart } from './service-rules';
 
 /** Keeps the original parent and local transform so servicing never accumulates drift. */
-export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: WorkbenchSound,
-  reducedMotion: boolean, isConnected: (part: string) => boolean, toolHeld: () => boolean,
+export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, camera: THREE.PerspectiveCamera, sound: WorkbenchSound,
+  reducedMotion: boolean, isConnected: (part: string) => boolean, equippedTool: () => 'screwdriver' | 'blower' | null,
   ready: () => boolean, setGPUDown: () => void, notify: (text: string) => void, changed: () => void,
   focused: () => boolean) {
   const state = { heldPart: null as string | null, moving: false, removed: [] as string[], stored: [] as string[] };
@@ -81,6 +81,7 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
   }
   const button = document.querySelector<HTMLButtonElement>('#return-part')!;
   const fanButton = document.querySelector<HTMLButtonElement>('#remove-fan')!;
+  const coolerButton = document.querySelector<HTMLButtonElement>('#remove-cooler')!;
   const progress = document.querySelector<HTMLElement>('#repair-progress')!;
   let motion: { object: THREE.Object3D; from: THREE.Vector3; to: THREE.Vector3;
     rotation: THREE.Quaternion; toRotation: THREE.Quaternion; start: number; screw: boolean;
@@ -108,7 +109,7 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
   }
   const service = createServiceRules(serviceParts, gpuServiceExceptions);
   const check = (action: ServiceAction) => service.check(action, {
-    isRemoved: removed, isConnected, toolHeld: toolHeld(),
+    isRemoved: removed, isConnected, equippedTool: equippedTool(),
   });
 
   function refresh() {
@@ -118,8 +119,9 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
     const next = state.heldPart ?? (coolerOff() ? 'cooler-assembly' : 'fan-assembly');
     button.textContent = `Refit ${next === 'fan-assembly' ? 'fan' : 'cooler'}`;
     button.disabled = state.moving;
-    fanButton.textContent = state.stored.includes('fan-assembly') ? 'Fan stored' : fanOff() ? 'Pick up fan' : 'Lift fan';
-    fanButton.disabled = state.moving || Boolean(state.heldPart) || state.stored.includes('fan-assembly');
+    fanButton.textContent = fanOff() ? 'Pick up fan' : 'Lift fan';
+    coolerButton.textContent = coolerOff() ? 'Pick up cooler' : 'Lift cooler';
+    fanButton.disabled = coolerButton.disabled = state.moving || Boolean(state.heldPart);
   }
   function animate(object: THREE.Object3D, to: THREE.Vector3, rotation: THREE.Quaternion, screw: boolean, done: () => void) {
     state.moving = true;
@@ -185,27 +187,46 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
   }
   function assembly(name: string) {
     if (!ready() || state.moving || state.heldPart) return;
-    if (state.stored.includes(name)) { notify('This part is stored. Use Refit to return it.'); return; }
     const part = parts.get(name)!;
     const decision = check({ kind: removed(name) ? 'pickup' : 'remove', part: name });
     if (!decision.allowed) { notify(decision.reason); return; }
     if (!removed(name)) {
       state.removed.push(name);
     }
+    const wasStored = state.stored.includes(name);
+    state.stored = state.stored.filter(id => id !== name);
+    part.object.visible = true;
     scene.attach(part.object);
     if (name === 'fan-assembly') settleCable(true);
     setGPUDown();
     state.heldPart = name;
-    const target = part.object.position.clone().add(new THREE.Vector3(0, 1.2, 0));
-    animate(part.object, target, part.upright, false, () => notify(focused()
-      ? `${name === 'fan-assembly' ? 'Fan and cable' : 'Cooler'} lifted · Store part to set it aside, or Refit to return it.`
+    const bounds = new THREE.Box3().setFromObject(part.object);
+    heldCenter.copy(part.object.worldToLocal(bounds.getCenter(new THREE.Vector3())));
+    heldRadius = bounds.getBoundingSphere(new THREE.Sphere()).radius;
+    heldZoom = 1;
+    const rotation = camera.quaternion.clone().multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(.95, -.12, -.08)));
+    const target = heldPosition(rotation);
+    if (wasStored) part.object.position.copy(target).add(new THREE.Vector3(0, -.4, 0));
+    animate(part.object, target, rotation, false, () => notify(focused()
+      ? `${name === 'fan-assembly' ? 'Fan and cable' : 'Cooler'} held · drag to rotate, or equip the blower to clean it.`
       : `${name === 'fan-assembly' ? 'Fan and cable' : 'Cooler'} lifted · ${touchInput ? 'tap' : 'click'} a clear spot on the desk to place · ${touchInput ? 'use Refit to return' : 'Esc to refit'}`));
     sound.play('pickup');
+  }
+  const heldCenter = new THREE.Vector3();
+  let heldRadius = 2, heldZoom = 1;
+  function heldPosition(rotation: THREE.Quaternion) {
+    const distance = Math.max(7, heldRadius * 1.2 / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(1, camera.aspect))) * heldZoom;
+    return camera.localToWorld(new THREE.Vector3(0, -.1, -distance)).sub(heldCenter.clone().applyQuaternion(rotation));
   }
   function previewPlacement(point: THREE.Vector3, obstacles: THREE.Object3D[]) {
     if (!state.heldPart || state.moving) return null;
     const part = parts.get(state.heldPart)!;
+    // A held part may have been flipped for cleaning. Check its seated footprint.
+    const heldRotation = part.object.quaternion.clone();
+    part.object.quaternion.copy(part.upright);
     const bounds = new THREE.Box3().setFromObject(part.object);
+    part.object.quaternion.copy(heldRotation);
+    part.object.updateWorldMatrix(true, true);
     const offset = point.clone().sub(bounds.getCenter(new THREE.Vector3()));
     offset.y = point.y + .025 - bounds.min.y;
     const proposed = bounds.clone().translate(offset);
@@ -215,6 +236,7 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
   }
   function place(point: THREE.Vector3, obstacles: THREE.Object3D[]) {
     if (!ready()) return;
+    if (equippedTool()) { notify('Return the tool before placing the part.'); return; }
     const placement = previewPlacement(point, obstacles);
     if (!placement) return;
     if (!placement.allowed) { notify('Choose a clear spot with room for the whole assembly and its cable.'); return; }
@@ -225,6 +247,7 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
   }
   function storePart() {
     if (!state.heldPart || state.moving || !ready()) return;
+    if (equippedTool()) { notify('Return the tool before storing the part.'); return; }
     const name = state.heldPart;
     const part = parts.get(name)!.object;
     part.position.set(0, -100, 0);
@@ -233,7 +256,7 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
     state.heldPart = null;
     sound.play('place');
     refresh(); changed();
-    notify(`${name === 'fan-assembly' ? 'Fan' : 'Cooler'} stored · use Refit to return it.`);
+    notify(`${name === 'fan-assembly' ? 'Fan' : 'Cooler'} stored · pick it up again to clean it, or use Refit.`);
   }
   function nextRefittableScrew() {
     return [...coolerScrews, ...fanScrews].find(name => removed(name) && check({ kind: 'refit', part: name }).allowed) ?? null;
@@ -259,10 +282,20 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
       });
   }
   const liftFan = () => assembly('fan-assembly');
-  button.addEventListener('click', refit); fanButton.addEventListener('click', liftFan);
+  const liftCooler = () => assembly('cooler-assembly');
+  button.addEventListener('click', refit); fanButton.addEventListener('click', liftFan); coolerButton.addEventListener('click', liftCooler);
   refresh();
   return {
     state, beginScrew, endScrew, assembly, previewPlacement, place, storePart, nextRefittableScrew, refit, removed, check,
+    heldObject: () => state.heldPart ? parts.get(state.heldPart)!.object : null,
+    rotateHeld(dx: number, dy: number) {
+      if (!state.heldPart || state.moving || !ready()) return;
+      const object = parts.get(state.heldPart)!.object;
+      object.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion), dx * .009));
+      object.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), dy * .009));
+      object.quaternion.normalize();
+    },
+    zoomHeld(scale: number) { if (state.heldPart && !state.moving) heldZoom = THREE.MathUtils.clamp(heldZoom * scale, .5, 1.5); },
     looseObjects: () => [...parts.values()].map(p => p.object).filter(o => removed(o.name)),
     update(now: number) {
       if (activeTurn) {
@@ -285,7 +318,13 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
         }
         if (turn.progress === 1) completeScrew(name);
       }
-      if (!motion) return Boolean(activeTurn);
+      if (!motion) {
+        if (state.heldPart) {
+          const object = parts.get(state.heldPart)!.object;
+          object.position.copy(heldPosition(object.quaternion));
+        }
+        return Boolean(activeTurn);
+      }
       const t = reducedMotion ? 1 : Math.min((now - motion.start) / (motion.screw ? 680 : 450), 1);
       const ease = t * t * (3 - 2 * t);
       motion.object.position.lerpVectors(motion.from, motion.to, ease);
@@ -300,7 +339,7 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
     },
     dispose() {
       endScrew();
-      button.removeEventListener('click', refit); fanButton.removeEventListener('click', liftFan);
+      button.removeEventListener('click', refit); fanButton.removeEventListener('click', liftFan); coolerButton.removeEventListener('click', liftCooler);
       coolerHoles.forEach(hole => hole.removeFromParent());
       holeGeometry.dispose(); holeRimGeometry.dispose(); holeMaterial.dispose(); holeRimMaterial.dispose();
     },

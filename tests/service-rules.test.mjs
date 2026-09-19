@@ -13,9 +13,9 @@ function fixture(coolerScrewCount = 4) {
     ...coolerScrews.map(id => ({ id, kind: 'fastener', requires: [] })),
   ];
   const rules = createServiceRules(parts, gpuServiceExceptions);
-  function check(kind, part, { removed = [], cableConnected = true, toolHeld = false } = {}) {
+  function check(kind, part, { removed = [], cableConnected = true, equippedTool = null } = {}) {
     const removedSet = new Set(removed);
-    return rules.check({ kind, part }, { isRemoved: id => removedSet.has(id), isConnected: id => id === 'fan-plug' && cableConnected, toolHeld });
+    return rules.check({ kind, part }, { isRemoved: id => removedSet.has(id), isConnected: id => id === 'fan-plug' && cableConnected, equippedTool });
   }
   return { check, fanScrews, coolerScrews };
 }
@@ -23,11 +23,11 @@ function fixture(coolerScrewCount = 4) {
 test('tool and cable constraints are checked at the action boundary', () => {
   const { check } = fixture();
   assert.equal(check('remove', 'fan-screw-1').allowed, false);
-  assert.equal(check('remove', 'fan-screw-1', { toolHeld: true }).allowed, true);
-  assert.equal(check('remove', 'cooler-screw-1', { toolHeld: true }).allowed, false);
-  assert.deepEqual(check('remove', 'cooler-screw-1', { toolHeld: true }).missing, ['fan-plug']);
-  assert.equal(check('remove', 'cooler-screw-1', { toolHeld: true, cableConnected: false }).allowed, true);
-  assert.equal(check('disconnect', 'fan-plug', { toolHeld: true }).allowed, false);
+  assert.equal(check('remove', 'fan-screw-1', { equippedTool: 'screwdriver' }).allowed, true);
+  assert.equal(check('remove', 'cooler-screw-1', { equippedTool: 'screwdriver' }).allowed, false);
+  assert.deepEqual(check('remove', 'cooler-screw-1', { equippedTool: 'screwdriver' }).missing, ['fan-plug']);
+  assert.equal(check('remove', 'cooler-screw-1', { equippedTool: 'screwdriver', cableConnected: false }).allowed, true);
+  assert.equal(check('disconnect', 'fan-plug', { equippedTool: 'screwdriver' }).allowed, false);
   assert.equal(check('disconnect', 'fan-plug').allowed, true);
 });
 
@@ -37,15 +37,15 @@ test('assembly removal follows model requirements', () => {
   assert.deepEqual(check('remove', 'fan-assembly', { cableConnected: false }).missing, fanScrews);
   assert.equal(check('remove', 'fan-assembly', { cableConnected: false, removed: fanScrews }).allowed, true);
   assert.equal(check('remove', 'cooler-assembly', { cableConnected: false, removed: coolerScrews }).allowed, true);
-  assert.equal(check('remove', 'cooler-assembly', { cableConnected: false, removed: coolerScrews, toolHeld: true }).allowed, false);
+  assert.equal(check('remove', 'cooler-assembly', { cableConnected: false, removed: coolerScrews, equippedTool: 'screwdriver' }).allowed, false);
 });
 
 test('refit order follows assembly dependents and parent relationships', () => {
   const { check } = fixture();
   const removed = ['fan-assembly', 'cooler-assembly', 'fan-screw-1', 'cooler-screw-1'];
   assert.deepEqual(check('refit', 'fan-assembly', { removed }).missing, ['cooler-assembly']);
-  assert.deepEqual(check('refit', 'fan-screw-1', { removed, toolHeld: true }).missing, ['fan-assembly']);
-  assert.deepEqual(check('refit', 'cooler-screw-1', { removed, toolHeld: true }).missing, ['cooler-assembly']);
+  assert.deepEqual(check('refit', 'fan-screw-1', { removed, equippedTool: 'screwdriver' }).missing, ['fan-assembly']);
+  assert.deepEqual(check('refit', 'cooler-screw-1', { removed, equippedTool: 'screwdriver' }).missing, ['cooler-assembly']);
   assert.deepEqual(check('connect', 'fan-plug', { removed }).missing, ['cooler-assembly', 'fan-assembly']);
   assert.equal(check('refit', 'cooler-assembly', { removed }).allowed, true);
   assert.equal(check('refit', 'fan-assembly', { removed: ['fan-assembly'] }).allowed, true);
@@ -54,7 +54,7 @@ test('refit order follows assembly dependents and parent relationships', () => {
 
 test('a new cooler screw inherits assembly and cable requirements', () => {
   const { check, coolerScrews } = fixture(5);
-  assert.deepEqual(check('remove', 'cooler-screw-5', { toolHeld: true }).missing, ['fan-plug']);
+  assert.deepEqual(check('remove', 'cooler-screw-5', { equippedTool: 'screwdriver' }).missing, ['fan-plug']);
   assert.deepEqual(check('remove', 'cooler-assembly', {
     cableConnected: false, removed: coolerScrews.slice(0, 4),
   }).missing, ['cooler-screw-5']);
@@ -75,7 +75,19 @@ test('connector requirements use the supplied connector state', () => {
     { id: 'aux-plug', kind: 'connector', requires: [] },
     { id: 'aux-assembly', kind: 'assembly', parent: 'gpu', requires: ['aux-plug'] },
   ]);
-  const facts = { isRemoved: () => false, isConnected: id => id === 'aux-plug', toolHeld: false };
+  const facts = { isRemoved: () => false, isConnected: id => id === 'aux-plug', equippedTool: null };
   assert.deepEqual(rules.check({ kind: 'remove', part: 'aux-assembly' }, facts).missing, ['aux-plug']);
   assert.equal(rules.check({ kind: 'remove', part: 'aux-assembly' }, { ...facts, isConnected: () => false }).allowed, true);
+});
+
+
+test('the blower cannot turn screws or bypass empty-hand service rules', () => {
+  const { check, fanScrews } = fixture();
+  const equippedTool = 'blower';
+  assert.equal(check('remove', 'fan-screw-1', { equippedTool }).allowed, false);
+  assert.equal(check('refit', 'fan-screw-1', { equippedTool }).allowed, false);
+  assert.equal(check('disconnect', 'fan-plug', { equippedTool }).allowed, false);
+  assert.equal(check('remove', 'fan-assembly', { equippedTool, cableConnected: false, removed: fanScrews }).allowed, false);
+  assert.match(check('refit', 'fan-assembly', { equippedTool }).reason, /blower/);
+  assert.equal(check('refit', 'fan-assembly', { equippedTool: null }).allowed, true);
 });

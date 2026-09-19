@@ -4,6 +4,7 @@ import * as THREE from 'three';
 // Each face has its own tile, so cleaning the front cannot erase the back.
 const TILE = 48, WIDTH = TILE * 3, HEIGHT = TILE * 2;
 type DustSurface = {
+  part: string;
   mesh: THREE.Mesh; bounds: THREE.Box3; size: THREE.Vector3;
   texture: THREE.DataTexture; data: Uint8Array; initial: Uint8Array;
   mass: number; remaining: number; weight: number[];
@@ -29,10 +30,14 @@ export function createGPUDust(gpu: THREE.Object3D) {
   const lookup = new Map<THREE.Object3D, DustSurface>();
   gpu.updateWorldMatrix(true, true);
   const inverse = gpu.matrixWorld.clone().invert();
-  const selected = /^(board-top|board-bottom|fan-housing|fan-blade-\d+|fan-hub-cap|heatsink-fins|heatsink-fin-\d+)$/;
+  const selected = /^(board-top|board-bottom|fan-housing|fan-blade-\d+|fan-hub-cap|heatsink-base|heatsink-fins|heatsink-fin-\d+|(?:fan|cooler)-screw-\d+-head)$/;
   gpu.traverse(object => {
     if (!(object instanceof THREE.Mesh) || !selected.test(object.name)) return;
     const mesh = object;
+    // Record ownership before any assembly is detached or reparented.
+    let owner: THREE.Object3D | null = mesh;
+    while (owner && owner !== gpu && !['assembly', 'fastener'].includes(owner.userData.part?.role)) owner = owner.parent;
+    const part = owner && owner !== gpu ? owner.name : 'board';
     mesh.geometry.computeBoundingBox();
     const bounds = mesh.geometry.boundingBox!.clone();
     const size = bounds.getSize(new THREE.Vector3()).max(new THREE.Vector3(.001, .001, .001));
@@ -51,8 +56,11 @@ export function createGPUDust(gpu: THREE.Object3D) {
       c.fromBufferAttribute(position, index ? index.getX(i + 2) : i + 2);
       normal.crossVectors(b.clone().sub(a), c.clone().sub(a)).normalize();
       const outward = normal.clone().applyMatrix3(normalMatrix).normalize();
-      // First job is exterior cleaning: no inaccessible dust below the cooler.
-      if (mesh.name === 'board-bottom' ? outward.y > -.7 : outward.y < .7) continue;
+      // Board laminates only expose one face. Fin tops have distinct positions
+      // in the array's mask, including the area revealed by removing the fan.
+      if (mesh.name === 'board-bottom' && outward.y > -.7) continue;
+      if (mesh.name === 'board-top' && outward.y < .7) continue;
+      if (mesh.name.startsWith('heatsink-fin') && outward.y < .7) continue;
       const face = faceIndex(normal);
       const points = [a, b, c].map(p => pixel(p, face, bounds, size));
       ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y);
@@ -72,8 +80,6 @@ export function createGPUDust(gpu: THREE.Object3D) {
       p.setComponent(u, bounds.min.getComponent(u) + ((x % TILE) - 1) / (TILE - 2) * size.getComponent(u));
       p.setComponent(v, bounds.min.getComponent(v) + ((y % TILE) - 1) / (TILE - 2) * size.getComponent(v));
       p.applyMatrix4(localToGPU);
-      if (mesh.name === 'board-top' && p.x < 2.07 && Math.abs(p.z) < 1.16) continue;
-      if (mesh.name.startsWith('heatsink-fin') && Math.abs(p.x + .43) < 1.10 && Math.abs(p.z) < 1.10) continue;
       const patch = Math.sin(p.x * 4.1 + p.z * 2.9) * Math.cos(p.z * 6.3 - p.x * 1.8);
       initial[i] = Math.round(180 + patch * 45 + Math.random() * 29);
       initial[i + 3] = 255;
@@ -111,7 +117,7 @@ export function createGPUDust(gpu: THREE.Object3D) {
     };
     material.customProgramCacheKey = () => 'gpu-dust-v1';
     mesh.material = material;
-    const surface = { mesh, bounds, size, data, initial, texture, mass, remaining: mass, weight };
+    const surface = { mesh, part, bounds, size, data, initial, texture, mass, remaining: mass, weight };
     surfaces.push(surface); lookup.set(mesh, surface);
   });
   const clumpGeometry = new THREE.SphereGeometry(1, 6, 4);
@@ -153,6 +159,12 @@ export function createGPUDust(gpu: THREE.Object3D) {
   let showingBefore = false;
   return {
     surfaces,
+    partFor: (object: THREE.Object3D) => lookup.get(object)?.part ?? null,
+    partProgress(part: string) {
+      const owned = surfaces.filter(s => s.part === part);
+      const mass = owned.reduce((sum, s) => sum + s.mass, 0);
+      return mass ? 1 - owned.reduce((sum, s) => sum + s.remaining, 0) / mass : 1;
+    },
     get progress() { const total = surfaces.reduce((sum, s) => sum + s.mass, 0); return total ? 1 - surfaces.reduce((sum, s) => sum + s.remaining, 0) / total : 1; },
     clean(hit: THREE.Intersection, seconds: number, radius = .36) {
       if (showingBefore || !hit.face) return 0;

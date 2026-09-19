@@ -150,6 +150,18 @@ export function createWorkbench(scene: THREE.Scene) {
   const shaft = cylinder('screwdriver-shaft', .046, 1.28, silver, [.53, 0, 0], screwdriver); shaft.rotation.z = Math.PI / 2;
   box('screwdriver-tip', [.15, .025, .073], silver, [1.215, 0, 0], screwdriver, .006);
 
+  const blower = new THREE.Group(); blower.name = 'air-blower'; blower.userData.action = 'blower';
+  const blowerHomePosition = new THREE.Vector3(0, .57, -.65);
+  blower.position.copy(blowerHomePosition); toolbox.add(blower);
+  const teal = material('#267e80', .15, .5);
+  const blowerGrip = cylinder('blower-grip', .17, .72, teal, [-.50, 0, 0], blower);
+  blowerGrip.rotation.z = Math.PI / 2;
+  const blowerCollar = cylinder('blower-collar', .18, .12, silver, [-.10, 0, 0], blower);
+  blowerCollar.rotation.z = Math.PI / 2;
+  const nozzle = cylinder('blower-nozzle', .036, 1.0, silver, [.46, 0, 0], blower);
+  nozzle.rotation.z = Math.PI / 2;
+  box('blower-trigger', [.24, .05, .10], black, [-.4, .16, 0], blower, .01);
+
   const lamp = new THREE.Group(); lamp.name = 'desk-light'; scene.add(lamp);
   cylinder('lamp-base', .62, .14, steel, [-5.65, .07, -2.9], lamp);
   function arm(a: THREE.Vector3, b: THREE.Vector3) {
@@ -173,7 +185,7 @@ export function createWorkbench(scene: THREE.Scene) {
   light.shadow.mapSize.set(1024, 1024); light.shadow.normalBias = .025;
   scene.add(light, light.target);
 
-  return { desk, tabletop, mat, toolbox, lid, screwdriver, homePosition };
+  return { desk, tabletop, mat, toolbox, lid, screwdriver, homePosition, blower, blowerHomePosition };
 }
 
 export type Workbench = ReturnType<typeof createWorkbench>;

@@ -14,7 +14,7 @@ export type ServiceAction = {
 export type ServiceFacts = {
   isRemoved: (part: string) => boolean;
   isConnected: (part: string) => boolean;
-  toolHeld: boolean;
+  equippedTool: 'screwdriver' | 'blower' | null;
 };
 
 export type ServiceDecision =
@@ -76,11 +76,11 @@ export function createServiceRules(parts: readonly ServicePart[], exceptions: re
     if (part.kind === 'assembly' && !['remove', 'refit', 'pickup'].includes(action.kind)) throw new Error(`Invalid assembly action: ${action.kind}`);
     if (part.kind === 'connector' && action.kind !== 'connect' && action.kind !== 'disconnect') throw new Error(`Invalid connector action: ${action.kind}`);
 
-    if (part.kind === 'fastener' && !facts.toolHeld) return deny('Pick up the screwdriver to remove or refit a screw.');
-    if (part.kind !== 'fastener' && facts.toolHeld) {
+    if (part.kind === 'fastener' && facts.equippedTool !== 'screwdriver') return deny('Pick up the screwdriver to remove or refit a screw.');
+    if (part.kind !== 'fastener' && facts.equippedTool) {
       const task = part.kind === 'connector' ? `handling the ${connectorLabel(part.id)}`
         : action.kind === 'refit' ? 'refitting the assembly' : 'picking up the assembly';
-      return deny(`Set the screwdriver down before ${task}.`);
+      return deny(`Set the ${facts.equippedTool} down before ${task}.`);
     }
 
     if (action.kind === 'remove') {

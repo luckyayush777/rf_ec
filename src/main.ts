@@ -6,7 +6,6 @@ import { loadGPU } from './load-gpu';
 import { createWorkbench } from './workbench';
 import { setupInteractions } from './interactions';
 import { WorkbenchSound } from './sound';
-import { setupGPUCleaning } from './gpu-cleaning';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const app = document.querySelector<HTMLElement>('#app')!;
@@ -126,11 +125,13 @@ try {
 
   function updateFocusVisibility() {
     const { heldPart, stored } = interactions.repair.state;
+    gpu.visible = !focusMode || !heldPart;
     for (const object of scene.children) {
       if (object === gpu || object === camera || object instanceof THREE.Light || object.name === 'placement-preview' || object.userData.cleaningEffect) continue;
       object.visible = focusMode ? object.name === heldPart : !stored.includes(object.name);
     }
-    workbench.screwdriver.visible = !focusMode;
+    workbench.screwdriver.visible = !focusMode || interactions.state.equippedTool === 'screwdriver';
+    workbench.blower.visible = !focusMode || interactions.state.equippedTool === 'blower';
   }
 
   function toggleFocusMode() {
@@ -223,7 +224,6 @@ try {
       if (progress === 1) transition = null;
     }
     interactions.update(now);
-    cleaning.update(now);
     if (focusMode && !focusCameraApplied) applyFocusCamera();
     updateFocusVisibility();
     if (controls.enabled) controls.update();
@@ -262,10 +262,8 @@ try {
     console.error('The graphics connection was interrupted. Reload to reopen the workbench.');
   });
 
-  const cleaning = setupGPUCleaning(scene, gpu, camera, canvas, interactions, sounds,
-    () => { if (!focusMode) toggleFocusMode(); }, reducedMotion);
+  const cleaning = interactions.cleaning;
   resize();
-  cleaning.enter();
   renderer.compile(scene, camera);
   requestRender();
 
@@ -280,7 +278,6 @@ try {
     disposed = true;
     cancelAnimationFrame(frame);
     controls.dispose();
-    cleaning.dispose();
     interactions.dispose();
     sounds.dispose();
     muteButton.removeEventListener('click', toggleSound);
