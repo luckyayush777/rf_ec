@@ -45,7 +45,7 @@ BLENDER_BIN=/private/tmp/bench-blender-mount/Blender.app/Contents/MacOS/Blender 
 
 The browser desk, lamp, and toolbox are authored in `src/workbench.ts`; they are separate from the GPU asset and its Blender preview stage.
 
-In the browser, click the GPU or **Inspect GPU** to lift it, drag to rotate it, and press Esc to set it down. Click the cable plug to unplug/reconnect it. Pick up the screwdriver and click the four fan screws to remove them into the labeled tray. Return the tool, lift the fan, then click a clear area of the desk to place it. **Refit fan**, followed by clicking the tray screws with the screwdriver, reverses the process. The cable stays with the fan and can reconnect once the assemblies are seated. Yellow halos identify hovered parts. These interactions do not modify the saved Blender source.
+In the browser, click the GPU or **Inspect GPU** to lift it, drag to rotate it, and press Esc to set it down. Click the cable plug to unplug/reconnect it. Pick up the screwdriver and hold each fan screw to remove it into the labeled tray; releasing pauses the turn. Return the tool, lift the fan, then click a clear area of the desk to place it. **Refit fan**, followed by holding the tray screws with the screwdriver, reverses the process. The cable stays with the fan and can reconnect once the assemblies are seated. Yellow halos identify hovered parts. These interactions do not modify the saved Blender source.
 
 ## First generation
 
@@ -94,7 +94,7 @@ Generation refuses to overwrite an existing `.blend` file. To intentionally repl
 
 The board sits on the table with the cooler facing upward. Blender uses Z-up; the exporter converts to the browser's Y-up coordinates. Units are illustrative viewer units, not meters or manufacturing dimensions.
 
-Keep `gpu` as the root name and keep the assembly / fastener names stable. Newly added model objects must be parented beneath `gpu` to be exported. The stage belongs in its separate collection. Empties carry `part_role`, `removal_direction`, and dependency properties; the exporter converts these into browser metadata. The browser repair controller implements the servicing constraints and restores the original parent and transform when refitting a part.
+Keep `gpu` as the root name and keep the assembly / fastener names stable. Newly added model objects must be parented beneath `gpu` to be exported. The stage belongs in its separate collection. Empties carry `part_role`, `removal_direction`, and dependency properties; the exporter converts these into browser metadata. Add service prerequisites to an assembly's `requires_json` property. The browser discovers assemblies and fasteners by role, and `src/service-rules.ts` checks the exported prerequisites and derives refit order. It also declares the cooler screw cable exception. Run `npm test` when changing service metadata. The repair controller restores each part's original parent and transform when refitting it.
 
 The cable is parented to the fan, and its plug must be unplugged before moving either assembly. The browser animates the plug and bends the nearby wire vertices during disconnection; the native curves remain editable. Fan removal order: fan plug → four top fan screws → fan assembly → desk. The cooler can separately be removed after its four rear screws are out. Refit the cooler before the fan when both have been detached.
 

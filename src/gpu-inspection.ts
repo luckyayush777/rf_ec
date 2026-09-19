@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import type { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { WorkbenchSound } from './sound';
+import type { ServiceDecision } from './service-rules';
 
 export function setupGPUInspection(gpu: THREE.Object3D, camera: THREE.PerspectiveCamera,
   controls: OrbitControls, sound: WorkbenchSound, requestRender: () => void,
-  reducedMotion: boolean, changed: () => void, canInteract: () => boolean, canConnect: () => boolean, toolHeld: () => boolean) {
+  reducedMotion: boolean, changed: () => void, canInteract: () => boolean,
+  checkCable: (connect: boolean) => ServiceDecision) {
   const state = { held: false, moving: false, cableConnected: true };
   const home = { position: gpu.position.clone(), rotation: gpu.quaternion.clone() };
   const plug = gpu.getObjectByName('fan-plug')!;
@@ -67,10 +69,8 @@ export function setupGPUInspection(gpu: THREE.Object3D, camera: THREE.Perspectiv
   }
   function toggleCable() {
     if (cableMotion || state.moving || !canInteract()) return;
-    if (toolHeld()) { document.querySelector('#interaction-status')!.textContent = 'Set the screwdriver down before handling the cable.'; return; }
-    if (!state.cableConnected && !canConnect()) {
-      document.querySelector('#interaction-status')!.textContent = 'Refit the fan and cooler before reconnecting the cable.'; return;
-    }
+    const decision = checkCable(!state.cableConnected);
+    if (!decision.allowed) { document.querySelector('#interaction-status')!.textContent = decision.reason; return; }
     state.cableConnected = !state.cableConnected;
     cableMotion = { start: performance.now(), from: cableProgress, to: state.cableConnected ? 0 : 1 };
     sound.play(state.cableConnected ? 'plug' : 'unplug');

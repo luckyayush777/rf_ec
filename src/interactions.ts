@@ -24,11 +24,15 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
   let lastTime = 0;
   let lidMotion: { from: number; to: number; start: number } | null = null;
   let toolMotion: { start: number; from: THREE.Vector3; to: THREE.Vector3; rotation: THREE.Quaternion } | null = null;
+  function isConnected(id: string) {
+    if (id !== 'fan-plug') throw new Error(`Missing connection state for ${id}.`);
+    return inspection.state.cableConnected;
+  }
 
   const inspection = setupGPUInspection(gpu, camera, controls, sound, requestRender, reducedMotion, message,
     () => !repair.state.moving && !repair.state.heldPart && !toolMotion,
-    () => repair.canConnect(), () => state.equippedTool === 'screwdriver');
-  const repair = setupGPURepair(scene, gpu, sound, reducedMotion, () => inspection.state.cableConnected,
+    connect => repair.check({ kind: connect ? 'connect' : 'disconnect', part: 'fan-plug' }));
+  const repair = setupGPURepair(scene, gpu, sound, reducedMotion, isConnected,
     () => state.equippedTool === 'screwdriver', () => !inspection.busy && !toolMotion, () => inspection.putDown(),
     text => { status.textContent = text; }, message);
   const highlight = createInteractionHighlight();
@@ -98,7 +102,7 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
   }
 
   function returnTool() {
-    if (state.tool === 'toolbox' || toolMotion) return;
+    if (state.tool === 'toolbox' || toolMotion || repair.state.moving) return;
     if (!state.open) toggleBox();
     state.tool = 'toolbox';
     sound.play('place');
@@ -142,11 +146,10 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
     if (result?.action === 'screw') return;
     else if (result?.action === 'assembly' && result.target) {
       const name = result.target.name;
-      const screwsLeft = Array.from({ length: 4 }, (_, i) => `${name === 'fan-assembly' ? 'fan' : 'cooler'}-screw-${i + 1}`).some(id => !repair.removed(id));
-      if (!inspection.state.held && !repair.removed(name) && (screwsLeft || state.equippedTool)) inspection.lift();
+      if (!inspection.state.held && !repair.removed(name) &&
+        !repair.check({ kind: 'remove', part: name }).allowed) inspection.lift();
       else repair.assembly(name);
     } else if (result?.action === 'cable') {
-      if (state.equippedTool) { status.textContent = 'Set the screwdriver down before handling the cable.'; return; }
       inspection.toggleCable();
     } else if (result?.action === 'gpu') {
       if (inspection.state.held) status.textContent = 'Unplug the cable, then use the screwdriver on the screws. Drag to see the rear cooler screws.';

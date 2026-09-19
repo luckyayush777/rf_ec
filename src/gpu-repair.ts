@@ -1,32 +1,41 @@
 import * as THREE from 'three';
 import type { WorkbenchSound } from './sound';
+import type { PartMetadata } from './gpu';
+import { createServiceRules, gpuServiceExceptions, type ServiceAction, type ServicePart } from './service-rules';
 
 /** Keeps the original parent and local transform so servicing never accumulates drift. */
 export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: WorkbenchSound,
-  reducedMotion: boolean, cableConnected: () => boolean, toolHeld: () => boolean,
+  reducedMotion: boolean, isConnected: (part: string) => boolean, toolHeld: () => boolean,
   ready: () => boolean, setGPUDown: () => void, notify: (text: string) => void, changed: () => void) {
   const state = { heldPart: null as string | null, moving: false, removed: [] as string[] };
   gpu.updateMatrixWorld(true);
-  const names = ['fan-assembly', 'cooler-assembly', ...['fan', 'cooler'].flatMap(kind =>
-    Array.from({ length: 4 }, (_, i) => `${kind}-screw-${i + 1}`))];
-  const parts = new Map(names.map(name => {
-    const object = gpu.getObjectByName(name)!;
-    object.userData.action = name.includes('screw') ? 'screw' : 'assembly';
-    if (name.includes('screw')) {
+  const serviceObjects: THREE.Object3D[] = [];
+  gpu.traverse(object => {
+    const role = (object.userData.part as PartMetadata | undefined)?.role;
+    if (object !== gpu && (role === 'assembly' || role === 'fastener')) serviceObjects.push(object);
+  });
+  const parts = new Map(serviceObjects.map(object => {
+    const role = (object.userData.part as PartMetadata).role;
+    object.userData.action = role === 'fastener' ? 'screw' : 'assembly';
+    if (role === 'fastener') {
       const pick = new THREE.Mesh(new THREE.SphereGeometry(.11, 12, 8), new THREE.MeshBasicMaterial({ visible: false }));
-      pick.name = `${name}-pick-target`; object.add(pick);
+      pick.name = `${object.name}-pick-target`; object.add(pick);
     }
-    return [name, { object, parent: object.parent!, position: object.position.clone(),
+    return [object.name, { object, parent: object.parent!, position: object.position.clone(),
       rotation: object.quaternion.clone(), scale: object.scale.clone(),
       upright: object.getWorldQuaternion(new THREE.Quaternion()) }];
   }));
+  const fastenersFor = (assembly: string) =>
+    ((parts.get(assembly)?.object.userData.part as PartMetadata | undefined)?.requires ?? [])
+      .filter(id => (parts.get(id)?.object.userData.part as PartMetadata | undefined)?.role === 'fastener');
+  const fanScrews = fastenersFor('fan-assembly');
+  const coolerScrews = fastenersFor('cooler-assembly');
   const holeMaterial = new THREE.MeshStandardMaterial({ color: '#111a1b', metalness: .2, roughness: .85 });
   const holeRimMaterial = new THREE.MeshStandardMaterial({ color: '#9ca5a4', metalness: .7, roughness: .4 });
   const holeGeometry = new THREE.CircleGeometry(.059, 32);
   const holeRimGeometry = new THREE.RingGeometry(.057, .092, 32);
   const coolerHoles: THREE.Group[] = [];
-  for (let i = 1; i <= 4; i++) {
-    const name = `cooler-screw-${i}`;
+  for (const name of coolerScrews) {
     const part = parts.get(name)!;
     const outward = new THREE.Vector3(0, 1, 0).applyQuaternion(part.rotation);
     const hole = new THREE.Group();
@@ -80,10 +89,29 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
   const removed = (name: string) => state.removed.includes(name);
   const fanOff = () => removed('fan-assembly');
   const coolerOff = () => removed('cooler-assembly');
+  const serviceParts: ServicePart[] = [...parts].map(([id, part]) => {
+    const metadata = part.object.userData.part as PartMetadata | undefined;
+    const kind: ServicePart['kind'] = metadata?.role === 'fastener' ? 'fastener' : 'assembly';
+    if (!metadata || (kind === 'assembly' && !Array.isArray(metadata.requires))) {
+      throw new Error(`Missing service metadata for ${id}.`);
+    }
+    return { id, kind, parent: part.parent.name, requires: metadata.requires ?? [] };
+  });
+  for (const id of new Set(serviceParts.flatMap(part => part.requires))) {
+    if (parts.has(id)) continue;
+    const object = gpu.getObjectByName(id);
+    const metadata = object?.userData.part as PartMetadata | undefined;
+    if (!object || metadata?.role !== 'removable') throw new Error(`Missing service connector: ${id}.`);
+    serviceParts.push({ id, kind: 'connector', parent: object.parent?.name, requires: metadata.requires ?? [] });
+  }
+  const service = createServiceRules(serviceParts, gpuServiceExceptions);
+  const check = (action: ServiceAction) => service.check(action, {
+    isRemoved: removed, isConnected, toolHeld: toolHeld(),
+  });
 
   function refresh() {
-    const count = ['fan', 'cooler'].map(kind => state.removed.filter(name => name.startsWith(`${kind}-screw`)).length);
-    progress.textContent = `Fan screws ${count[0]}/4 removed · Cooler screws ${count[1]}/4 removed`;
+    const count = (screws: string[]) => screws.filter(removed).length;
+    progress.textContent = `Fan screws ${count(fanScrews)}/${fanScrews.length} removed · Cooler screws ${count(coolerScrews)}/${coolerScrews.length} removed`;
     button.hidden = !state.heldPart && !fanOff() && !coolerOff();
     const next = state.heldPart ?? (coolerOff() ? 'cooler-assembly' : 'fan-assembly');
     button.textContent = `Refit ${next === 'fan-assembly' ? 'fan' : 'cooler'}`;
@@ -99,17 +127,12 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
   }
   function beginScrew(name: string) {
     if (!ready() || state.moving || state.heldPart || activeTurn) return false;
-    if (!toolHeld()) { notify('Pick up the screwdriver to remove or refit a screw.'); return false; }
     const part = parts.get(name);
-    if (!part || !name.includes('screw')) return false;
-    const fanScrew = name.startsWith('fan-');
+    if (!part || (part.object.userData.part as PartMetadata).role !== 'fastener') return false;
+    const fanScrew = fanScrews.includes(name);
     const reinstall = removed(name);
-    if (reinstall && (fanScrew ? fanOff() : coolerOff())) {
-      notify(`Refit the ${fanScrew ? 'fan' : 'cooler'} before tightening its screws.`); return false;
-    }
-    if (!reinstall && !fanScrew && cableConnected()) {
-      notify('Unplug the fan cable before removing the rear cooler screws.'); return false;
-    }
+    const decision = check({ kind: reinstall ? 'refit' : 'remove', part: name });
+    if (!decision.allowed) { notify(decision.reason); return false; }
     if (!turns.has(name)) {
       if (reinstall) scene.attach(part.object);
       turns.set(name, { progress: 0, reinstall, from: part.object.position.clone(), rotation: part.object.quaternion.clone() });
@@ -118,7 +141,7 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
     state.moving = true;
     sound.startUnscrew();
     refresh(); changed();
-    notify(`Hold to ${reinstall ? 'tighten' : 'remove'} ${fanScrew ? 'fan' : 'cooler'} screw ${name.slice(-1)}.`);
+    notify(`Hold to ${reinstall ? 'tighten' : 'remove'} ${fanScrew ? 'fan' : 'cooler'} screw ${(fanScrew ? fanScrews : coolerScrews).indexOf(name) + 1}.`);
     return true;
   }
   function endScrew() {
@@ -137,7 +160,7 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
     activeTurn = null;
     turns.delete(name);
     sound.stopUnscrew();
-    const fanScrew = name.startsWith('fan-');
+    const fanScrew = fanScrews.includes(name);
     if (turn.reinstall) {
       part.parent.add(part.object); part.object.position.copy(part.position);
       part.object.quaternion.copy(part.rotation); part.object.scale.copy(part.scale);
@@ -148,7 +171,7 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
     } else {
       state.removed.push(name);
       scene.attach(part.object);
-      const index = Number(name.slice(-1)) - 1;
+      const index = (fanScrew ? fanScrews : coolerScrews).indexOf(name);
       // Separate labelled rows keep every screw reachable and associated with its original hole.
       animate(part.object, new THREE.Vector3(3.1 + index * .48, .20, fanScrew ? 3.38 : 4.12),
         new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI / 2)), true,
@@ -157,13 +180,10 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
   }
   function assembly(name: string) {
     if (!ready() || state.moving || state.heldPart) return;
-    if (toolHeld()) { notify('Set the screwdriver down before picking up the assembly.'); return; }
     const part = parts.get(name)!;
+    const decision = check({ kind: removed(name) ? 'pickup' : 'remove', part: name });
+    if (!decision.allowed) { notify(decision.reason); return; }
     if (!removed(name)) {
-      if (cableConnected()) { notify('Unplug the fan cable first.'); return; }
-      const kind = name === 'fan-assembly' ? 'fan' : 'cooler';
-      const remaining = Array.from({ length: 4 }, (_, i) => `${kind}-screw-${i + 1}`).filter(id => !removed(id));
-      if (remaining.length) { notify(`Remove the ${remaining.length} remaining ${kind} screw${remaining.length === 1 ? '' : 's'} with the screwdriver first.`); return; }
       state.removed.push(name);
     }
     scene.attach(part.object);
@@ -191,11 +211,11 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
   }
   function refit() {
     if (!ready() || state.moving) return;
-    if (toolHeld()) { notify('Set the screwdriver down before refitting the assembly.'); return; }
     const name = state.heldPart ?? (coolerOff() ? 'cooler-assembly' : fanOff() ? 'fan-assembly' : null);
     if (!name) return;
     const part = parts.get(name)!;
-    if (name === 'fan-assembly' && coolerOff()) { notify('Refit the cooler first. Place the fan on the desk, then refit the cooler.'); return; }
+    const decision = check({ kind: 'refit', part: name });
+    if (!decision.allowed) { notify(decision.reason); return; }
     part.parent.updateWorldMatrix(true, false);
     animate(part.object, part.parent.localToWorld(part.position.clone()),
       part.parent.getWorldQuaternion(new THREE.Quaternion()).multiply(part.rotation), false, () => {
@@ -210,8 +230,7 @@ export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, sound: W
   button.addEventListener('click', refit); fanButton.addEventListener('click', liftFan);
   refresh();
   return {
-    state, beginScrew, endScrew, assembly, place, refit, removed,
-    canConnect: () => !fanOff() && !coolerOff() && !state.moving,
+    state, beginScrew, endScrew, assembly, place, refit, removed, check,
     looseObjects: () => [...parts.values()].map(p => p.object).filter(o => removed(o.name)),
     update(now: number) {
       if (activeTurn) {
