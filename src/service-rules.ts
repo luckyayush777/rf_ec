@@ -14,7 +14,7 @@ export type ServiceAction = {
 export type ServiceFacts = {
   isRemoved: (part: string) => boolean;
   isConnected: (part: string) => boolean;
-  equippedTool: 'screwdriver' | 'blower' | null;
+  equippedTool: 'screwdriver' | 'blower' | 'scraper' | null;
 };
 
 export type ServiceDecision =

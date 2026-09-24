@@ -2,7 +2,7 @@
 
 The model has a native Blender source, separate assemblies, editable cable curves, named materials, and a browser export. This is a simplified fictional card, not an accurate GT 710 or a manufacturing model.
 
-The current source includes the cleaning prototype's component and connector detail pass. `scripts/blender/detail_gpu.py` adds those details to an older source without moving its assemblies. Run it with Blender's background mode and `models/gpu.blend`; it saves that source and exports the browser GLB. It checks for `pcb-detail` to avoid adding the same components twice. Text markings remain editable FONT objects in the native source and are converted to meshes only for export. The browser batches fixed PCB and bracket meshes by material; the Blender source retains individual components.
+The current source includes the cleaning prototype's component and connector detail pass. `scripts/blender/detail_gpu.py` adds those details to an older source without moving its assemblies. Run it with Blender's background mode and `models/gpu.blend`; it saves that source and exports the browser GLB. It checks for `pcb-detail` to avoid adding the same components twice. Text markings remain editable FONT objects in the native source and are converted to meshes only for export. The browser batches fixed PCB and bracket meshes by material; the Blender source retains individual components. `scripts/blender/add_worn_pads.py` adds editable worn-pad remnants to the four front memory packages and exports them as separate meshes for scraping.
 
 ## Run the browser scene
 
@@ -45,7 +45,7 @@ Refresh the browser. If using the temporary Blender copy from the initial setup 
 BLENDER_BIN=/private/tmp/bench-blender-mount/Blender.app/Contents/MacOS/Blender npm run model:export
 ```
 
-The browser desk, lamp, and toolbox are authored in `src/workbench.ts`; they are separate from the GPU asset and its Blender preview stage.
+The browser desk, lamp, PCB holder, and toolbox are authored in `src/workbench.ts`; they are separate from the GPU asset and its Blender preview stage.
 
 In the browser, click the GPU or **Inspect GPU** to lift it, drag to rotate it, and press Esc to set it down. Click the cable plug to unplug/reconnect it. Pick up the screwdriver and hold each fan screw to remove it into the labeled tray; releasing pauses the turn. Return the tool, lift the fan, then click a clear area of the desk to place it. **Refit fan**, followed by holding the tray screws with the screwdriver, reverses the process. The cable stays with the fan and can reconnect once the assemblies are seated. Yellow halos identify hovered parts. These interactions do not modify the saved Blender source.
 

@@ -29,7 +29,7 @@ export async function loadGPU(): Promise<{ gpu: THREE.Object3D }> {
     const inverse = group.matrixWorld.clone().invert();
     const batches = new Map<string, { material: THREE.Material; meshes: THREE.Mesh[] }>();
     group.traverse(object => {
-      if (!(object instanceof THREE.Mesh) || Array.isArray(object.material)) return;
+      if (!(object instanceof THREE.Mesh) || Array.isArray(object.material) || object.name.startsWith('memory-residue-')) return;
       const key = object.material.uuid + Object.keys(object.geometry.attributes).sort().join(',');
       if (!batches.has(key)) batches.set(key, { material: object.material, meshes: [] });
       batches.get(key)!.meshes.push(object);

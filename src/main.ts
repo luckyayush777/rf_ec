@@ -55,7 +55,7 @@ try {
   gpu.position.add(new THREE.Vector3(-2.3, .047, .7));
   scene.add(gpu);
   scene.add(camera);
-  const workbench = createWorkbench(scene);
+  const workbench = createWorkbench(scene, gpu);
 
   scene.add(new THREE.HemisphereLight('#eef2fa', '#373139', 1.0));
   const key = new THREE.DirectionalLight('#fff3e2', 2.3);
@@ -128,10 +128,13 @@ try {
     gpu.visible = !focusMode || !heldPart;
     for (const object of scene.children) {
       if (object === gpu || object === camera || object instanceof THREE.Light || object.name === 'placement-preview' || object.userData.cleaningEffect) continue;
-      object.visible = focusMode ? object.name === heldPart : !stored.includes(object.name);
+      object.visible = focusMode
+        ? object.name === heldPart || (object === workbench.pcbHolder && !heldPart && !interactions.inspection.state.held && !interactions.inspection.state.moving)
+        : !stored.includes(object.name);
     }
     workbench.screwdriver.visible = !focusMode || interactions.state.equippedTool === 'screwdriver';
     workbench.blower.visible = !focusMode || interactions.state.equippedTool === 'blower';
+    workbench.scraper.visible = !focusMode || interactions.state.equippedTool === 'scraper';
   }
 
   function toggleFocusMode() {

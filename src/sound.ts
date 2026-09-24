@@ -1,4 +1,5 @@
 import manualScrewdriverUrl from './assets/manual-screwdriver.wav?url';
+import cleaningCompleteUrl from './assets/cleaning-complete.ogg?url';
 
 /** Mechanical effects start only after a user interaction. */
 export class WorkbenchSound {
@@ -6,6 +7,7 @@ export class WorkbenchSound {
   private master?: GainNode;
   private noise?: AudioBuffer;
   private screwdriver = new Audio(manualScrewdriverUrl);
+  private cleaningComplete = new Audio(cleaningCompleteUrl);
   private screwPlaying = false;
   private air?: { source: AudioBufferSourceNode; gain: GainNode; filter: BiquadFilterNode };
   muted = false;
@@ -16,6 +18,9 @@ export class WorkbenchSound {
     this.screwdriver.preload = 'auto';
     this.screwdriver.loop = true;
     this.screwdriver.volume = .8;
+    this.cleaningComplete.preload = 'auto';
+    this.cleaningComplete.playbackRate = 1.8;
+    this.cleaningComplete.volume = .65;
   }
 
   unlock() {
@@ -37,6 +42,15 @@ export class WorkbenchSound {
     this.muted = muted;
     if (this.master && this.context) this.master.gain.setTargetAtTime(muted ? 0 : .45, this.context.currentTime, .015);
     this.screwdriver.volume = muted ? 0 : .8;
+    this.cleaningComplete.volume = muted ? 0 : .65;
+  }
+
+  playCleaningComplete() {
+    if (this.muted) return;
+    this.played++; this.lastEffect = 'cleaning-complete';
+    this.cleaningComplete.pause();
+    this.cleaningComplete.currentTime = 0;
+    void this.cleaningComplete.play().catch(() => {});
   }
 
   startUnscrew() {
@@ -118,5 +132,10 @@ export class WorkbenchSound {
   }
 
   get state() { return this.context?.state ?? 'uninitialized'; }
-  dispose() { this.stopAir(); this.stopUnscrew(); this.screwdriver.removeAttribute('src'); this.screwdriver.load(); if (this.context) void this.context.close(); }
+  dispose() {
+    this.stopAir(); this.stopUnscrew();
+    this.screwdriver.removeAttribute('src'); this.screwdriver.load();
+    this.cleaningComplete.pause(); this.cleaningComplete.removeAttribute('src'); this.cleaningComplete.load();
+    if (this.context) void this.context.close();
+  }
 }

@@ -5,10 +5,11 @@ import { createWorkbenchTools } from '../src/workbench-tools.ts';
 
 function fixture() {
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(35, 1, .1, 100);
-  const toolbox = new THREE.Group(), lid = new THREE.Group(), screwdriver = new THREE.Group(), blower = new THREE.Group();
-  scene.add(camera, toolbox); toolbox.add(lid, screwdriver, blower);
+  const toolbox = new THREE.Group(), lid = new THREE.Group(), screwdriver = new THREE.Group(), blower = new THREE.Group(), scraper = new THREE.Group();
+  scene.add(camera, toolbox); toolbox.add(lid, screwdriver, blower, scraper);
   const homePosition = new THREE.Vector3(0, .57, .05), blowerHomePosition = new THREE.Vector3(0, .57, -.65);
-  const bench = { toolbox, lid, screwdriver, blower, homePosition, blowerHomePosition };
+  const scraperHomePosition = new THREE.Vector3(-.78, .53, .72);
+  const bench = { toolbox, lid, screwdriver, blower, scraper, homePosition, blowerHomePosition, scraperHomePosition };
   let allowed = true;
   const tools = createWorkbenchTools(scene, camera, bench, { play() {} }, true, () => allowed, () => {}, () => {}, () => {});
   function settle() { for (let i = 0; i < 6; i++) tools.update(performance.now() + 1000, .1); }
@@ -50,4 +51,18 @@ test('a busy service action cannot switch or drop the equipped tool', () => {
   tools.equip('blower'); tools.returnTool(); settle();
   assert.equal(tools.state.equippedTool, 'screwdriver');
   assert.equal(tools.state.locations.blower, 'toolbox');
+});
+
+test('the scraper obeys the same toolbox, desk, and return rules', () => {
+  const { tools, scene, bench, camera, settle } = fixture();
+  tools.equip('scraper'); settle();
+  assert.equal(tools.state.equippedTool, 'scraper');
+  assert.equal(bench.scraper.parent, camera);
+  tools.place(new THREE.Vector3(4, 0, 2), []); settle();
+  assert.equal(tools.state.locations.scraper, 'desk');
+  assert.equal(bench.scraper.parent, scene);
+  tools.grab('scraper'); settle(); tools.returnTool(); settle();
+  assert.equal(tools.state.locations.scraper, 'toolbox');
+  assert.equal(bench.scraper.parent, bench.toolbox);
+  assert.deepEqual(bench.scraper.position.toArray(), bench.scraperHomePosition.toArray());
 });

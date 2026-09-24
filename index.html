@@ -16,11 +16,14 @@
         <div class="equipment-tools">
           <button id="equip-tool" type="button">Equip screwdriver</button>
           <button id="equip-blower" type="button">Equip blower</button>
+          <button id="equip-scraper" type="button">Equip scraper</button>
         </div>
         <button id="return-tool" type="button" hidden>Return screwdriver</button>
         <details class="cleaning-summary">
           <summary>Cleaning · <output id="clean-percent">0% clean</output></summary>
           <p id="part-cleanliness">PCB 0% · Fan 0% · Cooler 0%</p>
+          <p id="remaining-dust">Most remaining: checking surfaces…</p>
+          <p><output id="pad-removal-progress">0% old pad material cleared</output> · Remove the cooler, then start in a pad's outer band and drag inward.</p>
           <div class="cleaning-actions">
             <button id="show-before" type="button" aria-pressed="false">Compare before</button>
             <button id="finish-cleaning" type="button" disabled>Clean to 90% to finish</button>

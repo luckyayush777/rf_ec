@@ -120,6 +120,14 @@ export function createGPU() {
   register(board, { role: 'fixed' });
   gpu.add(board);
 
+  const wornPad = material('#544b3c', 0, .93);
+  for (const [i, x, z] of [[0, -1.58, -.55], [1, -1.58, .55], [2, .68, -.55], [3, .68, .55]]) {
+    board.add(box(`memory-package-${i}`, [.48, .065, .68], black, [x, .101, z], .008));
+    for (const [j, dx, dz, width, depth] of [
+      [0, -.12, .12, .20, .25], [1, .105, .09, .18, .22], [2, -.015, -.17, .30, .18],
+    ]) board.add(box(`memory-residue-${i}-${j}`, [width, .024, depth], wornPad, [x + dx, .146, z + dz], .006));
+  }
+
   const connector = new THREE.Group();
   connector.name = 'edge-connector';
   // Two tongues leave a genuine alignment notch in the connector silhouette.

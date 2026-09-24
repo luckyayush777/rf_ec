@@ -81,7 +81,7 @@ export function createGPUDust(gpu: THREE.Object3D) {
       p.setComponent(v, bounds.min.getComponent(v) + ((y % TILE) - 1) / (TILE - 2) * size.getComponent(v));
       p.applyMatrix4(localToGPU);
       const patch = Math.sin(p.x * 4.1 + p.z * 2.9) * Math.cos(p.z * 6.3 - p.x * 1.8);
-      initial[i] = Math.round(180 + patch * 45 + Math.random() * 29);
+      initial[i] = Math.round(68 + patch * 24 + Math.random() * 20);
       initial[i + 3] = 255;
       mass += initial[i] * weight[face];
     }
@@ -111,22 +111,22 @@ export function createGPUDust(gpu: THREE.Object3D) {
       shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
         float dust = dustAmount();
         float grain = fract(sin(dot(floor(dustP * 260.0), vec3(12.9898,78.233,43.71))) * 43758.5453);
-        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.30, .26, .21) * (.8 + grain * .4), dust * .94);`);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.88, .53, .17) * (.85 + grain * .3), sqrt(dust) * .88);`);
       shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 1.0, dust);');
       shader.fragmentShader = shader.fragmentShader.replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor *= 1.0 - dust;');
     };
-    material.customProgramCacheKey = () => 'gpu-dust-v1';
+    material.customProgramCacheKey = () => 'gpu-dust-v2';
     mesh.material = material;
     const surface = { mesh, part, bounds, size, data, initial, texture, mass, remaining: mass, weight };
     surfaces.push(surface); lookup.set(mesh, surface);
   });
   const clumpGeometry = new THREE.SphereGeometry(1, 6, 4);
-  const clumpMaterial = new THREE.MeshStandardMaterial({ color: '#9b8e77', roughness: 1 });
+  const clumpMaterial = new THREE.MeshStandardMaterial({ color: '#dfa755', roughness: 1 });
   const dummy = new THREE.Object3D();
   for (const s of surfaces) {
     const candidates: number[] = [];
-    for (let i = 0; i < s.initial.length; i += 4) if (s.initial[i] > 210) candidates.push(i);
-    const count = s.mesh.name.includes('board') ? 20 : s.mesh.name.includes('blade') ? 3 : 12;
+    for (let i = 0; i < s.initial.length; i += 4) if (s.initial[i] > 78) candidates.push(i);
+    const count = s.mesh.name.includes('board') ? 5 : s.mesh.name.includes('blade') ? 1 : 3;
     const samples: { pixel: number; matrix: THREE.Matrix4 }[] = [];
     if (!candidates.length) continue;
     const clumps = new THREE.InstancedMesh(clumpGeometry, clumpMaterial, count);
@@ -166,6 +166,27 @@ export function createGPUDust(gpu: THREE.Object3D) {
       return mass ? 1 - owned.reduce((sum, s) => sum + s.remaining, 0) / mass : 1;
     },
     get progress() { const total = surfaces.reduce((sum, s) => sum + s.mass, 0); return total ? 1 - surfaces.reduce((sum, s) => sum + s.remaining, 0) / total : 1; },
+    remainingHint() {
+      const surface = surfaces.reduce<DustSurface | null>((top, candidate) =>
+        !top || candidate.remaining > top.remaining ? candidate : top, null);
+      if (!surface || surface.remaining <= 0) return 'No dust remains';
+      const faceMass = [0, 0, 0, 0, 0, 0];
+      for (let i = 0; i < surface.data.length; i += 4) {
+        const cell = i / 4, x = cell % WIDTH, y = Math.floor(cell / WIDTH);
+        const face = Math.floor(y / TILE) * 3 + Math.floor(x / TILE);
+        faceMass[face] += surface.data[i] * surface.weight[face];
+      }
+      const face = faceMass.indexOf(Math.max(...faceMass));
+      const name = surface.mesh.name;
+      const part = name === 'board-top' ? 'PCB front' : name === 'board-bottom' ? 'PCB back'
+        : name.startsWith('fan-blade-') ? `fan blade ${name.slice('fan-blade-'.length)}`
+        : name.startsWith('heatsink-fin') ? 'cooler fins'
+        : name === 'heatsink-base' ? 'cooler base'
+        : name === 'fan-housing' ? 'fan housing'
+        : name.replaceAll('-', ' ');
+      const side = ['right edge', 'left edge', 'top', 'underside', 'front edge', 'rear edge'][face];
+      return `Most remaining: ${part} · ${side}`;
+    },
     clean(hit: THREE.Intersection, seconds: number, radius = .36) {
       if (showingBefore || !hit.face) return 0;
       const s = lookup.get(hit.object); if (!s) return 0;
@@ -188,6 +209,15 @@ export function createGPUDust(gpu: THREE.Object3D) {
       if (removed) { s.remaining = Math.max(0, s.remaining - removed); s.texture.needsUpdate = true; updateClumps(s); }
       return removed;
     },
+    cleanAll() {
+      if (showingBefore) return;
+      for (const s of surfaces) {
+        s.data.fill(0);
+        s.remaining = 0;
+        s.texture.needsUpdate = true;
+        updateClumps(s);
+      }
+    },
     before(value: boolean) {
       showingBefore = value;
       for (const s of surfaces) { s.texture.image.data = value ? s.initial : s.data; s.texture.needsUpdate = true; updateClumps(s, value); }
@@ -196,7 +226,7 @@ export function createGPUDust(gpu: THREE.Object3D) {
       showingBefore = false;
       for (const s of surfaces) {
         // Different patch strengths on the next arrival, with the same reachable coverage.
-        for (let i = 0; i < s.initial.length; i += 4) if (s.initial[i]) s.initial[i] = 160 + Math.floor(Math.random() * 95);
+        for (let i = 0; i < s.initial.length; i += 4) if (s.initial[i]) s.initial[i] = 55 + Math.floor(Math.random() * 55);
         s.data.set(s.initial); s.texture.image.data = s.data; s.texture.needsUpdate = true;
         updateClumps(s);
         s.mass = s.remaining = s.initial.reduce((sum, value, i) => i % 4 === 0 ? sum + value * s.weight[Math.floor(Math.floor(i / 4) / WIDTH / TILE) * 3 + Math.floor((i / 4 % WIDTH) / TILE)] : sum, 0);

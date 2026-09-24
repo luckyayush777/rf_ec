@@ -2,18 +2,18 @@ import * as THREE from 'three';
 import type { Workbench } from './workbench';
 import type { WorkbenchSound } from './sound';
 
-export type ToolId = 'screwdriver' | 'blower';
+export type ToolId = 'screwdriver' | 'blower' | 'scraper';
 type ToolLocation = 'toolbox' | 'held' | 'desk';
 
 /** One shared inventory and animation path for every workbench tool. */
 export function createWorkbenchTools(scene: THREE.Scene, camera: THREE.PerspectiveCamera, bench: Workbench,
   sound: WorkbenchSound, reducedMotion: boolean, canUse: (id: ToolId) => boolean,
   changed: () => void, notify: (text: string) => void, requestRender: () => void) {
-  const objects = { screwdriver: bench.screwdriver, blower: bench.blower };
-  const homes = { screwdriver: bench.homePosition, blower: bench.blowerHomePosition };
+  const objects = { screwdriver: bench.screwdriver, blower: bench.blower, scraper: bench.scraper };
+  const homes = { screwdriver: bench.homePosition, blower: bench.blowerHomePosition, scraper: bench.scraperHomePosition };
   const state = {
     open: false, lidProgress: 0,
-    locations: { screwdriver: 'toolbox', blower: 'toolbox' } as Record<ToolId, ToolLocation>,
+    locations: { screwdriver: 'toolbox', blower: 'toolbox', scraper: 'toolbox' } as Record<ToolId, ToolLocation>,
     get tool() { return this.locations.screwdriver; },
     get equippedTool(): ToolId | null {
       return (Object.keys(this.locations) as ToolId[]).find(id => this.locations[id] === 'held') ?? null;

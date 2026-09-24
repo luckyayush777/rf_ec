@@ -91,3 +91,13 @@ test('the blower cannot turn screws or bypass empty-hand service rules', () => {
   assert.match(check('refit', 'fan-assembly', { equippedTool }).reason, /blower/);
   assert.equal(check('refit', 'fan-assembly', { equippedTool: null }).allowed, true);
 });
+
+test('the scraper cannot turn screws or handle assemblies and cable', () => {
+  const { check, coolerScrews } = fixture();
+  const equippedTool = 'scraper';
+  assert.equal(check('remove', 'fan-screw-1', { equippedTool }).allowed, false);
+  assert.equal(check('disconnect', 'fan-plug', { equippedTool }).allowed, false);
+  assert.equal(check('remove', 'cooler-assembly', {
+    equippedTool, cableConnected: false, removed: coolerScrews,
+  }).allowed, false);
+});

@@ -9,19 +9,20 @@ export function setupGPUCleaning(scene: THREE.Scene, gpu: THREE.Object3D, camera
   const dust = createGPUDust(gpu);
   const output = document.querySelector<HTMLOutputElement>('#clean-percent')!;
   const partOutput = document.querySelector<HTMLElement>('#part-cleanliness')!;
+  const remainingOutput = document.querySelector<HTMLElement>('#remaining-dust')!;
   const targetOutput = document.querySelector<HTMLElement>('#cleaning-progress')!;
   const finish = document.querySelector<HTMLButtonElement>('#finish-cleaning')!;
   const before = document.querySelector<HTMLButtonElement>('#show-before')!;
   const next = document.querySelector<HTMLButtonElement>('#next-job')!;
   const reticle = document.querySelector<HTMLElement>('#blower-reticle')!;
-  const state = { blowing: false, complete: false, before: false, job: 1, targetPart: null as string | null };
+  const state = { blowing: false, complete: false, celebrated: false, before: false, job: 1, targetPart: null as string | null };
   const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
   let aim = { x: 0, y: 0 }, hovering = false, previousTime = 0;
   const labels: Record<string, string> = { board: 'PCB', 'fan-assembly': 'Fan', 'cooler-assembly': 'Cooler' };
   const partLabel = (id: string) => labels[id] ?? id.replaceAll('-', ' ');
-  let lastSummary = '';
+  let lastSummary = '', lastHintTime = 0;
 
-  const COUNT = 72, positions = new Float32Array(COUNT * 3);
+  const COUNT = 48, positions = new Float32Array(COUNT * 3);
   positions.fill(10000);
   const velocities = Array.from({ length: COUNT }, () => new THREE.Vector3());
   const life = new Float32Array(COUNT);
@@ -32,7 +33,7 @@ export function setupGPUCleaning(scene: THREE.Scene, gpu: THREE.Object3D, camera
   gradient.addColorStop(0, '#ffffff'); gradient.addColorStop(1, '#ffffff00');
   ctx.fillStyle = gradient; ctx.fillRect(0, 0, 32, 32);
   const particleTexture = new THREE.CanvasTexture(sprite);
-  const particleMaterial = new THREE.PointsMaterial({ color: '#cdbd9e', size: .12, map: particleTexture, transparent: true, opacity: .45, depthWrite: false });
+  const particleMaterial = new THREE.PointsMaterial({ color: '#dfb56e', size: .12, map: particleTexture, transparent: true, opacity: .45, depthWrite: false });
   const particles = new THREE.Points(particleGeometry, particleMaterial);
   particles.name = 'cleaning-particles'; particles.userData.cleaningEffect = true; particles.frustumCulled = false;
   scene.add(particles);
@@ -44,8 +45,7 @@ export function setupGPUCleaning(scene: THREE.Scene, gpu: THREE.Object3D, camera
     if (object instanceof THREE.Mesh && !object.name.includes('pick-target') &&
       !object.userData.dustVisual && object.name !== 'placement-preview') solids.push(object);
   });
-  function hitAt(x: number, y: number) {
-    const rect = canvas.getBoundingClientRect();
+  function hitAt(x: number, y: number, rect: DOMRect) {
     pointer.set((x - rect.left) / rect.width * 2 - 1, -(y - rect.top) / rect.height * 2 + 1);
     raycaster.setFromCamera(pointer, camera);
     return raycaster.intersectObjects(solids, false).find(hit => {
@@ -71,7 +71,8 @@ export function setupGPUCleaning(scene: THREE.Scene, gpu: THREE.Object3D, camera
   }
   function nextJob() {
     if (!assembled()) { notify('Refit the parts and reconnect the cable before taking the next card.'); return; }
-    clearAim(); dust.reset(); state.complete = state.before = false; state.job++;
+    clearAim(); dust.reset(); state.complete = state.celebrated = state.before = false; state.job++;
+    document.dispatchEvent(new Event('bench-next-job'));
     finish.hidden = false; next.hidden = true;
     before.setAttribute('aria-pressed', 'false'); before.textContent = 'Compare before';
     notify('Another dusty card is on the bench. Use your tools in any order.');
@@ -93,33 +94,39 @@ export function setupGPUCleaning(scene: THREE.Scene, gpu: THREE.Object3D, camera
       particles.visible = !reducedMotion;
       reticle.hidden = !equipped || !hovering || state.before || !ready;
       targetOutput.hidden = !equipped;
-      scene.updateMatrixWorld(true);
+      let hit: THREE.Intersection | undefined;
       if (equipped && hovering) {
+        scene.updateMatrixWorld(true);
+        const rect = canvas.getBoundingClientRect();
+        hit = hitAt(aim.x, aim.y, rect);
         reticle.style.left = `${aim.x}px`; reticle.style.top = `${aim.y}px`;
-        const hit = hitAt(aim.x, aim.y);
         state.targetPart = hit ? dust.partFor(hit.object) : null;
       }
-      if (state.blowing && !state.before) {
-        for (const [dx, dy] of [[0, 0], [-12, 0], [12, 0], [0, -12], [0, 12]]) {
-          const hit = hitAt(aim.x + dx, aim.y + dy);
-          if (!hit || !dust.clean(hit, dt * .5)) continue;
-          if (!reducedMotion) {
-            const i = particleCursor++ % COUNT;
-            hit.point.toArray(positions, i * 3); life[i] = .35 + Math.random() * .3;
-            velocities[i].copy(raycaster.ray.direction).multiplyScalar(-.5).add(new THREE.Vector3((Math.random()-.5)*1.5, .5, (Math.random()-.5)*1.5));
-          }
+      if (state.blowing && !state.before && hit && dust.clean(hit, dt * 1.5, .47)) {
+        if (!reducedMotion) {
+          const i = particleCursor++ % COUNT;
+          hit.point.toArray(positions, i * 3); life[i] = .35 + Math.random() * .3;
+          velocities[i].copy(raycaster.ray.direction).multiplyScalar(-.5).add(new THREE.Vector3((Math.random()-.5)*1.5, .5, (Math.random()-.5)*1.5));
         }
       }
+      if (state.blowing && !state.celebrated && dust.progress >= .99) {
+        dust.cleanAll(); state.celebrated = true; stop();
+        sound.playCleaningComplete(); notify('Spotless! The GPU is 100% clean.');
+        remainingOutput.textContent = dust.remainingHint(); lastHintTime = now;
+      }
+      let movingParticles = false;
       for (let i = 0; i < COUNT; i++) if (life[i] > 0) {
+        movingParticles = true;
         life[i] -= dt;
         for (let axis = 0; axis < 3; axis++) positions[i * 3 + axis] += velocities[i].getComponent(axis) * dt;
         velocities[i].y -= dt * .8;
         if (life[i] <= 0) positions[i * 3 + 1] = 10000;
       }
-      particleGeometry.getAttribute('position').needsUpdate = true;
+      if (movingParticles) particleGeometry.getAttribute('position').needsUpdate = true;
       const percent = Math.min(100, Math.floor(dust.progress * 100));
       const summary = Object.keys(labels).map(id => `${labels[id]} ${Math.floor(dust.partProgress(id) * 100)}%`).join(' · ');
       if (summary !== lastSummary) { partOutput.textContent = summary; lastSummary = summary; }
+      if (now - lastHintTime > 400) { remainingOutput.textContent = dust.remainingHint(); lastHintTime = now; }
       output.value = `${percent}% clean`;
       finish.disabled = percent < 90 || !assembled();
       finish.textContent = percent < 90 ? 'Clean to 90% to finish' : !assembled() ? 'Refit parts to finish' : 'Finish service';

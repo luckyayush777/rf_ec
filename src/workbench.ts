@@ -38,7 +38,7 @@ function label(text: string, width: number, height: number, background: string, 
   return mesh;
 }
 
-export function createWorkbench(scene: THREE.Scene) {
+export function createWorkbench(scene: THREE.Scene, gpu: THREE.Object3D) {
   const desk = new THREE.Group(); desk.name = 'repair-desk'; scene.add(desk);
   const steel = material('#343940', 0.65, 0.4);
   const black = material('#171b21', 0.08, 0.7);
@@ -104,6 +104,44 @@ export function createWorkbench(scene: THREE.Scene) {
   }), [-3.2, .024, 1.5], desk, .05);
   mat.userData.action = 'desk';
 
+  // A low-profile PCB holder grips the long board edges without covering components.
+  const boardBounds = new THREE.Box3().setFromObject(gpu.getObjectByName('board-substrate') ?? gpu);
+  const boardCenter = boardBounds.getCenter(new THREE.Vector3());
+  const boardSize = boardBounds.getSize(new THREE.Vector3());
+  const pcbHolder = new THREE.Group(); pcbHolder.name = 'pcb-holder';
+  pcbHolder.position.set(boardCenter.x, .055, boardCenter.z); scene.add(pcbHolder);
+  const holderMetal = material('#777f83', .75, .35);
+  const holderJaw = material('#38444a', .35, .55);
+  const holderPad = material('#222c31', .05, .88);
+  const halfZ = boardSize.z / 2;
+  for (const side of [-1, 1]) {
+    box('pcb-holder-rail', [boardSize.x * .87, .075, .11], holderMetal,
+      [0, .035, side * (halfZ + .31)], pcbHolder, .02);
+  }
+  const holderJaws: { group: THREE.Group; side: number }[] = [];
+  for (const side of [-1, 1]) {
+    const row = new THREE.Group(); row.name = side < 0 ? 'pcb-holder-rear-jaws' : 'pcb-holder-front-jaws';
+    row.position.z = side * (halfZ + .12); pcbHolder.add(row);
+    for (const x of [-boardSize.x * .34, boardSize.x * .34]) {
+      box('pcb-holder-jaw', [.40, .20, .22], holderJaw, [x, .15, 0], row, .026);
+      box('pcb-holder-soft-pad', [.32, .13, .045], holderPad, [x, .15, -side * .12], row, .012);
+      const screw = cylinder('pcb-holder-adjuster', .07, .15, holderMetal,
+        [x, .15, side * .18], row); screw.rotation.x = Math.PI / 2;
+      const knob = cylinder('pcb-holder-knob', .11, .055, holderMetal,
+        [x, .15, side * .27], row); knob.rotation.x = Math.PI / 2;
+    }
+    holderJaws.push({ group: row, side });
+  }
+  const holderLabel = label('PCB HOLDER', 1.22, .16, '#313b40', '#dce1dc');
+  holderLabel.rotation.x = -Math.PI / 2;
+  holderLabel.position.set(0, .083, halfZ + .31); pcbHolder.add(holderLabel);
+  function updatePCBHolder(engaged: boolean, delta: number) {
+    for (const { group, side } of holderJaws) {
+      const target = side * (halfZ + (engaged ? .12 : .38));
+      group.position.z = THREE.MathUtils.damp(group.position.z, target, 13, delta);
+    }
+  }
+
   const tray = new THREE.Group(); tray.name = 'parts-tray'; scene.add(tray);
   box('tray-base', [2.7, .10, 1.9], black, [3.82, .06, 3.7], tray);
   for (const z of [2.8, 3.7, 4.6]) box('tray-divider', [2.7, .10, .04], steel, [3.82, .15, z], tray);
@@ -162,6 +200,33 @@ export function createWorkbench(scene: THREE.Scene) {
   nozzle.rotation.z = Math.PI / 2;
   box('blower-trigger', [.24, .05, .10], black, [-.4, .16, 0], blower, .01);
 
+  const scraper = new THREE.Group(); scraper.name = 'plastic-scraper'; scraper.userData.action = 'scraper';
+  const scraperHomePosition = new THREE.Vector3(-.78, .53, .72);
+  scraper.position.copy(scraperHomePosition); toolbox.add(scraper);
+  box('scraper-handle', [1.02, .19, .28], material('#e6c26e', 0, .78), [-.35, 0, 0], scraper, .06);
+  box('scraper-neck', [.27, .10, .19], black, [.27, 0, 0], scraper, .025);
+  box('scraper-blade', [.48, .045, .58], material('#e9e5d8', 0, .65), [.61, 0, 0], scraper, .012);
+  const scraperMark = label('SCRAPER', .58, .105, '#6c5534', '#f8edcf');
+  scraperMark.rotation.x = -Math.PI / 2; scraperMark.position.set(-.35, .103, 0); scraper.add(scraperMark);
+
+  // Replacement supplies have a dedicated box. Its compartments are empty for now.
+  const spareParts = new THREE.Group(); spareParts.name = 'spare-parts-box'; spareParts.position.set(8, .02, -3.75); scene.add(spareParts);
+  const sparePaint = material('#52606c', .18, .65);
+  box('spares-bottom', [2.75, .13, 2.25], black, [0, .10, 0], spareParts);
+  for (const z of [-1.05, 1.05]) box('spares-wall', [2.75, .48, .13], sparePaint, [0, .39, z], spareParts);
+  for (const x of [-1.31, 1.31]) box('spares-wall', [.13, .48, 2.1], sparePaint, [x, .39, 0], spareParts);
+  box('spares-divider', [.07, .32, 2.05], sparePaint, [.12, .32, 0], spareParts);
+  const spareLabel = label('SPARE PARTS', 1.6, .24, '#242d35', '#e2e8e9');
+  spareLabel.position.set(0, .42, 1.125); spareParts.add(spareLabel);
+
+  const alcohol = new THREE.Group(); alcohol.name = 'cleaning-alcohol'; alcohol.position.set(7.25, .02, 1.5); scene.add(alcohol);
+  const bottle = material('#e6eee9', .08, .18);
+  cylinder('alcohol-bottle', .30, 1.03, bottle, [0, .57, 0], alcohol);
+  cylinder('alcohol-neck', .17, .18, bottle, [0, 1.16, 0], alcohol);
+  cylinder('alcohol-cap', .20, .20, material('#286d7e', .1, .42), [0, 1.34, 0], alcohol);
+  const alcoholLabel = label('ALCOHOL', .55, .33, '#f4faf9', '#245765');
+  alcoholLabel.position.set(0, .59, .305); alcohol.add(alcoholLabel);
+
   const lamp = new THREE.Group(); lamp.name = 'desk-light'; scene.add(lamp);
   cylinder('lamp-base', .62, .14, steel, [-5.65, .07, -2.9], lamp);
   function arm(a: THREE.Vector3, b: THREE.Vector3) {
@@ -185,7 +250,8 @@ export function createWorkbench(scene: THREE.Scene) {
   light.shadow.mapSize.set(1024, 1024); light.shadow.normalBias = .025;
   scene.add(light, light.target);
 
-  return { desk, tabletop, mat, toolbox, lid, screwdriver, homePosition, blower, blowerHomePosition };
+  return { desk, tabletop, mat, pcbHolder, updatePCBHolder, toolbox, lid, screwdriver, homePosition,
+    blower, blowerHomePosition, scraper, scraperHomePosition, spareParts, alcohol };
 }
 
 export type Workbench = ReturnType<typeof createWorkbench>;
