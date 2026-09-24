@@ -33,6 +33,7 @@ Open **http://127.0.0.1:5173/** (or the URL printed by Vite if that port is occu
 
 Workbench controls:
 
+- Use **Both desks**, **Repair**, **Testing**, and **Top** to move between the two work areas. The testing desk and board are visual props for now.
 - Drag to orbit, scroll or pinch to zoom, and use the camera buttons to switch views or reset.
 - Click the box labeled **TOOLBOX** to open or close its hinged lid.
 - With the lid open, click the screwdriver to pick it up.
@@ -84,6 +85,8 @@ GitHub Pages sites are publicly accessible. On GitHub Free, the repository must 
 Before sending the link around, check one Android and one iPhone browser if available: load the scene, tap **Inspect GPU**, open the toolbox, equip the screwdriver, rotate and zoom, and turn sound on or off. Ask testers what they tried first and where they got stuck. The app does not currently collect analytics or feedback automatically.
 
 ## Model
+
+The testing desk is modeled in [models/repair-shop.blend](models/repair-shop.blend). Its complete browser export is `models/repair-shop.glb`; the board also has its own `models/gpu-test-board.glb` export. The browser positions this second desk next to the existing repair desk through `src/load-testing-desk.ts`. See [the repair shop asset notes](models/repair-shop.md) for the collection layout and re-export steps.
 
 Use `npm run model:build` to generate `models/gpu.blend` and the browser asset `src/assets/gpu.glb`. Edit and save the `.blend` file in Blender, then run `npm run model:export` to update the viewer without rebuilding your model. Blender 4.5 LTS or newer is required for these commands.
 

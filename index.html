@@ -9,7 +9,7 @@
   </head>
   <body>
     <div id="app">
-      <canvas id="scene" aria-label="Repair desk with a GPU, work light, and interactive toolbox"></canvas>
+      <canvas id="scene" aria-label="Repair desk with a GPU and a second desk with a testing board"></canvas>
       <div id="interaction-status" class="interaction-status" role="status" aria-live="polite">Loading the repair desk…</div>
       <aside class="equipment-panel" aria-label="Equipped tool">
         <span role="status" aria-live="polite">Currently equipped: <strong id="equipped-tool">None (empty hands)</strong></span>
@@ -56,11 +56,13 @@
       <footer class="bottom-bar">
         <div class="interaction-hint">
           <svg viewBox="0 0 24 28" fill="none" aria-hidden="true"><rect x="4.5" y="2.5" width="15" height="23" rx="7.5"/><path d="M12 3v8M5 11h14"/></svg>
-          <span><strong>Repair workbench</strong><span>Click to interact <b>·</b> Drag to orbit <b>·</b> Scroll to zoom <b>·</b> Hold wheel and drag to pan</span></span>
+          <span><strong>Repair and testing desks</strong><span>Click to interact <b>·</b> Drag to orbit <b>·</b> Scroll to zoom <b>·</b> Hold wheel and drag to pan</span></span>
         </div>
         <div class="view-controls" role="group" aria-label="Camera views">
-          <button type="button" class="view-button active" data-view="perspective" aria-pressed="true">Perspective</button>
-          <button type="button" class="view-button" data-view="top" aria-pressed="false">Top view</button>
+          <button type="button" class="view-button active" data-view="both" aria-pressed="true">Both desks</button>
+          <button type="button" class="view-button" data-view="repair" aria-pressed="false">Repair</button>
+          <button type="button" class="view-button" data-view="test" aria-pressed="false">Testing</button>
+          <button type="button" class="view-button" data-view="top" aria-pressed="false">Top</button>
           <span class="control-separator"></span>
           <button type="button" class="reset-button" id="reset-view" aria-label="Reset camera view" title="Reset view">
             <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 7a6 6 0 1 1-.1 5M4 3v4h4"/></svg>

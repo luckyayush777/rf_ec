@@ -16,7 +16,9 @@ button{font:inherit}
 .interaction-hint strong{font-size:11px;font-weight:500;color:#dddfe4}
 .interaction-hint span span{font-size:10px;color:#a9adb7}
 .interaction-hint b{font-weight:400;padding:0 6px;color:#737987}
-.view-controls{display:flex;align-items:center;gap:4px;padding:5px;border-radius:9px;border:1px solid #ffffff23;background:#23252cd9;box-shadow:0 4px 18px #00000010;pointer-events:auto;backdrop-filter:blur(12px)}
+.view-controls{display:flex;align-items:center;gap:4px;padding:5px;max-width:100%;overflow-x:auto;scrollbar-width:none;border-radius:9px;border:1px solid #ffffff23;background:#23252cd9;box-shadow:0 4px 18px #00000010;pointer-events:auto;backdrop-filter:blur(12px)}
+.view-controls::-webkit-scrollbar{display:none}
+.view-controls>*{flex-shrink:0}
 .view-controls button{border:0;border-radius:5px;background:transparent;color:#b7bbc5;cursor:pointer;transition:background .2s,color .2s}
 .view-button{font-size:11px;padding:10px 17px;white-space:nowrap}
 .view-button.active{background:#e3c49e;color:#34271d}

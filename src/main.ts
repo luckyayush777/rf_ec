@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { loadGPU } from './load-gpu';
+import { loadTestingDesk } from './load-testing-desk';
 import { createWorkbench } from './workbench';
 import { setupInteractions } from './interactions';
 import { WorkbenchSound } from './sound';
@@ -27,7 +28,7 @@ try {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#292b30');
-  scene.fog = new THREE.FogExp2('#292b30', 0.012);
+  scene.fog = new THREE.FogExp2('#292b30', 0.009);
 
   const pmrem = new THREE.PMREMGenerator(renderer);
   const room = new RoomEnvironment();
@@ -37,13 +38,13 @@ try {
   room.dispose();
   pmrem.dispose();
 
-  const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
+  const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 220);
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.dampingFactor = 0.075;
   controls.enablePan = true;
   controls.minDistance = 8;
-  controls.maxDistance = 54;
+  controls.maxDistance = 150;
   controls.minPolarAngle = 0.025;
   controls.maxPolarAngle = Math.PI * 0.47;
   controls.rotateSpeed = 0.65;
@@ -57,6 +58,10 @@ try {
   scene.add(gpu);
   scene.add(camera);
   const workbench = createWorkbench(scene, gpu, devMode);
+  const { testingDesk, testingTarget } = await loadTestingDesk(workbench.tabletop);
+  scene.add(testingDesk);
+  const overviewTarget = testingTarget.clone().add(new THREE.Vector3(0, -.3, 0)).multiplyScalar(.5);
+  overviewTarget.x += 4;
 
   scene.add(new THREE.HemisphereLight('#eef2fa', '#373139', 1.0));
   const key = new THREE.DirectionalLight('#fff3e2', 2.3);
@@ -80,9 +85,10 @@ try {
   rim.position.set(-3, 3, -5);
   scene.add(rim);
 
-  type CameraView = 'perspective' | 'top';
-  let activeView: CameraView | null = 'perspective';
-  let transition: { from: THREE.Vector3; to: THREE.Vector3; start: number } | null = null;
+  type CameraView = 'both' | 'repair' | 'test' | 'top';
+  let activeView: CameraView | null = 'both';
+  let transition: { fromPosition: THREE.Vector3; toPosition: THREE.Vector3;
+    fromTarget: THREE.Vector3; toTarget: THREE.Vector3; start: number } | null = null;
   let frame = 0;
   let disposed = false;
   let focusMode = false;
@@ -102,12 +108,20 @@ try {
   }
   muteButton.addEventListener('click', toggleSound);
 
+  function viewTarget(view: CameraView) {
+    return view === 'repair' ? new THREE.Vector3(0, -.3, 0)
+      : view === 'test' ? testingTarget.clone() : overviewTarget.clone();
+  }
+
   function viewPosition(view: CameraView) {
     const mobile = window.innerWidth <= 640;
-    const scale = mobile ? 1.7 : window.innerWidth < 1000 ? 1.15 : 1;
-    return view === 'top'
-      ? new THREE.Vector3(0, 29 * scale, 0.12)
-      : new THREE.Vector3(12 * scale, 16 * scale, 23 * scale);
+    const scale = mobile ? (view === 'both' || view === 'top' ? 2.2 : 1.7)
+      : window.innerWidth < 1000 ? 1.15 : 1;
+    const offset = view === 'top' ? new THREE.Vector3(0, 46 * scale, .12)
+      : view === 'repair' ? new THREE.Vector3(12 * scale, 16 * scale, 23 * scale)
+      : view === 'test' ? new THREE.Vector3(8 * scale, 11 * scale, 16 * scale)
+      : new THREE.Vector3(0, 26 * scale, 48 * scale);
+    return viewTarget(view).add(offset);
   }
 
   function applyFocusCamera() {
@@ -190,17 +204,19 @@ try {
     if (focusMode || !controls.enabled) return;
     activeView = view;
     updateButtons();
-    controls.target.set(0, -.3, 0);
     // Flush residual orbit damping before a camera preset takes control.
     controls.enableDamping = false;
     controls.update();
     controls.enableDamping = true;
+    const target = viewTarget(view);
     if (immediate || reducedMotion) {
       transition = null;
+      controls.target.copy(target);
       camera.position.copy(viewPosition(view));
       controls.update();
     } else {
-      transition = { from: camera.position.clone(), to: viewPosition(view), start: performance.now() };
+      transition = { fromPosition: camera.position.clone(), toPosition: viewPosition(view),
+        fromTarget: controls.target.clone(), toTarget: target, start: performance.now() };
     }
     requestRender();
   }
@@ -225,7 +241,8 @@ try {
     if (transition) {
       const progress = Math.min((now - transition.start) / 850, 1);
       const eased = progress < 0.5 ? 4 * progress ** 3 : 1 - (-2 * progress + 2) ** 3 / 2;
-      camera.position.lerpVectors(transition.from, transition.to, eased);
+      camera.position.lerpVectors(transition.fromPosition, transition.toPosition, eased);
+      controls.target.lerpVectors(transition.fromTarget, transition.toTarget, eased);
       if (progress === 1) transition = null;
     }
     interactions.update(now);
@@ -250,7 +267,7 @@ try {
     requestRender();
   });
   viewButtons.forEach(button => button.addEventListener('click', () => selectView(button.dataset.view as CameraView)));
-  document.querySelector('#reset-view')!.addEventListener('click', () => selectView('perspective'));
+  document.querySelector('#reset-view')!.addEventListener('click', () => selectView('both'));
   window.addEventListener('resize', resize);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
@@ -274,7 +291,7 @@ try {
 
   // A small development inspection surface for checking the assembly and camera.
   if (import.meta.env.DEV) {
-    Object.assign(window, { __bench: { scene, gpu, camera, controls, renderer, requestRender, workbench, interactions, sounds, cleaning } });
+    Object.assign(window, { __bench: { scene, gpu, testingDesk, camera, controls, renderer, requestRender, workbench, interactions, sounds, cleaning } });
   }
 
   window.addEventListener('pageshow', requestRender);
