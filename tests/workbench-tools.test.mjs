@@ -5,11 +5,13 @@ import { createWorkbenchTools } from '../src/workbench-tools.ts';
 
 function fixture() {
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(35, 1, .1, 100);
-  const toolbox = new THREE.Group(), lid = new THREE.Group(), screwdriver = new THREE.Group(), blower = new THREE.Group(), scraper = new THREE.Group();
-  scene.add(camera, toolbox); toolbox.add(lid, screwdriver, blower, scraper);
+  const toolbox = new THREE.Group(), lid = new THREE.Group(), screwdriver = new THREE.Group(), blower = new THREE.Group();
+  const devBlower = new THREE.Group(), scraper = new THREE.Group();
+  scene.add(camera, toolbox); toolbox.add(lid, screwdriver, blower, devBlower, scraper);
   const homePosition = new THREE.Vector3(0, .57, .05), blowerHomePosition = new THREE.Vector3(0, .57, -.65);
-  const scraperHomePosition = new THREE.Vector3(-.78, .53, .72);
-  const bench = { toolbox, lid, screwdriver, blower, scraper, homePosition, blowerHomePosition, scraperHomePosition };
+  const devBlowerHomePosition = new THREE.Vector3(1.4, .70, .65), scraperHomePosition = new THREE.Vector3(-.78, .53, .72);
+  const bench = { toolbox, lid, screwdriver, blower, devBlower, scraper, homePosition,
+    blowerHomePosition, devBlowerHomePosition, scraperHomePosition };
   let allowed = true;
   const tools = createWorkbenchTools(scene, camera, bench, { play() {} }, true, () => allowed, () => {}, () => {}, () => {});
   function settle() { for (let i = 0; i < 6; i++) tools.update(performance.now() + 1000, .1); }
@@ -65,4 +67,21 @@ test('the scraper obeys the same toolbox, desk, and return rules', () => {
   assert.equal(tools.state.locations.scraper, 'toolbox');
   assert.equal(bench.scraper.parent, bench.toolbox);
   assert.deepEqual(bench.scraper.position.toArray(), bench.scraperHomePosition.toArray());
+});
+
+test('the Dev blover uses the same exclusive toolbox and placement flow', () => {
+  const { tools, scene, bench, camera, settle } = fixture();
+  tools.equip('blower'); settle();
+  tools.equip('dev-blower'); settle();
+  assert.equal(tools.state.equippedTool, 'dev-blower');
+  assert.equal(bench.devBlower.parent, camera);
+  assert.equal(bench.blower.parent, bench.toolbox);
+  assert.equal(Object.values(tools.state.locations).filter(value => value === 'held').length, 1);
+  tools.place(new THREE.Vector3(0, 0, 2), []); settle();
+  assert.equal(bench.devBlower.parent, scene);
+  assert.equal(tools.state.locations['dev-blower'], 'desk');
+  assert.equal(bench.devBlower.position.y, .37);
+  tools.grab('dev-blower'); settle(); tools.returnTool(); settle();
+  assert.equal(bench.devBlower.parent, bench.toolbox);
+  assert.deepEqual(bench.devBlower.position.toArray(), bench.devBlowerHomePosition.toArray());
 });

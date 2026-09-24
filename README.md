@@ -6,6 +6,8 @@ A browser repair desk with a simplified GPU, a work light, and an interactive to
 
 The app opens on the repair workbench. The air blower is a physical toolbox tool alongside the screwdriver; **Equip blower** also retrieves it from the box. Equipping one tool puts the other away.
 
+When running the local development server, the larger purple **Dev blover** appears in the toolbox and equipment panel. It uses 20 times the regular blower's cleaning rate and a wider air stream. It follows the same equip, place, return, and service rules. Production builds hide this developer tool.
+
 - Hold and sweep over the GPU or a detached part to blow away dust. On touch screens the aim point sits above your finger.
 - Remove the fan or cooler with the existing service steps, then clean it while held or after placing it on the desk. Dust stays attached to its own mesh through removal, rotation, storage, and refitting.
 - With a part held, drag with empty hands to rotate it. With the blower equipped, right-drag on desktop or use two fingers on touch screens to turn it; pinch/scroll zooms. **Flip held item** exposes the other side.
@@ -15,7 +17,7 @@ The app opens on the repair workbench. The air blower is a physical toolbox tool
 
 This is a feedback prototype: jobs and cleaning progress live in memory, cards reuse the same fictional model, and replacement pads are not implemented. Fine dust uses small per-part surface masks, buildup uses removable clumps, and the blower has a bounded particle pool and synthesized air sound. Front and back masks are independent.
 
-The card now starts with lighter amber dust and worn thermal-pad remnants on its four memory chips. The Cleaning panel names the surface with the most dust left. A low-profile PCB holder grips the card's edges on the mat; its jaws open while the GPU is lifted and close when it returns. Remove the cooler, set the GPU back in the holder, equip the plastic scraper from the toolbox, start in the band between two concentric rectangles on a remnant, and drag inward to scrape it away gradually. The active remnant glows light red. Scraper drags do not rotate the GPU. The separate cleaning-alcohol bottle and empty spare-parts box are on the right side of the desk. Replacement supplies will be added in a later stage.
+The card now starts with lighter amber dust and worn thermal-pad remnants on its four memory chips. The Cleaning panel names the surface with the most dust left. A low-profile PCB holder grips the card's edges on the mat; its jaws open while the GPU is lifted and close when it returns. Remove the cooler, set the GPU back in the holder, equip the plastic scraper from the toolbox, start in the band between two concentric rectangles on a remnant, and drag toward the opposite edge. Each pass erases a strip under the scraper; repeat across the pad. Untouched areas stay in place, and the active remnant glows light red. Scraper drags do not rotate the GPU. The separate cleaning-alcohol bottle and empty spare-parts box are on the right side of the desk. Replacement supplies will be added in a later stage.
 
 The Blender source includes a populated PCB, rear silkscreen, and simplified DVI/HDMI connector faces. Fixed detail is batched at load time to reduce draw calls while remaining individually editable in Blender. It is an approximate 710-inspired card, not a reference-matched GT 710.
 
@@ -38,6 +40,7 @@ Workbench controls:
 - While holding it, click a clear place on the tabletop or mat to set it down; click it again to pick it up.
 - Click the open toolbox, press **Esc**, or use **Return screwdriver** to put it back. A closed toolbox opens when using Esc or the return button.
 - Hover over a screw, connector, fan, or other interactive part to highlight its surface. The desk includes a large blue electronics mat and a parts tray with separate fan and cooler screw rows.
+- With a mouse, drag to orbit, roll the wheel to zoom, or hold the wheel button and drag to pan the camera across the bench.
 - Click the GPU to lift it for inspection. Drag to rotate the held GPU independently of the camera; press **Esc** or **Set GPU down** to return it to the mat.
 - Click the fan cable or plug to unplug it from the board; click again to reconnect. **Unplug cable / Reconnect cable** is also available while inspecting.
 - Pick up the screwdriver and hold each of the four top fan screws until it reaches the labeled tray. Release to pause and hold again to continue. Set the screwdriver down or return it, then click the fan or **Lift fan**.

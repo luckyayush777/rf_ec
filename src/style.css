@@ -93,4 +93,6 @@ button{font:inherit}
 #blower-reticle{position:fixed;width:48px;height:48px;transform:translate(-50%,-50%);border:1px solid #e1edc9aa;border-radius:50%;pointer-events:none;box-shadow:0 0 0 5px #d7edb20a;z-index:4}
 #blower-reticle span{position:absolute;left:50%;top:50%;width:4px;height:4px;transform:translate(-50%,-50%);border-radius:50%;background:#e6f1d8}
 #blower-reticle.blowing{border-style:dashed;box-shadow:0 0 20px #d7edb233}
+#blower-reticle.dev-blover{width:88px;height:88px;border-color:#dca6f3cc;box-shadow:0 0 0 10px #cc78ed14}
+#blower-reticle.dev-blover.blowing{box-shadow:0 0 28px #cd7de366}
 @media(max-width:640px){.equipment-panel{max-width:245px}.equipment-tools button{font-size:10px;padding:6px 8px}.cleaning-summary summary{min-height:36px;line-height:36px}}

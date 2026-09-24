@@ -2,18 +2,20 @@ import * as THREE from 'three';
 import type { Workbench } from './workbench';
 import type { WorkbenchSound } from './sound';
 
-export type ToolId = 'screwdriver' | 'blower' | 'scraper';
+export type ToolId = 'screwdriver' | 'blower' | 'dev-blower' | 'scraper';
 type ToolLocation = 'toolbox' | 'held' | 'desk';
 
 /** One shared inventory and animation path for every workbench tool. */
 export function createWorkbenchTools(scene: THREE.Scene, camera: THREE.PerspectiveCamera, bench: Workbench,
   sound: WorkbenchSound, reducedMotion: boolean, canUse: (id: ToolId) => boolean,
   changed: () => void, notify: (text: string) => void, requestRender: () => void) {
-  const objects = { screwdriver: bench.screwdriver, blower: bench.blower, scraper: bench.scraper };
-  const homes = { screwdriver: bench.homePosition, blower: bench.blowerHomePosition, scraper: bench.scraperHomePosition };
+  const objects = { screwdriver: bench.screwdriver, blower: bench.blower,
+    'dev-blower': bench.devBlower, scraper: bench.scraper };
+  const homes = { screwdriver: bench.homePosition, blower: bench.blowerHomePosition,
+    'dev-blower': bench.devBlowerHomePosition, scraper: bench.scraperHomePosition };
   const state = {
     open: false, lidProgress: 0,
-    locations: { screwdriver: 'toolbox', blower: 'toolbox', scraper: 'toolbox' } as Record<ToolId, ToolLocation>,
+    locations: { screwdriver: 'toolbox', blower: 'toolbox', 'dev-blower': 'toolbox', scraper: 'toolbox' } as Record<ToolId, ToolLocation>,
     get tool() { return this.locations.screwdriver; },
     get equippedTool(): ToolId | null {
       return (Object.keys(this.locations) as ToolId[]).find(id => this.locations[id] === 'held') ?? null;
@@ -43,7 +45,8 @@ export function createWorkbenchTools(scene: THREE.Scene, camera: THREE.Perspecti
   function grab(id: ToolId) {
     if (state.equippedTool || motion || !canUse(id) || (state.locations[id] === 'toolbox' && state.lidProgress < .98)) return;
     state.locations[id] = 'held'; sound.play('pickup');
-    animate(id, camera, heldPose().position, new THREE.Quaternion().setFromEuler(new THREE.Euler(.1, -.2, id === 'blower' ? 2.2 : .9)));
+    animate(id, camera, heldPose().position, new THREE.Quaternion().setFromEuler(new THREE.Euler(.1, -.2,
+      id === 'blower' || id === 'dev-blower' ? 2.2 : .9)));
     changed();
   }
   function returnTool(id: ToolId | null = state.equippedTool) {
@@ -63,8 +66,10 @@ export function createWorkbenchTools(scene: THREE.Scene, camera: THREE.Perspecti
   function place(point: THREE.Vector3, obstacles: THREE.Object3D[]) {
     const id = state.equippedTool;
     if (!id || motion || !canUse(id)) return;
-    const target = new THREE.Vector3(THREE.MathUtils.clamp(point.x, -8.5, 8.5), point.y + .205, THREE.MathUtils.clamp(point.z, -5.4, 5.4));
-    const proposed = new THREE.Box3(target.clone().add(new THREE.Vector3(-1.35, -.19, -.25)), target.clone().add(new THREE.Vector3(1.35, .22, .25)));
+    const large = id === 'dev-blower';
+    const target = new THREE.Vector3(THREE.MathUtils.clamp(point.x, -8.5, 8.5), point.y + (large ? .37 : .205), THREE.MathUtils.clamp(point.z, -5.4, 5.4));
+    const proposed = new THREE.Box3(target.clone().add(new THREE.Vector3(large ? -1.45 : -1.35, large ? -.35 : -.19, large ? -.4 : -.25)),
+      target.clone().add(new THREE.Vector3(large ? 1.45 : 1.35, large ? .35 : .22, large ? .4 : .25)));
     if (obstacles.some(object => object !== objects[id] && proposed.intersectsBox(new THREE.Box3().setFromObject(object)))) {
       notify('Choose a clear spot on the desk.'); return;
     }
@@ -75,10 +80,12 @@ export function createWorkbenchTools(scene: THREE.Scene, camera: THREE.Perspecti
     get busy() { return Boolean(motion || pending); },
     get lidMoving() { return Boolean(lidMotion); },
     aimBlower(x: number, y: number, width: number, height: number) {
-      if (state.equippedTool !== 'blower' || motion) return;
+      const id = state.equippedTool;
+      if ((id !== 'blower' && id !== 'dev-blower') || motion) return;
       const halfH = 2.3 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-      bench.blower.position.set((x / width * 2 - 1) * halfH * camera.aspect + .25, (1 - y / height * 2) * halfH - .34, -2.3);
-      bench.blower.quaternion.setFromEuler(new THREE.Euler(0, 0, 2.2)); bench.blower.scale.setScalar(.43);
+      const object = objects[id];
+      object.position.set((x / width * 2 - 1) * halfH * camera.aspect + .25, (1 - y / height * 2) * halfH - .34, -2.3);
+      object.quaternion.setFromEuler(new THREE.Euler(0, 0, 2.2)); object.scale.setScalar(id === 'dev-blower' ? .48 : .43);
     },
     update(now: number, delta: number) {
       if (lidMotion) {

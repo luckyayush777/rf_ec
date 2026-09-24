@@ -16,6 +16,7 @@
         <div class="equipment-tools">
           <button id="equip-tool" type="button">Equip screwdriver</button>
           <button id="equip-blower" type="button">Equip blower</button>
+          <button id="equip-dev-blower" type="button" hidden>Equip Dev blover</button>
           <button id="equip-scraper" type="button">Equip scraper</button>
         </div>
         <button id="return-tool" type="button" hidden>Return screwdriver</button>
@@ -23,7 +24,7 @@
           <summary>Cleaning · <output id="clean-percent">0% clean</output></summary>
           <p id="part-cleanliness">PCB 0% · Fan 0% · Cooler 0%</p>
           <p id="remaining-dust">Most remaining: checking surfaces…</p>
-          <p><output id="pad-removal-progress">0% old pad material cleared</output> · Remove the cooler, then start in a pad's outer band and drag inward.</p>
+          <p><output id="pad-removal-progress">0% old pad material cleared</output> · Remove the cooler, then start in a pad's outer band and drag toward the opposite edge. Repeat across the pad.</p>
           <div class="cleaning-actions">
             <button id="show-before" type="button" aria-pressed="false">Compare before</button>
             <button id="finish-cleaning" type="button" disabled>Clean to 90% to finish</button>
@@ -55,7 +56,7 @@
       <footer class="bottom-bar">
         <div class="interaction-hint">
           <svg viewBox="0 0 24 28" fill="none" aria-hidden="true"><rect x="4.5" y="2.5" width="15" height="23" rx="7.5"/><path d="M12 3v8M5 11h14"/></svg>
-          <span><strong>Repair workbench</strong><span>Click to interact <b>·</b> Drag to orbit <b>·</b> Scroll to zoom</span></span>
+          <span><strong>Repair workbench</strong><span>Click to interact <b>·</b> Drag to orbit <b>·</b> Scroll to zoom <b>·</b> Hold wheel and drag to pan</span></span>
         </div>
         <div class="view-controls" role="group" aria-label="Camera views">
           <button type="button" class="view-button active" data-view="perspective" aria-pressed="true">Perspective</button>

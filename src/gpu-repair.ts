@@ -5,7 +5,7 @@ import { createServiceRules, gpuServiceExceptions, type ServiceAction, type Serv
 
 /** Keeps the original parent and local transform so servicing never accumulates drift. */
 export function setupGPURepair(scene: THREE.Scene, gpu: THREE.Object3D, camera: THREE.PerspectiveCamera, sound: WorkbenchSound,
-  reducedMotion: boolean, isConnected: (part: string) => boolean, equippedTool: () => 'screwdriver' | 'blower' | 'scraper' | null,
+  reducedMotion: boolean, isConnected: (part: string) => boolean, equippedTool: () => 'screwdriver' | 'blower' | 'dev-blower' | 'scraper' | null,
   ready: () => boolean, setGPUDown: () => void, notify: (text: string) => void, changed: () => void,
   focused: () => boolean) {
   const state = { heldPart: null as string | null, moving: false, removed: [] as string[], stored: [] as string[] };

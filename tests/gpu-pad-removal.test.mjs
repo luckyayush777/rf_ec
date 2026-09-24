@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { setupGPUPadRemoval } from '../src/gpu-pad-removal.ts';
 
-test('worn pad material only recedes during an inward scraper drag', () => {
+test('scraping erases a directional strip while untouched pad material stays in place', () => {
   const oldDocument = globalThis.document;
   const events = new EventTarget();
   const output = { value: '' };
@@ -15,46 +15,51 @@ test('worn pad material only recedes during an inward scraper drag', () => {
     piece.name = 'memory-residue-0-1';
     piece.position.set(-1.475, .146, -.46);
     gpu.add(piece);
+    gpu.updateMatrixWorld(true);
     let coolerRemoved = false;
     const notices = [];
     const removal = setupGPUPadRemoval(gpu, () => coolerRemoved, text => notices.push(text));
-    const at = x => new THREE.Vector3(x, .158, -.46);
-    const ray = x => new THREE.Ray(new THREE.Vector3(x, 1, -.46), new THREE.Vector3(0, -1, 0));
+    const at = (x, z = -.46) => new THREE.Vector3(x, .158, z);
+    const ray = (x, z = -.46) => new THREE.Ray(new THREE.Vector3(x, 1, z), new THREE.Vector3(0, -1, 0));
+    const visible = (x, z) => new THREE.Raycaster(new THREE.Vector3(x, 1, z), new THREE.Vector3(0, -1, 0))
+      .intersectObject(piece).length > 0;
+
     assert.equal(removal.begin(piece, at(-1.415)), false);
-    assert.equal(piece.visible, true);
     coolerRemoved = true;
     assert.equal(removal.begin(piece, at(-1.475)), false);
-    assert.equal(removal.begin(piece, at(-1.385)), true);
-    assert.notEqual(piece.material, originalMaterial);
+    assert.equal(removal.begin(piece, at(-1.415)), true);
     assert.equal(piece.material.emissive.getHexString(), 'ff7777');
     assert.equal(piece.children.length, 2);
-    removal.end();
-    assert.equal(piece.material, originalMaterial);
-    assert.equal(piece.children.length, 0);
-    assert.equal(removal.begin(piece, at(-1.415)), true);
-    assert.equal(removal.progress, 0);
     assert.equal(removal.drag(ray(-1.395)), false);
     assert.equal(removal.progress, 0);
     assert.equal(removal.drag(ray(-1.445)), true);
     assert.ok(removal.progress > 0 && removal.progress < 1);
-    assert.ok(piece.scale.x < 1 && piece.visible);
-    assert.ok(piece.scale.z < 1);
-    assert.equal(removal.drag(ray(-1.565)), true);
-    assert.equal(removal.progress, 1);
-    assert.equal(piece.visible, false);
-    assert.equal(piece.material, originalMaterial);
-    assert.match(output.value, /100%/);
+    assert.equal(removal.drag(ray(-1.59)), true);
+    assert.equal(piece.scale.x, 1);
+    assert.equal(piece.scale.z, 1);
+    assert.deepEqual(piece.position.toArray(), [-1.475, .146, -.46]);
+    assert.equal(visible(-1.475, -.46), false);
+    assert.equal(visible(-1.475, -.55), true);
+    removal.end();
+    assert.equal(piece.children.length, 0);
+    assert.notEqual(piece.material, originalMaterial);
+
+    const shader = { vertexShader: '#include <begin_vertex>', fragmentShader: '#include <clipping_planes_fragment>', uniforms: {} };
+    piece.material.onBeforeCompile(shader);
+    assert.match(shader.fragmentShader, /residueMask.*discard/s);
+    assert.ok(shader.uniforms.residueMask.value instanceof THREE.DataTexture);
+
+    assert.equal(removal.begin(piece, at(-1.415, -.39)), true);
+    assert.equal(removal.drag(ray(-1.59, -.39)), true);
+    assert.ok(removal.progress > 0);
+    removal.end();
     document.dispatchEvent(new Event('bench-next-job'));
     assert.equal(removal.progress, 0);
     assert.equal(piece.visible, true);
-    assert.equal(piece.scale.x, 1);
-    assert.equal(piece.position.x, -1.475);
-    assert.equal(removal.begin(piece, new THREE.Vector3(-1.475, .158, -.39)), true);
-    assert.equal(removal.drag(new THREE.Ray(new THREE.Vector3(-1.475, 1, -.44), new THREE.Vector3(0, -1, 0))), true);
-    assert.ok(removal.progress > 0 && removal.progress < 1);
-    removal.end();
-    assert.equal(piece.material, originalMaterial);
+    assert.equal(visible(-1.475, -.46), true);
+    assert.match(output.value, /0%/);
     removal.dispose();
+    assert.equal(piece.material, originalMaterial);
   } finally {
     globalThis.document = oldDocument;
   }

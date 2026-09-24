@@ -11,12 +11,13 @@ import { createInteractionHighlight } from './interaction-highlight';
 
 export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveCamera,
   canvas: HTMLCanvasElement, bench: Workbench, gpu: THREE.Object3D, controls: OrbitControls, sound: WorkbenchSound,
-  requestRender: () => void, reducedMotion: boolean, isFocusMode: () => boolean) {
+  requestRender: () => void, reducedMotion: boolean, isFocusMode: () => boolean, devMode = false) {
   const status = document.querySelector<HTMLElement>('#interaction-status')!;
   const toolboxButton = document.querySelector<HTMLButtonElement>('#toggle-toolbox')!;
   const returnButton = document.querySelector<HTMLButtonElement>('#return-tool')!;
   const equipButton = document.querySelector<HTMLButtonElement>('#equip-tool')!;
   const blowerButton = document.querySelector<HTMLButtonElement>('#equip-blower')!;
+  const devBlowerButton = document.querySelector<HTMLButtonElement>('#equip-dev-blower')!;
   const scraperButton = document.querySelector<HTMLButtonElement>('#equip-scraper')!;
   const equippedLabel = document.querySelector<HTMLElement>('#equipped-tool')!;
   const touchInput = window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 640;
@@ -39,7 +40,8 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
   placementPreview.name = 'placement-preview'; placementPreview.rotation.x = -Math.PI / 2;
   placementPreview.renderOrder = 5; placementPreview.visible = false; scene.add(placementPreview);
   const tools = createWorkbenchTools(scene, camera, bench, sound, reducedMotion,
-    id => !repair.state.moving && !inspection.busy && (id === 'blower' || !repair.state.heldPart),
+    id => !repair.state.moving && !inspection.busy && (id !== 'dev-blower' || devMode) &&
+      (id === 'blower' || id === 'dev-blower' || !repair.state.heldPart),
     () => { cleaning.clearAim(); clearHover(); message(); }, text => { status.textContent = text; }, requestRender);
   const state = tools.state;
   const cleaning = setupGPUCleaning(scene, gpu, camera, canvas, sound, reducedMotion,
@@ -54,9 +56,11 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
   const storePartButton = document.querySelector<HTMLButtonElement>('#store-part')!;
   const focusRefitButton = document.querySelector<HTMLButtonElement>('#focus-refit-screw')!;
   const heldItem = () => Boolean(inspection.state.held || repair.state.heldPart);
+  const isBlower = (id: ToolId | null): id is 'blower' | 'dev-blower' => id === 'blower' || id === 'dev-blower';
   const ready = () => !tools.busy && !inspection.busy && !repair.state.moving;
   function placementObstacles() {
-    return [gpu, bench.pcbHolder, bench.toolbox, bench.screwdriver, bench.blower, bench.scraper, bench.spareParts, bench.alcohol,
+    return [gpu, bench.pcbHolder, bench.toolbox, bench.screwdriver, bench.blower, bench.devBlower,
+      bench.scraper, bench.spareParts, bench.alcohol,
       scene.getObjectByName('desk-light')!,
       scene.getObjectByName('parts-tray')!, ...repair.looseObjects()];
   }
@@ -70,20 +74,22 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
     flipButton.hidden = !heldItem(); flipButton.disabled = !ready();
     equipButton.hidden = state.equippedTool === 'screwdriver';
     blowerButton.hidden = state.equippedTool === 'blower';
+    devBlowerButton.hidden = !devMode || state.equippedTool === 'dev-blower';
     scraperButton.hidden = state.equippedTool === 'scraper';
     equipButton.disabled = !ready() || Boolean(repair.state.heldPart);
-    blowerButton.disabled = !ready(); scraperButton.disabled = !ready() || Boolean(repair.state.heldPart);
+    blowerButton.disabled = devBlowerButton.disabled = !ready();
+    scraperButton.disabled = !ready() || Boolean(repair.state.heldPart);
     returnButton.disabled = !ready();
   }
   function message() {
-    const blower = state.equippedTool === 'blower';
+    const blower = isBlower(state.equippedTool);
     status.textContent = blower
       ? touchInput ? 'Hold a part to blow dust · use two fingers to turn / zoom a held part · return blower to move parts'
         : heldItem() ? 'Hold and sweep to blow dust · right-drag or Flip held item to turn it · return blower before refitting'
         : 'Hold and sweep over a part to blow dust · click clear desk to place blower'
       : state.equippedTool === 'scraper' ? inspection.state.held
         ? 'Set the GPU down in the PCB holder before scraping'
-        : 'Remove the cooler, then drag inward from the edge of each old pad'
+        : 'Remove the cooler, then scrape each old pad toward its opposite edge'
       : repair.state.heldPart ? 'Part held · drag to rotate · equip blower to clean · return blower before refitting'
       : inspection.state.held ? state.equippedTool === 'screwdriver'
         ? 'GPU held · drag to expose screws · hold a screw to remove / refit'
@@ -95,13 +101,16 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
     toolboxButton.setAttribute('aria-expanded', String(state.open));
     returnButton.hidden = !state.equippedTool;
     returnButton.textContent = state.equippedTool === 'blower' ? 'Return blower'
+      : state.equippedTool === 'dev-blower' ? 'Return Dev blover'
       : state.equippedTool === 'scraper' ? 'Return scraper' : 'Return screwdriver';
-    equippedLabel.textContent = blower ? 'Air blower' : state.equippedTool === 'screwdriver' ? 'Screwdriver'
+    equippedLabel.textContent = state.equippedTool === 'dev-blower' ? 'Dev blover'
+      : blower ? 'Air blower' : state.equippedTool === 'screwdriver' ? 'Screwdriver'
       : state.equippedTool === 'scraper' ? 'Plastic scraper' : 'None (empty hands)';
     refreshFocusActions();
   }
   function equip(id: ToolId) { cleaning.stop(); clearHover(); tools.equip(id); }
-  const equipScrewdriver = () => equip('screwdriver'), equipBlower = () => equip('blower'), equipScraper = () => equip('scraper');
+  const equipScrewdriver = () => equip('screwdriver'), equipBlower = () => equip('blower');
+  const equipDevBlower = () => equip('dev-blower'), equipScraper = () => equip('scraper');
   function returnTool() { cleaning.clearAim(); tools.returnTool(); }
   function toggleBox() { if (!repair.state.moving) tools.toggleBox(); }
   function storePart() { cleaning.clearAim(); repair.storePart(); refreshFocusActions(); }
@@ -148,7 +157,7 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
   function click(x: number, y: number) {
     if (!ready()) return;
     clearHover(); const result = hitAt(x, y);
-    if (result?.action === 'screwdriver' || result?.action === 'blower' || result?.action === 'scraper') {
+    if (result?.action === 'screwdriver' || result?.action === 'blower' || result?.action === 'dev-blower' || result?.action === 'scraper') {
       if (state.equippedTool) equip(result.action); else tools.grab(result.action);
       return;
     }
@@ -191,7 +200,7 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
       const materials = Array.isArray(hit.object.material) ? hit.object.material : [hit.object.material];
       return materials.some(material => material.visible);
     });
-    const blow = event.button === 0 && state.equippedTool === 'blower' &&
+    const blow = event.button === 0 && isBlower(state.equippedTool) &&
       (heldItem() || ['gpu', 'assembly', 'screw', 'cable'].includes(result?.action ?? ''));
     const scrape = event.button === 0 && ready() && state.equippedTool === 'scraper' &&
       (overHeldGPU || ['residue', 'gpu', 'assembly'].includes(result?.action ?? ''));
@@ -210,7 +219,7 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
       clearHover();
       if (overHeldGPU) status.textContent = 'Set the GPU down in the PCB holder before scraping.';
       else if (result?.action === 'residue') padRemoval.begin(result.target, result.hit.point);
-      else status.textContent = 'Start in the outer band of an old memory pad.';
+      else status.textContent = 'Start in the outer band of an old memory pad and scrape toward the opposite edge.';
     }
     else if (screw && result?.target) repair.beginScrew(result.target.name);
     else hover(event.clientX, event.clientY, event.pointerType);
@@ -219,7 +228,7 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
   let lastHover = 0;
   function clearHover() { hoverPoint = null; highlight.select(null); placementPreview.visible = false; }
   function hover(x: number, y: number, pointerType = 'mouse') {
-    if (state.equippedTool === 'blower') {
+    if (isBlower(state.equippedTool)) {
       highlight.select(null); placementPreview.visible = false;
       cleaning.aimAt(x, y, pointerType); canvas.style.cursor = 'crosshair'; return;
     }
@@ -245,7 +254,7 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
   function move(event: PointerEvent) {
     hoverPoint = { x: event.clientX, y: event.clientY, pointerType: event.pointerType };
     if (pointers.has(event.pointerId)) pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    if (state.equippedTool === 'blower' && pointers.size < 2) cleaning.aimAt(event.clientX, event.clientY, event.pointerType);
+    if (isBlower(state.equippedTool) && pointers.size < 2) cleaning.aimAt(event.clientX, event.clientY, event.pointerType);
     if (press?.scrape && pointers.size === 1) {
       const rect = canvas.getBoundingClientRect();
       pointer.set((event.clientX - rect.left) / rect.width * 2 - 1,
@@ -256,7 +265,7 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
     if (pointers.size === 2 && heldItem()) {
       const next = pinchPosition();
       if (next && pinch && pinch.distance > 0 && next.distance > 0) {
-        const turn = state.equippedTool === 'blower' || Boolean(repair.state.heldPart);
+        const turn = isBlower(state.equippedTool) || Boolean(repair.state.heldPart);
         if (turn) rotate(next.x - pinch.x, next.y - pinch.y);
         gesture(pinch.distance / next.distance, turn ? 0 : next.x - pinch.x, turn ? 0 : next.y - pinch.y);
       }
@@ -305,6 +314,7 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
   document.addEventListener('visibilitychange', onVisibilityChange);
   toolboxButton.addEventListener('click', toggleBox); returnButton.addEventListener('click', returnTool);
   equipButton.addEventListener('click', equipScrewdriver); blowerButton.addEventListener('click', equipBlower);
+  devBlowerButton.addEventListener('click', equipDevBlower);
   scraperButton.addEventListener('click', equipScraper);
   inspectButton.addEventListener('click', inspection.lift); storePartButton.addEventListener('click', storePart);
   flipButton.addEventListener('click', flipHeld);
@@ -320,9 +330,9 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
       tools.update(now, delta); inspection.update(now); repair.update(now);
       bench.updatePCBHolder(!inspection.state.held && !inspection.state.moving, delta);
       controls.enabled = !heldItem() && !inspection.busy && !repair.state.moving && !press?.blow && !press?.scrape && !press?.screw;
-      cleaning.update(now, state.equippedTool === 'blower', ready());
+      cleaning.update(now, isBlower(state.equippedTool) ? state.equippedTool : null, ready());
       const aim = cleaning.aim;
-      if (aim && state.equippedTool === 'blower') tools.aimBlower(aim.x, aim.y, canvas.clientWidth, canvas.clientHeight);
+      if (aim && isBlower(state.equippedTool)) tools.aimBlower(aim.x, aim.y, canvas.clientWidth, canvas.clientHeight);
       refreshFocusActions();
       if (hoverPoint && !pointers.size && now - lastHover > 80) { hover(hoverPoint.x, hoverPoint.y, hoverPoint.pointerType); lastHover = now; }
       return Boolean(tools.busy || inspection.busy || repair.state.moving || cleaning.state.blowing);
@@ -338,6 +348,7 @@ export function setupInteractions(scene: THREE.Scene, camera: THREE.PerspectiveC
       document.removeEventListener('visibilitychange', onVisibilityChange);
       toolboxButton.removeEventListener('click', toggleBox); returnButton.removeEventListener('click', returnTool);
       equipButton.removeEventListener('click', equipScrewdriver); blowerButton.removeEventListener('click', equipBlower);
+      devBlowerButton.removeEventListener('click', equipDevBlower);
       scraperButton.removeEventListener('click', equipScraper);
       inspectButton.removeEventListener('click', inspection.lift); storePartButton.removeEventListener('click', storePart);
       flipButton.removeEventListener('click', flipHeld);

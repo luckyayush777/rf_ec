@@ -88,11 +88,13 @@ export function setupGPUCleaning(scene: THREE.Scene, gpu: THREE.Object3D, camera
       if (state.before) return;
       state.blowing = true; reticle.classList.add('blowing'); sound.startAir();
     },
-    update(now: number, equipped: boolean, ready: boolean) {
+    update(now: number, blower: 'blower' | 'dev-blower' | null, ready: boolean) {
       const dt = previousTime ? Math.min((now - previousTime) / 1000, .05) : 0; previousTime = now;
+      const equipped = blower !== null, dev = blower === 'dev-blower';
       if (!equipped || !ready) stop();
       particles.visible = !reducedMotion;
       reticle.hidden = !equipped || !hovering || state.before || !ready;
+      reticle.classList.toggle('dev-blover', dev);
       targetOutput.hidden = !equipped;
       let hit: THREE.Intersection | undefined;
       if (equipped && hovering) {
@@ -102,7 +104,7 @@ export function setupGPUCleaning(scene: THREE.Scene, gpu: THREE.Object3D, camera
         reticle.style.left = `${aim.x}px`; reticle.style.top = `${aim.y}px`;
         state.targetPart = hit ? dust.partFor(hit.object) : null;
       }
-      if (state.blowing && !state.before && hit && dust.clean(hit, dt * 1.5, .47)) {
+      if (state.blowing && !state.before && hit && dust.clean(hit, dt * (dev ? 30 : 1.5), dev ? 1.1 : .47)) {
         if (!reducedMotion) {
           const i = particleCursor++ % COUNT;
           hit.point.toArray(positions, i * 3); life[i] = .35 + Math.random() * .3;
@@ -132,7 +134,7 @@ export function setupGPUCleaning(scene: THREE.Scene, gpu: THREE.Object3D, camera
       finish.textContent = percent < 90 ? 'Clean to 90% to finish' : !assembled() ? 'Refit parts to finish' : 'Finish service';
       targetOutput.textContent = state.before ? 'Before cleaning · comparison only' : state.targetPart
         ? `${partLabel(state.targetPart)} · ${Math.floor(dust.partProgress(state.targetPart) * 100)}% clean`
-        : 'Air blower · aim at the GPU or any detached part';
+        : `${dev ? 'Dev blover' : 'Air blower'} · aim at the GPU or any detached part`;
     },
     dispose() {
       clearAim(); dust.dispose(); particleGeometry.dispose(); particleMaterial.dispose(); particleTexture.dispose(); particles.removeFromParent();

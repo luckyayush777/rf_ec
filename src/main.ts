@@ -13,6 +13,7 @@ const focusButton = document.querySelector<HTMLButtonElement>('#focus-gpu')!;
 const viewButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-view]')];
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const touchInput = window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 640;
+const devMode = import.meta.env.DEV;
 
 async function start() {
 try {
@@ -40,7 +41,7 @@ try {
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.dampingFactor = 0.075;
-  controls.enablePan = false;
+  controls.enablePan = true;
   controls.minDistance = 8;
   controls.maxDistance = 54;
   controls.minPolarAngle = 0.025;
@@ -48,14 +49,14 @@ try {
   controls.rotateSpeed = 0.65;
   controls.zoomSpeed = 0.8;
   controls.target.set(0, -.3, 0);
-  controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+  controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
   controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE };
 
   const { gpu } = await loadGPU();
   gpu.position.add(new THREE.Vector3(-2.3, .047, .7));
   scene.add(gpu);
   scene.add(camera);
-  const workbench = createWorkbench(scene, gpu);
+  const workbench = createWorkbench(scene, gpu, devMode);
 
   scene.add(new THREE.HemisphereLight('#eef2fa', '#373139', 1.0));
   const key = new THREE.DirectionalLight('#fff3e2', 2.3);
@@ -90,7 +91,7 @@ try {
     minDistance: number; maxDistance: number; enablePan: boolean; twoFingerAction: typeof controls.touches.TWO } | null = null;
   const sounds = new WorkbenchSound();
   const interactions = setupInteractions(scene, camera, canvas, workbench, gpu, controls, sounds,
-    requestRender, reducedMotion, () => focusMode);
+    requestRender, reducedMotion, () => focusMode, devMode);
   const fpsCounter = document.querySelector<HTMLOutputElement>('#fps')!;
   const muteButton = document.querySelector<HTMLButtonElement>('#mute-sound')!;
   let fpsStart = performance.now(), fpsFrames = 0;
@@ -134,6 +135,7 @@ try {
     }
     workbench.screwdriver.visible = !focusMode || interactions.state.equippedTool === 'screwdriver';
     workbench.blower.visible = !focusMode || interactions.state.equippedTool === 'blower';
+    workbench.devBlower.visible = devMode && (!focusMode || interactions.state.equippedTool === 'dev-blower');
     workbench.scraper.visible = !focusMode || interactions.state.equippedTool === 'scraper';
   }
 

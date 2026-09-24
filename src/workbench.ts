@@ -38,7 +38,7 @@ function label(text: string, width: number, height: number, background: string, 
   return mesh;
 }
 
-export function createWorkbench(scene: THREE.Scene, gpu: THREE.Object3D) {
+export function createWorkbench(scene: THREE.Scene, gpu: THREE.Object3D, devMode = false) {
   const desk = new THREE.Group(); desk.name = 'repair-desk'; scene.add(desk);
   const steel = material('#343940', 0.65, 0.4);
   const black = material('#171b21', 0.08, 0.7);
@@ -158,19 +158,19 @@ export function createWorkbench(scene: THREE.Scene, gpu: THREE.Object3D) {
   toolbox.userData.action = 'toolbox'; scene.add(toolbox);
   const paint = material('#a34b2f', .35, .45);
   const darkPaint = material('#713421', .25, .57);
-  box('toolbox-bottom', [3.7, .18, 2.3], darkPaint, [0, .15, 0], toolbox);
-  for (const z of [-1.08, 1.08]) box('toolbox-wall', [3.7, .92, .14], paint, [0, .65, z], toolbox);
-  for (const x of [-1.78, 1.78]) box('toolbox-end', [.14, .92, 2.16], paint, [x, .65, 0], toolbox);
-  box('toolbox-lining', [3.42, .13, 2.02], black, [0, .29, 0], toolbox);
-  for (const x of [-1.7, 1.7]) for (const z of [-1, 1]) box('toolbox-foot', [.28, .08, .28], black, [x, .035, z], toolbox);
+  box('toolbox-bottom', [6, .18, 2.3], darkPaint, [0, .15, 0], toolbox);
+  for (const z of [-1.08, 1.08]) box('toolbox-wall', [6, .92, .14], paint, [0, .65, z], toolbox);
+  for (const x of [-2.93, 2.93]) box('toolbox-end', [.14, .92, 2.16], paint, [x, .65, 0], toolbox);
+  box('toolbox-lining', [5.72, .13, 2.02], black, [0, .29, 0], toolbox);
+  for (const x of [-2.8, 2.8]) for (const z of [-1, 1]) box('toolbox-foot', [.28, .08, .28], black, [x, .035, z], toolbox);
   const frontLabel = label('TOOLBOX', 1.65, .36, '#1d2127', '#e7e1d5');
   frontLabel.name = 'toolbox-label'; frontLabel.position.set(0, .67, 1.157); toolbox.add(frontLabel);
   const lid = new THREE.Group(); lid.name = 'toolbox-lid-hinge'; lid.position.set(0, 1.13, -1.13); toolbox.add(lid);
-  box('toolbox-lid', [3.76, .17, 2.34], paint, [0, 0, 1.13], lid);
-  box('lid-inside', [3.45, .025, 2.0], darkPaint, [0, -.094, 1.13], lid);
+  box('toolbox-lid', [6.06, .17, 2.34], paint, [0, 0, 1.13], lid);
+  box('lid-inside', [5.75, .025, 2.0], darkPaint, [0, -.094, 1.13], lid);
   for (const x of [-.58, .58]) box('handle-mount', [.14, .23, .16], black, [x, .2, 1.13], lid);
   box('toolbox-handle', [1.3, .16, .18], black, [0, .32, 1.13], lid);
-  for (const x of [-1.25, 1.25]) {
+  for (const x of [-2.25, 2.25]) {
     box('lid-latch', [.22, .27, .07], silver, [x, -.1, 2.34], lid);
     const hinge = cylinder('lid-hinge', .07, .45, silver, [x, 0, 0], lid); hinge.rotation.z = Math.PI / 2;
   }
@@ -199,6 +199,22 @@ export function createWorkbench(scene: THREE.Scene, gpu: THREE.Object3D) {
   const nozzle = cylinder('blower-nozzle', .036, 1.0, silver, [.46, 0, 0], blower);
   nozzle.rotation.z = Math.PI / 2;
   box('blower-trigger', [.24, .05, .10], black, [-.4, .16, 0], blower, .01);
+
+  const devBlower = new THREE.Group(); devBlower.name = 'dev-blover'; devBlower.userData.action = 'dev-blower';
+  const devBlowerHomePosition = new THREE.Vector3(1.4, .70, .65);
+  devBlower.position.copy(devBlowerHomePosition); devBlower.visible = devMode; toolbox.add(devBlower);
+  if (devMode) {
+    const purple = material('#ad57c5', .2, .42);
+    const motor = cylinder('dev-blover-motor', .32, 1.12, purple, [-.65, 0, 0], devBlower);
+    motor.rotation.z = Math.PI / 2;
+    const collar = cylinder('dev-blover-collar', .29, .22, silver, [.02, 0, 0], devBlower);
+    collar.rotation.z = Math.PI / 2;
+    const nozzle = cylinder('dev-blover-nozzle', .09, 1.35, silver, [.78, 0, 0], devBlower);
+    nozzle.rotation.z = Math.PI / 2;
+    box('dev-blover-trigger', [.34, .08, .18], black, [-.75, -.28, 0], devBlower, .025);
+    const mark = label('DEV BLOVER', 1.05, .23, '#f7eaff', '#60316d');
+    mark.rotation.x = -Math.PI / 2; mark.position.set(-.65, .33, 0); devBlower.add(mark);
+  }
 
   const scraper = new THREE.Group(); scraper.name = 'plastic-scraper'; scraper.userData.action = 'scraper';
   const scraperHomePosition = new THREE.Vector3(-.78, .53, .72);
@@ -251,7 +267,8 @@ export function createWorkbench(scene: THREE.Scene, gpu: THREE.Object3D) {
   scene.add(light, light.target);
 
   return { desk, tabletop, mat, pcbHolder, updatePCBHolder, toolbox, lid, screwdriver, homePosition,
-    blower, blowerHomePosition, scraper, scraperHomePosition, spareParts, alcohol };
+    blower, blowerHomePosition, devBlower, devBlowerHomePosition,
+    scraper, scraperHomePosition, spareParts, alcohol };
 }
 
 export type Workbench = ReturnType<typeof createWorkbench>;
