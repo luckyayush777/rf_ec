@@ -1,5 +1,7 @@
 # BENCH — GPU study
 
+The Godot port has started: open [godot/project.godot](godot/project.godot) and press F5. See [the Godot port README](godot/README.md) for current features and run instructions, and [the engine handoff](ENGINE_PORT_HANDOFF.md) for the browser behavior contract.
+
 A browser repair desk with a simplified GPU, a work light, and an interactive toolbox containing a screwdriver. Built with TypeScript, Three.js, and Vite, with an editable Blender asset workflow.
 
 ## Cleaning with the toolbox

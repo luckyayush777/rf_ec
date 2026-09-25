@@ -1,0 +1,282 @@
+{
+  "sources": {
+    "src/assets/gpu.glb": "7e4a0d6478e30f16314573c3f4a815a4bc131f1b2a00fbdc6f55a58f5da329d2",
+    "models/repair-shop.glb": "bf0daf8423c702c20a6760586da1358699537fb91bfc08f95021471c0eb824bb",
+    "src/assets/manual-screwdriver.wav": "960c72e4e8f4f7766f279c54a8867df954c1417a4e4b33572dbe48bcb77e2b18"
+  },
+  "parts": [
+    {
+      "id": "pcb-detail",
+      "parent": "board",
+      "role": "fixed",
+      "assembledPosition": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "board",
+      "parent": "gpu",
+      "role": "fixed",
+      "assembledPosition": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "board-fan-socket",
+      "parent": "gpu",
+      "role": "fixed",
+      "assembledPosition": [
+        2.5399999618530273,
+        0.1899999976158142,
+        0.13500000536441803
+      ]
+    },
+    {
+      "id": "fan-plug",
+      "parent": "fan-cable",
+      "role": "removable",
+      "assembledPosition": [
+        2.5399999618530273,
+        0.20200000703334808,
+        0.28999999165534973
+      ],
+      "removalDirection": [
+        0,
+        0,
+        1
+      ],
+      "attachment": "board-fan-socket"
+    },
+    {
+      "id": "fan-cable",
+      "parent": "fan-assembly",
+      "role": "fixed",
+      "assembledPosition": [
+        0.4300000071525574,
+        -0.9350000023841858,
+        0
+      ],
+      "attachment": "fan-assembly"
+    },
+    {
+      "id": "fan-rotor",
+      "parent": "fan-assembly",
+      "role": "fixed",
+      "assembledPosition": [
+        0,
+        0.026000000536441803,
+        0
+      ],
+      "attachment": "fan-assembly"
+    },
+    {
+      "id": "fan-assembly",
+      "parent": "cooler-assembly",
+      "role": "assembly",
+      "assembledPosition": [
+        -0.4300000071525574,
+        0.9350000023841858,
+        0
+      ],
+      "removalDirection": [
+        0,
+        1,
+        0
+      ],
+      "requires": [
+        "fan-plug",
+        "fan-screw-1",
+        "fan-screw-2",
+        "fan-screw-3",
+        "fan-screw-4"
+      ]
+    },
+    {
+      "id": "fan-screw-1",
+      "parent": "cooler-assembly",
+      "role": "fastener",
+      "assembledPosition": [
+        -1.3600000143051147,
+        1.0770000219345093,
+        0.9300000071525574
+      ],
+      "removalDirection": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "id": "fan-screw-2",
+      "parent": "cooler-assembly",
+      "role": "fastener",
+      "assembledPosition": [
+        -1.3600000143051147,
+        1.0770000219345093,
+        -0.9300000071525574
+      ],
+      "removalDirection": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "id": "fan-screw-3",
+      "parent": "cooler-assembly",
+      "role": "fastener",
+      "assembledPosition": [
+        0.5,
+        1.0770000219345093,
+        0.9300000071525574
+      ],
+      "removalDirection": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "id": "fan-screw-4",
+      "parent": "cooler-assembly",
+      "role": "fastener",
+      "assembledPosition": [
+        0.5,
+        1.0770000219345093,
+        -0.9300000071525574
+      ],
+      "removalDirection": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "id": "heatsink",
+      "parent": "cooler-assembly",
+      "role": "fixed",
+      "assembledPosition": [
+        -0.2199999988079071,
+        0.1899999976158142,
+        0
+      ],
+      "attachment": "cooler-assembly"
+    },
+    {
+      "id": "cooler-assembly",
+      "parent": "gpu",
+      "role": "assembly",
+      "assembledPosition": [
+        0,
+        0,
+        0
+      ],
+      "removalDirection": [
+        0,
+        1,
+        0
+      ],
+      "requires": [
+        "fan-plug",
+        "cooler-screw-1",
+        "cooler-screw-2",
+        "cooler-screw-3",
+        "cooler-screw-4"
+      ]
+    },
+    {
+      "id": "cooler-screw-1",
+      "parent": "gpu",
+      "role": "fastener",
+      "assembledPosition": [
+        -1.940000057220459,
+        -0.11699999868869781,
+        0.8899999856948853
+      ],
+      "removalDirection": [
+        0,
+        -1,
+        0
+      ]
+    },
+    {
+      "id": "cooler-screw-2",
+      "parent": "gpu",
+      "role": "fastener",
+      "assembledPosition": [
+        -1.940000057220459,
+        -0.11699999868869781,
+        -0.8899999856948853
+      ],
+      "removalDirection": [
+        0,
+        -1,
+        0
+      ]
+    },
+    {
+      "id": "cooler-screw-3",
+      "parent": "gpu",
+      "role": "fastener",
+      "assembledPosition": [
+        1.5,
+        -0.11699999868869781,
+        0.8899999856948853
+      ],
+      "removalDirection": [
+        0,
+        -1,
+        0
+      ]
+    },
+    {
+      "id": "cooler-screw-4",
+      "parent": "gpu",
+      "role": "fastener",
+      "assembledPosition": [
+        1.5,
+        -0.11699999868869781,
+        -0.8899999856948853
+      ],
+      "removalDirection": [
+        0,
+        -1,
+        0
+      ]
+    },
+    {
+      "id": "edge-connector",
+      "parent": "gpu",
+      "role": "fixed",
+      "assembledPosition": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mounting-bracket",
+      "parent": "gpu",
+      "role": "fixed",
+      "assembledPosition": [
+        -3.0350000858306885,
+        0.5199999809265137,
+        0
+      ]
+    },
+    {
+      "id": "gpu",
+      "parent": "",
+      "role": "assembly",
+      "assembledPosition": [
+        0,
+        0.14000000059604645,
+        0
+      ]
+    }
+  ]
+}

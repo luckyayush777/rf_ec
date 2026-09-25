@@ -1,0 +1,188 @@
+extends Node
+## Cable and fastener state. Every entry point checks rules AND animation/tool guards.
+signal changed
+signal notice(text: String)
+
+var contract: Dictionary
+var rules: RefCounted
+var world: Node3D
+var can_use: Callable
+var get_tool: Callable
+var removed: Array = []
+var cable_connected := true
+var cable_progress := 0.0
+var moving := false
+var active_screw := ""
+var turns: Dictionary = {}
+var fan_screws: Array = []
+var cooler_screws: Array = []
+var wires: Array = []
+var motion: Tween
+var muted := false
+var audio: AudioStreamPlayer
+var busy: bool:
+	get: return moving or not active_screw.is_empty()
+
+func configure(parts: Dictionary, evaluator: RefCounted, scene: Node3D, allowed: Callable, tool: Callable) -> void:
+	contract = parts
+	rules = evaluator
+	world = scene
+	can_use = allowed
+	get_tool = tool
+	for definition in contract.service_parts:
+		if definition.kind != "assembly": continue
+		var screws: Array = []
+		for id in definition.requires:
+			if rules.parts[id].kind == "fastener": screws.append(id)
+		if definition.id == "fan-assembly": fan_screws = screws
+		if definition.id == "cooler-assembly": cooler_screws = screws
+	for id in ["fan-plug", "board-fan-socket", "fan-cable"]:
+		contract.objects[id].set_meta("action", "cable")
+	for id in fan_screws + cooler_screws:
+		contract.objects[id].set_meta("action", "screw")
+		contract.objects[id].set_meta("part_id", id)
+	for index in range(2):
+		var id := "fan-positive-wire" if index == 0 else "fan-ground-wire"
+		var wire: MeshInstance3D = contract.objects[id]
+		wires.append({"node": wire, "mesh": wire.mesh, "end": Vector3(2.54, 0.244 if index == 0 else 0.205, 0.39)})
+	audio = AudioStreamPlayer.new()
+	audio.stream = preload("res://assets/manual-screwdriver.wav")
+	audio.volume_db = -4.0
+	add_child(audio)
+
+func decision(kind: String, id: String) -> Dictionary:
+	return rules.check(kind, id, removed, {"fan-plug": cable_connected}, get_tool.call())
+
+func toggle_cable() -> bool:
+	if busy or not can_use.call(): return false
+	var check := decision("disconnect" if cable_connected else "connect", "fan-plug")
+	if not check.allowed:
+		notice.emit(check.reason)
+		return false
+	cable_connected = not cable_connected
+	moving = true
+	changed.emit()
+	motion = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	motion.tween_method(apply_cable_pose, cable_progress, 0.0 if cable_connected else 1.0, 0.24)
+	motion.finished.connect(func():
+		moving = false
+		changed.emit()
+		notice.emit("Fan cable connected." if cable_connected else "Fan cable unplugged. Cooler screws are now accessible with the screwdriver."))
+	return true
+
+func apply_cable_pose(value: float) -> void:
+	cable_progress = value
+	var plug: Node3D = contract.objects["fan-plug"]
+	var home: Transform3D = contract.homes["fan-plug"].transform
+	plug.transform = home
+	plug.position += Vector3(0, 0.22, 0.58) * value
+	plug.basis = home.basis * Basis(Vector3.RIGHT, -0.22 * value)
+	for wire in wires:
+		if is_zero_approx(value):
+			wire.node.mesh = wire.mesh
+			continue
+		var bent := ArrayMesh.new()
+		for surface in range(wire.mesh.get_surface_count()):
+			var arrays: Array = wire.mesh.surface_get_arrays(surface).duplicate(true)
+			var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+			for i in range(vertices.size()):
+				var weight: float = smoothstep(0.0, 1.0, 1.0 - maxf(0.0, vertices[i].distance_to(wire.end) - 0.06) / 0.7)
+				vertices[i] += Vector3(0, 0.22, 0.58) * value * weight
+			arrays[Mesh.ARRAY_VERTEX] = vertices
+			# Regenerate normals for the bent geometry; imported originals stay untouched.
+			arrays[Mesh.ARRAY_TANGENT] = null
+			var temporary := ArrayMesh.new()
+			temporary.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+			var surface_tool := SurfaceTool.new()
+			surface_tool.create_from(temporary, 0)
+			surface_tool.generate_normals()
+			surface_tool.set_material(wire.mesh.surface_get_material(surface))
+			surface_tool.commit(bent)
+		wire.node.mesh = bent
+
+func begin_screw(id: String) -> bool:
+	if busy or not can_use.call() or id not in fan_screws + cooler_screws: return false
+	var reinstall: bool = id in removed
+	var check := decision("refit" if reinstall else "remove", id)
+	if not check.allowed:
+		notice.emit(check.reason)
+		return false
+	if not turns.has(id):
+		turns[id] = {"progress": 0.0, "reinstall": reinstall, "from": contract.objects[id].global_transform}
+	active_screw = id
+	changed.emit()
+	notice.emit("Hold to %s %s. Release to pause." % ["tighten" if reinstall else "remove", id.replace("-", " ")])
+	return true
+
+func end_screw() -> void:
+	if active_screw.is_empty(): return
+	var id := active_screw
+	active_screw = ""
+	audio.stop()
+	changed.emit()
+	notice.emit("%s: %d%% — hold the same screw to continue." % [id.replace("-", " "), roundi(turns[id].progress * 100)])
+
+func advance_turn(delta: float) -> void:
+	if active_screw.is_empty(): return
+	var id := active_screw
+	var part: Node3D = contract.objects[id]
+	var turn: Dictionary = turns[id]
+	turn.progress = minf(1.0, turn.progress + maxf(0.0, delta) / 1.5)
+	var home: Transform3D = contract.homes[id].transform
+	if turn.reinstall:
+		var destination: Transform3D = contract.homes[id].parent.global_transform * home
+		part.global_transform = (turn.from as Transform3D).interpolate_with(destination, turn.progress)
+		part.global_position.y += sin(PI * turn.progress) * 0.35
+		part.basis = part.basis * Basis(Vector3.UP, -TAU * 3 * turn.progress)
+	else:
+		part.transform = home
+		part.position += home.basis.y * 0.34 * turn.progress
+		part.basis = home.basis * Basis(Vector3.UP, TAU * 3 * turn.progress)
+	changed.emit()
+	if turn.progress >= 1.0:
+		complete_screw(id)
+
+func complete_screw(id: String) -> void:
+	var part: Node3D = contract.objects[id]
+	var reinstall: bool = turns[id].reinstall
+	turns.erase(id)
+	active_screw = ""
+	audio.stop()
+	if reinstall:
+		part.reparent(contract.homes[id].parent, true)
+		part.transform = contract.homes[id].transform
+		removed.erase(id)
+		changed.emit()
+		notice.emit(id.replace("-", " ").capitalize() + " refitted.")
+		return
+	removed.append(id)
+	part.reparent(world, true)
+	var fan: bool = id in fan_screws
+	var index: int = (fan_screws if fan else cooler_screws).find(id)
+	var destination := Transform3D(Basis(Vector3.BACK, PI / 2), Vector3(3.1 + index * 0.48, 0.20, 3.38 if fan else 4.12))
+	var origin := part.global_transform
+	moving = true
+	changed.emit()
+	motion = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	motion.tween_method(func(t: float):
+		part.global_transform = origin.interpolate_with(destination, t)
+		part.global_position.y += sin(PI * t) * 0.7, 0.0, 1.0, 0.68)
+	motion.finished.connect(func():
+		part.global_transform = destination
+		moving = false
+		changed.emit()
+		notice.emit(id.replace("-", " ").capitalize() + " in tray. Hold it with the screwdriver to refit."))
+
+func set_muted(value: bool) -> void:
+	muted = value
+	if muted: audio.stop()
+	changed.emit()
+
+func _process(delta: float) -> void:
+	advance_turn(delta)
+	if not active_screw.is_empty() and not muted and not audio.playing:
+		audio.play()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT and audio != null:
+		end_screw()

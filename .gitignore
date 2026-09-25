@@ -5,3 +5,5 @@ artifacts/
 *.blend1
 *.blend2
 __pycache__/
+godot/.godot/
+godot/build/

@@ -1,0 +1,639 @@
+[gd_scene load_steps=82 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/toolbox.tscn" id="ToolboxScene"]
+
+[sub_resource type="StandardMaterial3D" id="Wood"]
+albedo_color = Color(0.53, 0.38, 0.25, 1)
+metallic = 0.0
+roughness = 0.7
+
+[sub_resource type="StandardMaterial3D" id="Steel"]
+albedo_color = Color(0.13, 0.16, 0.19, 1)
+metallic = 0.6
+roughness = 0.7
+
+[sub_resource type="StandardMaterial3D" id="Mat"]
+albedo_color = Color(0.035, 0.24, 0.37, 1)
+metallic = 0.0
+roughness = 0.7
+
+[sub_resource type="StandardMaterial3D" id="Grid"]
+albedo_color = Color(0.065, 0.34, 0.46, 1)
+metallic = 0.0
+roughness = 0.7
+
+[sub_resource type="StandardMaterial3D" id="Black"]
+albedo_color = Color(0.035, 0.045, 0.06, 1)
+metallic = 0.05
+roughness = 0.7
+
+[sub_resource type="StandardMaterial3D" id="Red"]
+albedo_color = Color(0.48, 0.14, 0.075, 1)
+metallic = 0.25
+roughness = 0.7
+
+[sub_resource type="StandardMaterial3D" id="Silver"]
+albedo_color = Color(0.49, 0.56, 0.61, 1)
+metallic = 0.7
+roughness = 0.7
+
+[sub_resource type="StandardMaterial3D" id="Floor"]
+albedo_color = Color(0.08, 0.095, 0.115, 1)
+metallic = 0.0
+roughness = 0.7
+
+[sub_resource type="BoxMesh" id="Box0"]
+size = Vector3(20, 0.38, 12)
+material = SubResource("Wood")
+
+[sub_resource type="BoxMesh" id="Box1"]
+size = Vector3(19.2, 0.5, 0.15)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box2"]
+size = Vector3(19.2, 0.5, 0.15)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box3"]
+size = Vector3(0.28, 3.8, 0.28)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box4"]
+size = Vector3(0.4, 0.14, 0.4)
+material = SubResource("Black")
+
+[sub_resource type="BoxMesh" id="Box5"]
+size = Vector3(0.28, 3.8, 0.28)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box6"]
+size = Vector3(0.4, 0.14, 0.4)
+material = SubResource("Black")
+
+[sub_resource type="BoxMesh" id="Box7"]
+size = Vector3(0.28, 3.8, 0.28)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box8"]
+size = Vector3(0.4, 0.14, 0.4)
+material = SubResource("Black")
+
+[sub_resource type="BoxMesh" id="Box9"]
+size = Vector3(0.28, 3.8, 0.28)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box10"]
+size = Vector3(0.4, 0.14, 0.4)
+material = SubResource("Black")
+
+[sub_resource type="BoxMesh" id="Box11"]
+size = Vector3(10.5, 0.045, 7.4)
+material = SubResource("Mat")
+
+[sub_resource type="BoxMesh" id="Box12"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box13"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box14"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box15"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box16"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box17"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box18"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box19"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box20"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box21"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box22"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box23"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box24"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box25"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box26"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box27"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box28"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box29"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box30"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box31"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box32"]
+size = Vector3(0.012, 0.002, 5.5)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box33"]
+size = Vector3(10, 0.002, 0.012)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box34"]
+size = Vector3(10, 0.002, 0.012)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box35"]
+size = Vector3(10, 0.002, 0.012)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box36"]
+size = Vector3(10, 0.002, 0.012)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box37"]
+size = Vector3(10, 0.002, 0.012)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box38"]
+size = Vector3(10, 0.002, 0.012)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box39"]
+size = Vector3(10, 0.002, 0.012)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box40"]
+size = Vector3(10, 0.002, 0.012)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box41"]
+size = Vector3(10, 0.002, 0.012)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box42"]
+size = Vector3(10, 0.002, 0.012)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box43"]
+size = Vector3(10, 0.002, 0.012)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box44"]
+size = Vector3(10, 0.002, 0.012)
+material = SubResource("Grid")
+
+[sub_resource type="BoxMesh" id="Box45"]
+size = Vector3(1.5, 0.025, 0.7)
+material = SubResource("Black")
+
+[sub_resource type="BoxMesh" id="Box46"]
+size = Vector3(1.5, 0.025, 0.7)
+material = SubResource("Black")
+
+[sub_resource type="BoxMesh" id="Box47"]
+size = Vector3(1.5, 0.025, 0.7)
+material = SubResource("Black")
+
+[sub_resource type="BoxMesh" id="Box48"]
+size = Vector3(1.5, 0.025, 0.7)
+material = SubResource("Black")
+
+[sub_resource type="BoxMesh" id="Box49"]
+size = Vector3(1.5, 0.025, 0.7)
+material = SubResource("Black")
+
+[sub_resource type="BoxMesh" id="Box50"]
+size = Vector3(1.5, 0.025, 0.7)
+material = SubResource("Black")
+
+[sub_resource type="BoxMesh" id="Box51"]
+size = Vector3(5.4, 0.075, 0.11)
+material = SubResource("Silver")
+
+[sub_resource type="BoxMesh" id="Box52"]
+size = Vector3(0.4, 0.2, 0.22)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box53"]
+size = Vector3(0.4, 0.2, 0.22)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box54"]
+size = Vector3(5.4, 0.075, 0.11)
+material = SubResource("Silver")
+
+[sub_resource type="BoxMesh" id="Box55"]
+size = Vector3(0.4, 0.2, 0.22)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box56"]
+size = Vector3(0.4, 0.2, 0.22)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box57"]
+size = Vector3(2.7, 0.1, 1.9)
+material = SubResource("Black")
+
+[sub_resource type="BoxMesh" id="Box58"]
+size = Vector3(2.7, 0.1, 0.04)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box59"]
+size = Vector3(2.7, 0.1, 0.04)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box60"]
+size = Vector3(2.7, 0.1, 0.04)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box61"]
+size = Vector3(0.04, 0.1, 1.9)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box62"]
+size = Vector3(0.04, 0.1, 1.9)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box63"]
+size = Vector3(6, 1.05, 2.3)
+material = SubResource("Red")
+
+[sub_resource type="BoxMesh" id="Box64"]
+size = Vector3(6.06, 0.17, 2.34)
+material = SubResource("Red")
+
+[sub_resource type="BoxMesh" id="Box65"]
+size = Vector3(1.3, 0.18, 0.18)
+material = SubResource("Black")
+
+[sub_resource type="BoxMesh" id="Box66"]
+size = Vector3(1.15, 0.15, 1.15)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box67"]
+size = Vector3(0.13, 3, 0.13)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box68"]
+size = Vector3(2.4, 0.13, 0.13)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box69"]
+size = Vector3(1.2, 0.3, 0.9)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box70"]
+size = Vector3(2.75, 0.55, 2.25)
+material = SubResource("Steel")
+
+[sub_resource type="BoxMesh" id="Box71"]
+size = Vector3(180, 0.2, 180)
+material = SubResource("Floor")
+
+[node name="RepairDesk" type="Node3D"]
+
+[node name="Tabletop" type="MeshInstance3D" parent="."]
+position = Vector3(0, -0.19, 0)
+mesh = SubResource("Box0")
+
+[node name="FrontApron" type="MeshInstance3D" parent="."]
+position = Vector3(0, -0.62, 5.4)
+mesh = SubResource("Box1")
+
+[node name="RearApron" type="MeshInstance3D" parent="."]
+position = Vector3(0, -0.62, -5.4)
+mesh = SubResource("Box2")
+
+[node name="Leg00" type="MeshInstance3D" parent="."]
+position = Vector3(-8.8, -2.28, -5)
+mesh = SubResource("Box3")
+
+[node name="Foot00" type="MeshInstance3D" parent="."]
+position = Vector3(-8.8, -4.17, -5)
+mesh = SubResource("Box4")
+
+[node name="Leg01" type="MeshInstance3D" parent="."]
+position = Vector3(-8.8, -2.28, 5)
+mesh = SubResource("Box5")
+
+[node name="Foot01" type="MeshInstance3D" parent="."]
+position = Vector3(-8.8, -4.17, 5)
+mesh = SubResource("Box6")
+
+[node name="Leg10" type="MeshInstance3D" parent="."]
+position = Vector3(8.8, -2.28, -5)
+mesh = SubResource("Box7")
+
+[node name="Foot10" type="MeshInstance3D" parent="."]
+position = Vector3(8.8, -4.17, -5)
+mesh = SubResource("Box8")
+
+[node name="Leg11" type="MeshInstance3D" parent="."]
+position = Vector3(8.8, -2.28, 5)
+mesh = SubResource("Box9")
+
+[node name="Foot11" type="MeshInstance3D" parent="."]
+position = Vector3(8.8, -4.17, 5)
+mesh = SubResource("Box10")
+
+[node name="Mat" type="MeshInstance3D" parent="."]
+position = Vector3(-3.2, 0.024, 1.5)
+mesh = SubResource("Box11")
+
+[node name="GridX0" type="MeshInstance3D" parent="."]
+position = Vector3(-8.2, 0.048, 1.65)
+mesh = SubResource("Box12")
+
+[node name="GridX1" type="MeshInstance3D" parent="."]
+position = Vector3(-7.699999999999999, 0.048, 1.65)
+mesh = SubResource("Box13")
+
+[node name="GridX2" type="MeshInstance3D" parent="."]
+position = Vector3(-7.199999999999999, 0.048, 1.65)
+mesh = SubResource("Box14")
+
+[node name="GridX3" type="MeshInstance3D" parent="."]
+position = Vector3(-6.699999999999999, 0.048, 1.65)
+mesh = SubResource("Box15")
+
+[node name="GridX4" type="MeshInstance3D" parent="."]
+position = Vector3(-6.199999999999999, 0.048, 1.65)
+mesh = SubResource("Box16")
+
+[node name="GridX5" type="MeshInstance3D" parent="."]
+position = Vector3(-5.699999999999999, 0.048, 1.65)
+mesh = SubResource("Box17")
+
+[node name="GridX6" type="MeshInstance3D" parent="."]
+position = Vector3(-5.199999999999999, 0.048, 1.65)
+mesh = SubResource("Box18")
+
+[node name="GridX7" type="MeshInstance3D" parent="."]
+position = Vector3(-4.699999999999999, 0.048, 1.65)
+mesh = SubResource("Box19")
+
+[node name="GridX8" type="MeshInstance3D" parent="."]
+position = Vector3(-4.199999999999999, 0.048, 1.65)
+mesh = SubResource("Box20")
+
+[node name="GridX9" type="MeshInstance3D" parent="."]
+position = Vector3(-3.6999999999999993, 0.048, 1.65)
+mesh = SubResource("Box21")
+
+[node name="GridX10" type="MeshInstance3D" parent="."]
+position = Vector3(-3.1999999999999993, 0.048, 1.65)
+mesh = SubResource("Box22")
+
+[node name="GridX11" type="MeshInstance3D" parent="."]
+position = Vector3(-2.6999999999999993, 0.048, 1.65)
+mesh = SubResource("Box23")
+
+[node name="GridX12" type="MeshInstance3D" parent="."]
+position = Vector3(-2.1999999999999993, 0.048, 1.65)
+mesh = SubResource("Box24")
+
+[node name="GridX13" type="MeshInstance3D" parent="."]
+position = Vector3(-1.6999999999999993, 0.048, 1.65)
+mesh = SubResource("Box25")
+
+[node name="GridX14" type="MeshInstance3D" parent="."]
+position = Vector3(-1.1999999999999993, 0.048, 1.65)
+mesh = SubResource("Box26")
+
+[node name="GridX15" type="MeshInstance3D" parent="."]
+position = Vector3(-0.6999999999999993, 0.048, 1.65)
+mesh = SubResource("Box27")
+
+[node name="GridX16" type="MeshInstance3D" parent="."]
+position = Vector3(-0.1999999999999993, 0.048, 1.65)
+mesh = SubResource("Box28")
+
+[node name="GridX17" type="MeshInstance3D" parent="."]
+position = Vector3(0.3000000000000007, 0.048, 1.65)
+mesh = SubResource("Box29")
+
+[node name="GridX18" type="MeshInstance3D" parent="."]
+position = Vector3(0.8000000000000007, 0.048, 1.65)
+mesh = SubResource("Box30")
+
+[node name="GridX19" type="MeshInstance3D" parent="."]
+position = Vector3(1.3000000000000007, 0.048, 1.65)
+mesh = SubResource("Box31")
+
+[node name="GridX20" type="MeshInstance3D" parent="."]
+position = Vector3(1.8000000000000007, 0.048, 1.65)
+mesh = SubResource("Box32")
+
+[node name="GridZ0" type="MeshInstance3D" parent="."]
+position = Vector3(-3.2, 0.048, -1.1)
+mesh = SubResource("Box33")
+
+[node name="GridZ1" type="MeshInstance3D" parent="."]
+position = Vector3(-3.2, 0.048, -0.6000000000000001)
+mesh = SubResource("Box34")
+
+[node name="GridZ2" type="MeshInstance3D" parent="."]
+position = Vector3(-3.2, 0.048, -0.10000000000000009)
+mesh = SubResource("Box35")
+
+[node name="GridZ3" type="MeshInstance3D" parent="."]
+position = Vector3(-3.2, 0.048, 0.3999999999999999)
+mesh = SubResource("Box36")
+
+[node name="GridZ4" type="MeshInstance3D" parent="."]
+position = Vector3(-3.2, 0.048, 0.8999999999999999)
+mesh = SubResource("Box37")
+
+[node name="GridZ5" type="MeshInstance3D" parent="."]
+position = Vector3(-3.2, 0.048, 1.4)
+mesh = SubResource("Box38")
+
+[node name="GridZ6" type="MeshInstance3D" parent="."]
+position = Vector3(-3.2, 0.048, 1.9)
+mesh = SubResource("Box39")
+
+[node name="GridZ7" type="MeshInstance3D" parent="."]
+position = Vector3(-3.2, 0.048, 2.4)
+mesh = SubResource("Box40")
+
+[node name="GridZ8" type="MeshInstance3D" parent="."]
+position = Vector3(-3.2, 0.048, 2.9)
+mesh = SubResource("Box41")
+
+[node name="GridZ9" type="MeshInstance3D" parent="."]
+position = Vector3(-3.2, 0.048, 3.4)
+mesh = SubResource("Box42")
+
+[node name="GridZ10" type="MeshInstance3D" parent="."]
+position = Vector3(-3.2, 0.048, 3.9)
+mesh = SubResource("Box43")
+
+[node name="GridZ11" type="MeshInstance3D" parent="."]
+position = Vector3(-3.2, 0.048, 4.4)
+mesh = SubResource("Box44")
+
+[node name="MatPocket0" type="MeshInstance3D" parent="."]
+position = Vector3(-7.55, 0.055, -1.65)
+mesh = SubResource("Box45")
+
+[node name="MatPocket1" type="MeshInstance3D" parent="."]
+position = Vector3(-5.83, 0.055, -1.65)
+mesh = SubResource("Box46")
+
+[node name="MatPocket2" type="MeshInstance3D" parent="."]
+position = Vector3(-4.109999999999999, 0.055, -1.65)
+mesh = SubResource("Box47")
+
+[node name="MatPocket3" type="MeshInstance3D" parent="."]
+position = Vector3(-2.3899999999999997, 0.055, -1.65)
+mesh = SubResource("Box48")
+
+[node name="MatPocket4" type="MeshInstance3D" parent="."]
+position = Vector3(-0.6699999999999999, 0.055, -1.65)
+mesh = SubResource("Box49")
+
+[node name="MatPocket5" type="MeshInstance3D" parent="."]
+position = Vector3(1.0499999999999998, 0.055, -1.65)
+mesh = SubResource("Box50")
+
+[node name="HolderRail0" type="MeshInstance3D" parent="."]
+position = Vector3(-2.3, 0.09, -1.25)
+mesh = SubResource("Box51")
+
+[node name="Jaw00" type="MeshInstance3D" parent="."]
+position = Vector3(-4.3, 0.205, -1.06)
+mesh = SubResource("Box52")
+
+[node name="Jaw01" type="MeshInstance3D" parent="."]
+position = Vector3(-0.3, 0.205, -1.06)
+mesh = SubResource("Box53")
+
+[node name="HolderRail1" type="MeshInstance3D" parent="."]
+position = Vector3(-2.3, 0.09, 2.65)
+mesh = SubResource("Box54")
+
+[node name="Jaw10" type="MeshInstance3D" parent="."]
+position = Vector3(-4.3, 0.205, 2.46)
+mesh = SubResource("Box55")
+
+[node name="Jaw11" type="MeshInstance3D" parent="."]
+position = Vector3(-0.3, 0.205, 2.46)
+mesh = SubResource("Box56")
+
+[node name="Tray" type="MeshInstance3D" parent="."]
+position = Vector3(3.82, 0.06, 3.7)
+mesh = SubResource("Box57")
+
+[node name="TrayDivider0" type="MeshInstance3D" parent="."]
+position = Vector3(3.82, 0.15, 2.8)
+mesh = SubResource("Box58")
+
+[node name="TrayDivider1" type="MeshInstance3D" parent="."]
+position = Vector3(3.82, 0.15, 3.7)
+mesh = SubResource("Box59")
+
+[node name="TrayDivider2" type="MeshInstance3D" parent="."]
+position = Vector3(3.82, 0.15, 4.6)
+mesh = SubResource("Box60")
+
+[node name="TraySide0" type="MeshInstance3D" parent="."]
+position = Vector3(2.49, 0.15, 3.7)
+mesh = SubResource("Box61")
+
+[node name="TraySide1" type="MeshInstance3D" parent="."]
+position = Vector3(5.15, 0.15, 3.7)
+mesh = SubResource("Box62")
+
+[node name="LampBase" type="MeshInstance3D" parent="."]
+position = Vector3(-5.65, 0.075, -2.9)
+mesh = SubResource("Box66")
+
+[node name="LampStem" type="MeshInstance3D" parent="."]
+position = Vector3(-5.65, 1.6, -2.9)
+mesh = SubResource("Box67")
+
+[node name="LampArm" type="MeshInstance3D" parent="."]
+position = Vector3(-4.5, 3.1, -2.9)
+mesh = SubResource("Box68")
+
+[node name="LampShade" type="MeshInstance3D" parent="."]
+position = Vector3(-3.3, 3.05, -2.9)
+mesh = SubResource("Box69")
+
+[node name="SpareParts" type="MeshInstance3D" parent="."]
+position = Vector3(8, 0.3, -3.75)
+mesh = SubResource("Box70")
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+position = Vector3(0, -4.35, 0)
+mesh = SubResource("Box71")
+
+[node name="TrayFan" type="Label3D" parent="."]
+position = Vector3(3.82, 0.12, 3.06)
+rotation_degrees = Vector3(-90, 0, 0)
+text = "FAN"
+font_size = 48
+pixel_size = 0.006
+modulate = Color(0.8, 0.9, 0.93, 1)
+outline_size = 0
+
+[node name="TrayCooler" type="Label3D" parent="."]
+position = Vector3(3.82, 0.12, 3.83)
+rotation_degrees = Vector3(-90, 0, 0)
+text = "COOLER"
+font_size = 48
+pixel_size = 0.006
+modulate = Color(0.8, 0.9, 0.93, 1)
+outline_size = 0
+
+[node name="MatLabel" type="Label3D" parent="."]
+position = Vector3(-3.2, 0.05, 4.55)
+rotation_degrees = Vector3(-90, 0, 0)
+text = "ELECTRONICS / SERVICE MAT"
+font_size = 48
+pixel_size = 0.006
+modulate = Color(0.8, 0.9, 0.93, 1)
+outline_size = 0
+
+[node name="Toolbox" parent="." instance=ExtResource("ToolboxScene")]
+position = Vector3(4.55, 0.015, -0.75)
