@@ -7,3 +7,9 @@
 - Original recording and existing attribution notes: `../sounds/screwdriver/`.
 
 Keep this attribution with distributed builds. GPU and testing-desk assets are copied from this repository's Blender workflow; their editable sources and authoring notes remain under `../models/`.
+
+`assets/cleaning-complete.ogg` is **Win Jingle by Fupi**, licensed CC0. It remains a synced reference asset; the current Godot cleaning cue uses the supplied `clean_jingle.wav` below. The source MIDI is kept at `../sounds/winjingle-source.mid`.
+
+- Source: https://opengameart.org/content/win-jingle
+
+`assets/sounds/compressed_air.wav` and `assets/sounds/clean_jingle.wav` were supplied for this Godot port. The former plays during the Dev blower hold; the latter plays when each part becomes clean.

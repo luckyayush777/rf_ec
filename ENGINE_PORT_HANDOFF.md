@@ -2,7 +2,7 @@
 
 This document maps the existing browser prototype for an agent porting it to Godot. Paths are relative to this repository root. The browser implementation and bundled GPU GLB were inspected on 2026-09-25, including the testing-desk additions in the working tree.
 
-The runnable Godot port now lives in [godot/project.godot](godot/project.godot), with inspection, screwdriver handling, cable motion and resumable screw service implemented. See [godot/README.md](godot/README.md) for its implemented features, pending work, and validation commands. The behavior described below remains the browser reference contract; it is not a claim that every feature is already ported.
+The runnable Godot port now lives in [godot/project.godot](godot/project.godot), with inspection, screwdriver handling, cable motion, resumable screw service, fan/heatsink assembly handling, and part-specific dust cleaning with a debug-only Dev blower implemented. Godot clears the final dust at 98% and plays the jingle once. See [godot/README.md](godot/README.md) for its implemented features, pending work, and validation commands. The behavior described below remains the browser reference contract; it is not a claim that every feature is already ported.
 
 ## Start here
 

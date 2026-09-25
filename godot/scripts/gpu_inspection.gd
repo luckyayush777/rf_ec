@@ -1,5 +1,5 @@
 extends Node
-## Whole-card inspection only. Assembly servicing will build on the captured asset contract.
+## Whole-card inspection. Detached assembly inspection lives in gpu_service.gd.
 signal changed
 
 var gpu: Node3D

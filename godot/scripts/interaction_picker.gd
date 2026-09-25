@@ -29,12 +29,34 @@ func action_for(node: Node3D) -> Dictionary:
 	return {"action": "", "target": node}
 
 func hit_at(screen: Vector2) -> Dictionary:
+	var result := surface_hit_at(screen)
+	var origin := camera.project_ray_origin(screen)
+	var direction := camera.project_ray_normal(screen)
+	var nearest: float = origin.distance_to(result.point) if result.has("point") else INF
+	# Small forgiving targets remain depth-tested against the actual visible surfaces.
+	for target in targets:
+		var node: Node3D = target.node
+		if target.action == "screw" and not is_removed.call(target.id) and node.global_basis.y.normalized().dot(-direction) < 0.15: continue
+		var center := node.global_position
+		var offset := origin - center
+		var b: float = offset.dot(direction)
+		var discriminant: float = b * b - offset.length_squared() + target.radius * target.radius
+		if discriminant < 0.0: continue
+		var distance: float = -b - sqrt(discriminant)
+		if distance < 0.0 or distance > nearest + 0.005: continue
+		nearest = distance
+		result = {"action": target.action, "target": node, "point": origin + direction * distance}
+	return result
+
+func surface_hit_at(screen: Vector2, cleaning: bool = false) -> Dictionary:
 	var origin := camera.project_ray_origin(screen)
 	var direction := camera.project_ray_normal(screen)
 	var nearest := INF
 	var result: Dictionary = {}
 	for entry in entries:
 		var mesh: MeshInstance3D = entry.node
+		# Decorative pieces above the dustable fan cap do not block cleaning air.
+		if cleaning and mesh.name in ["fan-brand-label", "hub-center"]: continue
 		if not mesh.is_visible_in_tree() or camera.is_ancestor_of(mesh): continue
 		var inverse := mesh.global_transform.affine_inverse()
 		var local_origin := inverse * origin
@@ -52,17 +74,6 @@ func hit_at(screen: Vector2) -> Dictionary:
 			nearest = distance
 			result = action_for(mesh)
 			result.point = point
-	# Small forgiving targets remain depth-tested against the actual visible surfaces.
-	for target in targets:
-		var node: Node3D = target.node
-		if target.action == "screw" and not is_removed.call(target.id) and node.global_basis.y.normalized().dot(-direction) < 0.15: continue
-		var center := node.global_position
-		var offset := origin - center
-		var b: float = offset.dot(direction)
-		var discriminant: float = b * b - offset.length_squared() + target.radius * target.radius
-		if discriminant < 0.0: continue
-		var distance: float = -b - sqrt(discriminant)
-		if distance < 0.0 or distance > nearest + 0.005: continue
-		nearest = distance
-		result = {"action": target.action, "target": node, "point": origin + direction * distance}
+			result.mesh = mesh
+			result.normal = hit.normal
 	return result

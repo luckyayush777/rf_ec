@@ -9,6 +9,7 @@ func run(tree: SceneTree, bench: Node3D, expect: Callable) -> void:
 	# Explicit ticks verify the real 1.5-second accumulation without wall-clock flakiness.
 	service.set_process(false)
 	expect.call(not service.begin_screw("fan-screw-1"), "Empty hands turned a screw")
+	expect.call(not service.lift_assembly("fan-assembly"), "Fan detached with cable and screws installed")
 	tools.equip()
 	expect.call(tools.busy, "Equip did not lock the tool transition")
 	expect.call(not service.toggle_cable(), "Cable moved during tool equip")
@@ -122,6 +123,57 @@ func run(tree: SceneTree, bench: Node3D, expect: Callable) -> void:
 		var node: Node3D = bench.asset_contract.objects[id]
 		var tray_hit: Dictionary = bench.picker.hit_at(camera.unproject_position(node.global_position))
 		expect.call(tray_hit.get("action", "") == "screw" and tray_hit.get("target") == node, "Tray screw is not reachable: " + id)
+	await tools.return_tool()
+	# The cable was unplugged earlier; the full fan/heatsink lifecycle uses empty hands.
+	expect.call(service.lift_assembly("fan-assembly"), "Fan did not detach after its screws and cable were removed")
+	await service.motion.finished
+	var fan: Node3D = bench.asset_contract.objects["fan-assembly"]
+	expect.call(fan.get_parent() == bench and service.held_part == "fan-assembly", "Fan was not held as a separate assembly")
+	var fan_dust_before: float = bench.cleaning.part_progress("fan-assembly")
+	var housing := fan.find_child("fan-housing", true, false) as MeshInstance3D
+	expect.call(housing != null, "Fan housing dust target missing")
+	if housing != null:
+		bench.cleaning.clean_at(housing, housing.global_transform * housing.get_aabb().get_center(), Vector3.UP, 0.6, 1.1)
+	var fan_dust_after: float = bench.cleaning.part_progress("fan-assembly")
+	expect.call(fan_dust_after > fan_dust_before, "Detached fan dust did not clean")
+	expect.call(not service.begin_screw("fan-screw-1"), "Held assembly allowed screw service")
+	expect.call(not service.place_assembly(Vector3.ZERO, [AABB(Vector3(-20, -2, -20), Vector3(40, 5, 40))]), "Assembly placement ignored obstacles")
+	var fan_spot := Vector3(-7, 0.05, 4)
+	var fan_obstacles: Array = bench.placement_obstacles("fan-assembly")
+	expect.call(bench.picker.hit_at(camera.unproject_position(fan_spot)).get("action", "") == "desk", "Fan table spot is not reachable by pointer")
+	expect.call(service.place_assembly(fan_spot, fan_obstacles), "Clear fan table placement was rejected")
+	await service.motion.finished
+	expect.call(service.held_part == "" and fan.get_parent() == bench, "Placed fan stayed held or returned to GPU")
+	var fan_hit: Dictionary = bench.picker.hit_at(camera.unproject_position(fan.global_position))
+	expect.call(fan_hit.get("action", "") == "assembly", "Placed fan is not pickable")
+	expect.call(service.lift_assembly("fan-assembly"), "Placed fan could not be picked up")
+	await service.motion.finished
+	expect.call(service.store_assembly() and not fan.visible, "Fan could not be stored")
+	expect.call(is_equal_approx(bench.cleaning.part_progress("fan-assembly"), fan_dust_after), "Storing the fan reset its dust")
+	expect.call(service.lift_assembly("fan-assembly"), "Stored fan could not be retrieved")
+	await service.motion.finished
+	expect.call(not service.lift_assembly("cooler-assembly"), "A second assembly was lifted while the fan was held")
+	expect.call(service.place_assembly(fan_spot, bench.placement_obstacles("fan-assembly")), "Retrieved fan could not return to table")
+	await service.motion.finished
+	expect.call(service.lift_assembly("cooler-assembly"), "Heatsink did not detach after cooler screws were removed")
+	await service.motion.finished
+	var cooler: Node3D = bench.asset_contract.objects["cooler-assembly"]
+	expect.call(cooler.get_parent() == bench and service.held_part == "cooler-assembly", "Heatsink was not held separately")
+	var cooler_spot := Vector3(-2, 0.05, -4)
+	var cooler_obstacles: Array = bench.placement_obstacles("cooler-assembly")
+	expect.call(bench.picker.hit_at(camera.unproject_position(cooler_spot)).get("action", "") == "desk", "Heatsink table spot is not reachable by pointer")
+	expect.call(service.place_assembly(cooler_spot, cooler_obstacles), "Clear heatsink table placement was rejected")
+	await service.motion.finished
+	expect.call(service.refit_assembly(), "Heatsink refit did not start")
+	if service.moving: await service.motion.finished
+	expect.call(cooler.get_parent() == bench.asset_contract.homes["cooler-assembly"].parent and
+		cooler.transform.is_equal_approx(bench.asset_contract.homes["cooler-assembly"].transform), "Heatsink refit drifted from its mount")
+	expect.call(service.refit_assembly(), "Fan could not refit after heatsink")
+	await service.motion.finished
+	expect.call(fan.get_parent() == bench.asset_contract.homes["fan-assembly"].parent and
+		fan.transform.is_equal_approx(bench.asset_contract.homes["fan-assembly"].transform), "Fan refit drifted from its mount")
+	expect.call(is_equal_approx(bench.cleaning.part_progress("fan-assembly"), fan_dust_after), "Refitting the fan reset its dust")
+	await tools.equip()
 	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
 		DirAccess.make_dir_recursive_absolute("res://build")
 		bench.select_view("repair")
@@ -154,6 +206,73 @@ func run(tree: SceneTree, bench: Node3D, expect: Callable) -> void:
 	expect.call(plug.transform.is_equal_approx(plug_home), "Cable round trip changed plug home transform")
 	for wire in service.wires:
 		expect.call(wire.node.mesh == wire.mesh, "Reconnect did not restore original wire mesh")
+	await tools.equip("dev-blower")
+	expect.call(tools.equipped_tool == "dev-blower" and tools.dev_blower.visible, "Dev blower could not be equipped")
+	bench.select_view("top")
+	var hub: MeshInstance3D = bench.gpu.find_child("fan-hub-cap", true, false)
+	var hub_screen: Vector2 = camera.unproject_position(hub.global_transform * hub.get_aabb().get_center())
+	var hub_hit: Dictionary = bench.picker.surface_hit_at(hub_screen, true)
+	var fan_before_hub: float = bench.cleaning.part_progress("fan-assembly")
+	expect.call(hub_hit.get("mesh") == hub, "Cleaning ray did not reach the fan hub cap")
+	if hub_hit.get("mesh") == hub:
+		bench.cleaning.begin()
+		tools.aim_blower(hub_screen, hub_hit)
+		bench.cleaning.blow_at(hub_screen, 0.05, hub_hit)
+		bench.cleaning.end()
+		expect.call(bench.cleaning.part_progress("fan-assembly") > fan_before_hub,
+			"Aimed Dev blower did not remove fan hub dust")
+	var clean_screen := Vector2.ZERO
+	var clean_hit: Dictionary = {}
+	var clean_target_found := false
+	for surface in bench.cleaning.surfaces:
+		var mesh: MeshInstance3D = surface.mesh
+		if not mesh.is_visible_in_tree(): continue
+		var target_screen: Vector2 = camera.unproject_position(mesh.global_transform * surface.bounds.get_center())
+		var dust_hit: Dictionary = bench.picker.surface_hit_at(target_screen)
+		if bench.cleaning.lookup.has(dust_hit.get("mesh")):
+			clean_screen = target_screen
+			clean_hit = dust_hit
+			clean_target_found = true
+			break
+	expect.call(clean_target_found, "No dusty surface was reachable by the Dev blower")
+	if clean_target_found:
+		var before_dust: float = bench.cleaning.progress
+		bench.cleaning.begin()
+		expect.call(bench.cleaning.air.playing, "Blower sound did not start on hold")
+		tools.aim_blower(clean_screen, clean_hit)
+		expect.call(tools.blower_points_at(clean_hit.point), "Blower nozzle did not aim at its target")
+		tools.dev_blower.rotate_object_local(Vector3.UP, PI / 2.0)
+		bench.cleaning.blow_at(clean_screen, 0.05, clean_hit)
+		expect.call(is_equal_approx(bench.cleaning.progress, before_dust), "Blower cleaned while pointed away")
+		tools.aim_blower(clean_screen, clean_hit)
+		bench.cleaning.blow_at(clean_screen, 0.05, clean_hit)
+		expect.call(bench.cleaning.progress > before_dust and bench.cleaning.target_part != "", "Dev blower did not clean its target part")
+		bench.cleaning.end()
+		expect.call(not bench.cleaning.air.playing, "Blower sound continued after release")
+	expect.call(bench.hud.highlight_dust_button.visible == OS.is_debug_build() and
+		bench.hud.highlight_dust_button.text == "highliht dust", "Debug dust button is missing or mislabeled")
+	bench.hud.highlight_dust_button.pressed.emit()
+	expect.call(bench.cleaning.highlighted, "Debug dust button did not enable highlighting")
+	for surface in bench.cleaning.surfaces:
+		expect.call(surface.highlight != null and surface.highlight.visible, "Dust highlight did not follow its mesh")
+	bench.hud.highlight_dust_button.pressed.emit()
+	expect.call(not bench.cleaning.highlighted, "Debug dust button did not disable highlighting")
+	bench.cleaning._process(0.0)
+	bench.cleaning.blower_elapsed = 29.8
+	bench.cleaning._process(0.1)
+	expect.call(not bench.cleaning.highlighted, "Dust highlighted before the 30-second delay")
+	bench.cleaning._process(0.2)
+	expect.call(bench.cleaning.highlighted and bench.cleaning.auto_highlight_shown,
+		"Remaining dust was not highlighted after 30 seconds with the blower")
+	bench.hud.highlight_dust_button.pressed.emit()
+	bench.cleaning._process(1.0)
+	expect.call(not bench.cleaning.highlighted, "Automatic highlight prevented the manual button from turning it off")
+	bench.hud.highlight_dust_button.pressed.emit()
+	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
+		DirAccess.make_dir_recursive_absolute("res://build")
+		await RenderingServer.frame_post_draw
+		tree.root.get_texture().get_image().save_png("res://build/dust-highlight.png")
+	await tools.return_tool()
 	service.set_process(true)
 	bench.select_view("repair")
-	print("Service flow checked: equip/return/place, cable guards/deformation, front/rear/tray picking, pause/resume/cancel, all eight screw round trips.")
+	print("Service flow checked: tools, cable, screw picking/round trips, fan/heatsink placement, storage and exact refit.")

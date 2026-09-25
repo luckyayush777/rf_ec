@@ -7,6 +7,7 @@ const Picker = preload("res://scripts/interaction_picker.gd")
 @onready var inspection = $Inspection
 @onready var tools = $Tools
 @onready var service = $Service
+@onready var cleaning = $Cleaning
 @onready var gpu: Node3D = $GPUAsset
 @onready var testing_desk: Node3D = $TestingDesk
 @onready var hud: CanvasLayer = $HUD
@@ -46,10 +47,10 @@ func _ready() -> void:
 	camera_rig.testing_target = table_bounds.get_center()
 	camera_rig.select_view("repair")
 	inspection.configure(gpu, camera_rig.camera, Contract.bounds_in(gpu))
-	inspection.can_interact = func(): return not service.busy and not tools.busy
+	inspection.can_interact = func(): return not service.busy and service.held_part == "" and not tools.busy
 	tools.configure($RepairDesk/Toolbox, camera_rig.camera, self,
-		func(): return not service.busy and not inspection.moving)
-	service.configure(asset_contract, service_rules, self,
+		func(id: String): return not service.busy and not inspection.moving and (service.held_part == "" or id in ["dev-blower", "toolbox"]))
+	service.configure(asset_contract, service_rules, self, camera_rig.camera,
 		func(): return not tools.busy and not inspection.moving, func(): return tools.equipped_tool)
 	for node in $RepairDesk.find_children("Jaw*", "Node3D", true, false):
 		jaws.append(node)
@@ -61,48 +62,76 @@ func _ready() -> void:
 			node.set_meta("action", "desk")
 	picker = Picker.new()
 	picker.configure(self, gpu, camera_rig.camera, service)
+	cleaning.configure(gpu, picker, tools)
 	hud.view_requested.connect(select_view)
 	hud.inspect_requested.connect(toggle_inspection)
 	hud.flip_requested.connect(inspection.flip)
 	hud.toolbox_requested.connect(tools.toggle_box)
 	hud.equip_requested.connect(tools.equip)
+	hud.dev_blower_requested.connect(func(): tools.equip("dev-blower"))
+	hud.highlight_dust_requested.connect(cleaning.toggle_highlight)
 	hud.return_requested.connect(tools.return_tool)
 	hud.cable_requested.connect(service.toggle_cable)
+	hud.assembly_requested.connect(lift_assembly)
+	hud.assembly_refit_requested.connect(refit_assembly)
+	hud.assembly_store_requested.connect(service.store_assembly)
 	hud.refit_started.connect(begin_refit)
 	hud.refit_ended.connect(func():
 		service.end_screw()
 		hud.refresh(inspection.held, inspection.moving, tools, service))
-	hud.mute_requested.connect(func(): service.set_muted(not service.muted))
+	hud.mute_requested.connect(func():
+		service.set_muted(not service.muted)
+		cleaning.set_muted(service.muted))
 	inspection.changed.connect(refresh_ui)
 	tools.changed.connect(refresh_ui)
 	service.changed.connect(refresh_ui)
+	cleaning.changed.connect(func(): hud.refresh_cleaning(cleaning))
 	tools.notice.connect(hud.set_status)
 	service.notice.connect(hud.set_status)
+	cleaning.notice.connect(hud.set_status)
 	refresh_ui()
 
 func ready_for_action() -> bool:
 	return not inspection.moving and not tools.busy and not service.busy
 
 func select_view(view: String) -> void:
-	if inspection.held or not ready_for_action(): return
+	if inspection.held or service.held_part != "" or not ready_for_action(): return
 	camera_rig.select_view(view)
 	refresh_ui()
 	if view == "testing": hud.set_status("Testing desk is a visual prop.")
 
 func toggle_inspection() -> void:
+	if service.held_part != "": return
 	if inspection.held: inspection.put_down()
 	else: inspection.lift()
 
+func lift_assembly(id: String) -> void:
+	if not ready_for_action() or service.held_part != "": return
+	if inspection.held:
+		inspection.put_down()
+		if inspection.moving: await inspection.motion.finished
+	service.lift_assembly(id)
+
+func refit_assembly() -> void:
+	if not ready_for_action(): return
+	if inspection.held:
+		inspection.put_down()
+		if inspection.moving: await inspection.motion.finished
+	service.refit_assembly()
+
 func refresh_ui() -> void:
-	hud.refresh(inspection.held, inspection.moving, tools, service)
+	hud.refresh(inspection.held, inspection.moving, tools, service, cleaning)
 	if service.busy or tools.busy: return
 	hud.set_status("Setting the GPU down..." if inspection.moving and not inspection.held else
 		"Lifting the GPU..." if inspection.moving else
-		"Hold a screw to turn it. Release to pause. Return the screwdriver before handling the cable." if tools.equipped_tool != "" else
+		"Hold and sweep over dusty surfaces with the Dev blower. Return it before servicing parts." if tools.equipped_tool == "dev-blower" else
+		"Hold a screw to turn it. Release to pause. Return the screwdriver before handling the cable." if tools.equipped_tool == "screwdriver" else
+		"Drag to rotate the assembly. Click a clear table spot to place it, or use Refit." if service.held_part != "" else
 		"Drag to rotate. Click the fan cable to unplug/reconnect. Escape sets the GPU down." if inspection.held else
 		"Click the GPU to inspect. Open the toolbox to get the screwdriver.")
 
 func begin_refit() -> void:
+	if service.held_part != "": return
 	for id in service.cooler_screws + service.fan_screws:
 		if id in service.removed and service.decision("refit", id).allowed:
 			service.begin_screw(id)
@@ -110,12 +139,14 @@ func begin_refit() -> void:
 
 func cancel_press() -> void:
 	service.end_screw()
+	cleaning.end()
 	dragging_button = 0
 	service_press = false
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
 		if not service.active_screw.is_empty(): cancel_press()
+		elif service.held_part != "": refit_assembly()
 		elif tools.equipped_tool != "": tools.return_tool()
 		else: inspection.put_down()
 		get_viewport().set_input_as_handled()
@@ -123,7 +154,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
 			if event.pressed and ready_for_action():
 				var factor := 0.90 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 0.90
-				if inspection.held: inspection.zoom(factor)
+				if service.held_part != "": service.zoom_held(factor)
+				elif inspection.held: inspection.zoom(factor)
 				else: camera_rig.zoom(factor)
 			return
 		if event.pressed and event.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE]:
@@ -133,7 +165,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			dragged = false
 			service_press = false
 			var hit: Dictionary = picker.hit_at(event.position)
-			if event.button_index == MOUSE_BUTTON_LEFT and hit.get("action", "") == "screw":
+			if event.button_index == MOUSE_BUTTON_LEFT and tools.equipped_tool == "dev-blower" and hit.get("action", "") not in ["desk", "toolbox", "dev-blower"]:
+				service_press = true
+				cleaning.begin()
+			elif event.button_index == MOUSE_BUTTON_LEFT and hit.get("action", "") == "screw":
 				# A denied screw action owns the press, so it cannot rotate/lift the GPU.
 				service_press = true
 				service.begin_screw(hit.target.get_meta("part_id"))
@@ -144,7 +179,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion and dragging_button != 0 and ready_for_action() and not service_press:
 		dragged = dragged or event.position.distance_to(press_position) > 6.0
 		if not dragged: return
-		if inspection.held: inspection.rotate_item(event.relative)
+		if service.held_part != "": service.rotate_held(event.relative)
+		elif inspection.held: inspection.rotate_item(event.relative)
 		elif dragging_button == MOUSE_BUTTON_MIDDLE: camera_rig.pan(event.relative)
 		else: camera_rig.orbit(event.relative)
 
@@ -153,34 +189,44 @@ func activate(screen_position: Vector2) -> void:
 	var hit: Dictionary = picker.hit_at(screen_position)
 	match hit.get("action", ""):
 		"screwdriver": tools.grab()
+		"dev-blower": tools.grab("dev-blower")
 		"toolbox":
 			if tools.equipped_tool != "" and tools.open: tools.return_tool()
 			else: tools.toggle_box()
 		"cable": service.toggle_cable()
+		"assembly": lift_assembly(hit.target.get_meta("part_id"))
 		"gpu":
 			if not inspection.held: inspection.lift()
 		"desk":
 			if tools.equipped_tool != "": tools.place(hit.point, placement_obstacles())
+			elif service.held_part != "": service.place_assembly(hit.point, placement_obstacles(service.held_part))
 
 func pick_gpu(screen_position: Vector2) -> void:
 	var hit: Dictionary = picker.hit_at(screen_position)
 	if hit.get("action", "") in ["gpu", "screw", "cable"]: inspection.lift()
 
-func placement_obstacles() -> Array:
+func placement_obstacles(exclude_id: String = "") -> Array:
 	var boxes: Array = [gpu.global_transform * Contract.bounds_in(gpu)]
 	for node in $RepairDesk.get_children():
 		if node is MeshInstance3D and node.get_meta("action", "") != "desk" and node.name != "Floor":
 			boxes.append(node.global_transform * node.get_aabb())
 	boxes.append($RepairDesk/Toolbox.global_transform * Contract.bounds_in($RepairDesk/Toolbox))
 	for id in service.removed:
+		if id == exclude_id: continue
 		var node: Node3D = asset_contract.objects[id]
+		if not node.visible: continue
 		boxes.append(node.global_transform * Contract.bounds_in(node))
+	if tools.location == "desk":
+		boxes.append(tools.screwdriver.global_transform * Contract.bounds_in(tools.screwdriver))
+	if tools.dev_location == "desk":
+		boxes.append(tools.dev_blower.global_transform * Contract.bounds_in(tools.dev_blower))
 	return boxes
 
 func _input(event: InputEvent) -> void:
 	# Release is global: holds end even over UI or off the canvas.
 	if event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		service.end_screw()
+		cleaning.end()
 		if get_viewport().gui_get_hovered_control() != null: cancel_press()
 	if event is InputEventScreenTouch and (event.canceled or (event.pressed and event.index > 0)):
 		cancel_press()
@@ -189,6 +235,15 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT and is_instance_valid(service): cancel_press()
 
 func _process(delta: float) -> void:
+	if cleaning.blowing and (tools.equipped_tool != "dev-blower" or not ready_for_action()):
+		cleaning.end()
+	if tools.equipped_tool == "dev-blower":
+		var pointer: Vector2 = get_viewport().get_mouse_position()
+		var surface: Dictionary = {} if get_viewport().gui_get_hovered_control() != null else picker.surface_hit_at(pointer, true)
+		tools.aim_blower(pointer, surface)
+		if cleaning.blowing and ready_for_action() and get_viewport().gui_get_hovered_control() == null:
+			cleaning.blow_at(pointer, delta, surface)
+		hud.refresh_cleaning(cleaning)
 	for jaw in jaws:
 		var home_z: float = jaw.get_meta("home_z")
 		var target_z: float = home_z + signf(home_z - 0.7) * (0.26 if inspection.held or inspection.moving else 0.0)
@@ -199,4 +254,4 @@ func _process(delta: float) -> void:
 		var over_ui: bool = get_viewport().gui_get_hovered_control() != null
 		var hit: Dictionary = {} if over_ui else picker.hit_at(get_viewport().get_mouse_position())
 		var action: String = hit.get("action", "")
-		Input.set_default_cursor_shape(Input.CURSOR_POINTING_HAND if action in ["gpu", "cable", "screw", "toolbox", "screwdriver"] else Input.CURSOR_ARROW)
+		Input.set_default_cursor_shape(Input.CURSOR_POINTING_HAND if action in ["gpu", "cable", "screw", "assembly", "toolbox", "screwdriver", "dev-blower"] else Input.CURSOR_ARROW)

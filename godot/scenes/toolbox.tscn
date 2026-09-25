@@ -1,4 +1,4 @@
-[gd_scene load_steps=24 format=3]
+[gd_scene load_steps=29 format=3]
 
 [sub_resource type="StandardMaterial3D" id="Paint"]
 albedo_color = Color(0.48, 0.14, 0.075, 1)
@@ -24,6 +24,36 @@ roughness = 0.55
 albedo_color = Color(0.8, 0.32, 0.035, 1)
 metallic = 0
 roughness = 0.55
+
+[sub_resource type="StandardMaterial3D" id="DevPurple"]
+albedo_color = Color(0.68, 0.34, 0.77, 1)
+metallic = 0.2
+roughness = 0.42
+
+[sub_resource type="CylinderMesh" id="DevMotorMesh"]
+top_radius = 0.32
+bottom_radius = 0.32
+height = 1.12
+radial_segments = 24
+material = SubResource("DevPurple")
+
+[sub_resource type="CylinderMesh" id="DevCollarMesh"]
+top_radius = 0.29
+bottom_radius = 0.29
+height = 0.22
+radial_segments = 24
+material = SubResource("Silver")
+
+[sub_resource type="CylinderMesh" id="DevNozzleMesh"]
+top_radius = 0.09
+bottom_radius = 0.09
+height = 1.35
+radial_segments = 24
+material = SubResource("Silver")
+
+[sub_resource type="BoxMesh" id="DevTriggerMesh"]
+size = Vector3(0.34, 0.08, 0.18)
+material = SubResource("Black")
 
 [sub_resource type="BoxMesh" id="BottomMesh"]
 size = Vector3(6, 0.18, 2.3)
@@ -200,6 +230,37 @@ mesh = SubResource("ShaftMesh")
 [node name="Tip" type="MeshInstance3D" parent="Screwdriver"]
 position = Vector3(1.215, 0, 0)
 mesh = SubResource("TipMesh")
+
+[node name="DevBlower" type="Node3D" parent="."]
+position = Vector3(1.4, 0.7, 0.65)
+
+[node name="Motor" type="MeshInstance3D" parent="DevBlower"]
+position = Vector3(-0.65, 0, 0)
+rotation_degrees = Vector3(0, 0, 90)
+mesh = SubResource("DevMotorMesh")
+
+[node name="Collar" type="MeshInstance3D" parent="DevBlower"]
+position = Vector3(0.02, 0, 0)
+rotation_degrees = Vector3(0, 0, 90)
+mesh = SubResource("DevCollarMesh")
+
+[node name="Nozzle" type="MeshInstance3D" parent="DevBlower"]
+position = Vector3(0.78, 0, 0)
+rotation_degrees = Vector3(0, 0, 90)
+mesh = SubResource("DevNozzleMesh")
+
+[node name="Trigger" type="MeshInstance3D" parent="DevBlower"]
+position = Vector3(-0.75, -0.28, 0)
+mesh = SubResource("DevTriggerMesh")
+
+[node name="DevLabel" type="Label3D" parent="DevBlower"]
+position = Vector3(-0.65, 0.34, 0)
+rotation_degrees = Vector3(-90, 0, 0)
+text = "DEV BLOWER"
+font_size = 28
+pixel_size = 0.006
+modulate = Color(1, 0.92, 1, 1)
+outline_size = 0
 
 [node name="Label" type="Label3D" parent="."]
 position = Vector3(0, 0.67, 1.157)

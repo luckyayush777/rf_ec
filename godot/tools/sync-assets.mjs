@@ -9,7 +9,8 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const assets = resolve(root, 'assets');
 const repo = resolve(root, '..');
 mkdirSync(assets, { recursive: true });
-const sources = ['src/assets/gpu.glb', 'models/repair-shop.glb', 'src/assets/manual-screwdriver.wav'];
+const sources = ['src/assets/gpu.glb', 'models/repair-shop.glb', 'src/assets/manual-screwdriver.wav',
+  'src/assets/cleaning-complete.ogg'];
 const hashes = {};
 for (const source of sources) {
   const bytes = readFileSync(resolve(repo, source));

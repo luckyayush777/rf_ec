@@ -1,14 +1,21 @@
 extends Node
-## Cable and fastener state. Every entry point checks rules AND animation/tool guards.
+## Cable, fastener and assembly state. Every entry point checks rules and action guards.
+const Contract = preload("res://scripts/asset_contract.gd")
 signal changed
 signal notice(text: String)
 
 var contract: Dictionary
 var rules: RefCounted
 var world: Node3D
+var camera: Camera3D
 var can_use: Callable
 var get_tool: Callable
 var removed: Array = []
+var stored: Array = []
+var held_part := ""
+var held_center := Vector3.ZERO
+var held_radius := 2.0
+var held_zoom := 1.0
 var cable_connected := true
 var cable_progress := 0.0
 var moving := false
@@ -23,14 +30,17 @@ var audio: AudioStreamPlayer
 var busy: bool:
 	get: return moving or not active_screw.is_empty()
 
-func configure(parts: Dictionary, evaluator: RefCounted, scene: Node3D, allowed: Callable, tool: Callable) -> void:
+func configure(parts: Dictionary, evaluator: RefCounted, scene: Node3D, view_camera: Camera3D, allowed: Callable, tool: Callable) -> void:
 	contract = parts
 	rules = evaluator
 	world = scene
+	camera = view_camera
 	can_use = allowed
 	get_tool = tool
 	for definition in contract.service_parts:
 		if definition.kind != "assembly": continue
+		contract.objects[definition.id].set_meta("action", "assembly")
+		contract.objects[definition.id].set_meta("part_id", definition.id)
 		var screws: Array = []
 		for id in definition.requires:
 			if rules.parts[id].kind == "fastener": screws.append(id)
@@ -54,7 +64,7 @@ func decision(kind: String, id: String) -> Dictionary:
 	return rules.check(kind, id, removed, {"fan-plug": cable_connected}, get_tool.call())
 
 func toggle_cable() -> bool:
-	if busy or not can_use.call(): return false
+	if busy or held_part != "" or not can_use.call(): return false
 	var check := decision("disconnect" if cable_connected else "connect", "fan-plug")
 	if not check.allowed:
 		notice.emit(check.reason)
@@ -101,7 +111,7 @@ func apply_cable_pose(value: float) -> void:
 		wire.node.mesh = bent
 
 func begin_screw(id: String) -> bool:
-	if busy or not can_use.call() or id not in fan_screws + cooler_screws: return false
+	if busy or held_part != "" or not can_use.call() or id not in fan_screws + cooler_screws: return false
 	var reinstall: bool = id in removed
 	var check := decision("refit" if reinstall else "remove", id)
 	if not check.allowed:
@@ -173,6 +183,136 @@ func complete_screw(id: String) -> void:
 		changed.emit()
 		notice.emit(id.replace("-", " ").capitalize() + " in tray. Hold it with the screwdriver to refit."))
 
+func held_position(basis: Basis) -> Vector3:
+	var size: Vector2 = get_viewport().get_visible_rect().size
+	var aspect: float = size.x / maxf(size.y, 1.0)
+	var distance: float = maxf(7.0, held_radius * 1.2 / (tan(deg_to_rad(camera.fov / 2.0)) * minf(1.0, aspect))) * held_zoom
+	return camera.global_transform * Vector3(0, -0.1, -distance) - basis * held_center
+
+func lift_assembly(id: String) -> bool:
+	if busy or held_part != "" or not can_use.call() or id not in ["fan-assembly", "cooler-assembly"]: return false
+	var already_removed: bool = id in removed
+	var check := decision("pickup" if already_removed else "remove", id)
+	if not check.allowed:
+		notice.emit(check.reason)
+		return false
+	var part: Node3D = contract.objects[id]
+	var was_stored: bool = id in stored
+	if not already_removed: removed.append(id)
+	stored.erase(id)
+	part.visible = true
+	part.reparent(world, true)
+	var bounds: AABB = Contract.bounds_in(part)
+	held_center = bounds.get_center()
+	held_radius = bounds.size.length() * 0.5
+	held_zoom = 1.0
+	held_part = id
+	var facing := camera.global_basis * Basis.from_euler(Vector3(0.95, -0.12, -0.08))
+	var destination := Transform3D(facing, held_position(facing))
+	if was_stored: part.global_position = destination.origin + Vector3(0, -0.4, 0)
+	animate_assembly(part, destination, func(): notice.emit("%s lifted. Drag to rotate; click a clear table spot to place it, or use Refit." % assembly_name(id)))
+	return true
+
+func assembly_name(id: String) -> String:
+	return "Fan and cable" if id == "fan-assembly" else "Heatsink and cooler"
+
+func animate_assembly(part: Node3D, destination: Transform3D, done: Callable) -> void:
+	moving = true
+	changed.emit()
+	var origin := part.global_transform
+	motion = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	motion.tween_method(func(t: float):
+		part.global_transform = origin.interpolate_with(destination, t)
+		part.global_position.y += sin(PI * t) * 0.5, 0.0, 1.0, 0.45)
+	motion.finished.connect(func():
+		part.global_transform = destination
+		moving = false
+		changed.emit()
+		done.call())
+
+func rotate_held(relative: Vector2) -> void:
+	if held_part == "" or busy: return
+	var part: Node3D = contract.objects[held_part]
+	part.global_basis = (Basis(camera.global_basis.y.normalized(), relative.x * 0.009)
+		* Basis(camera.global_basis.x.normalized(), relative.y * 0.009) * part.global_basis).orthonormalized()
+
+func zoom_held(factor: float) -> void:
+	if held_part != "" and not busy: held_zoom = clampf(held_zoom * factor, 0.5, 1.5)
+
+func placement_for(point: Vector3, obstacles: Array) -> Dictionary:
+	if held_part == "" or busy: return {}
+	var part: Node3D = contract.objects[held_part]
+	var original := part.global_transform
+	var home: Dictionary = contract.homes[held_part]
+	var upright: Basis = home.parent.global_basis * home.transform.basis
+	part.global_transform = Transform3D(upright, original.origin)
+	var bounds: AABB = part.global_transform * Contract.bounds_in(part)
+	part.global_transform = original
+	var offset := point - bounds.get_center()
+	offset.y = point.y + 0.025 - bounds.position.y
+	var proposed := AABB(bounds.position + offset, bounds.size)
+	var allowed: bool = proposed.position.x >= -9.75 and proposed.end.x <= 9.75 and proposed.position.z >= -5.75 and proposed.end.z <= 5.75
+	for obstacle in obstacles:
+		if proposed.intersects(obstacle.grow(0.08)): allowed = false
+	return {"allowed": allowed, "destination": Transform3D(upright, original.origin + offset)}
+
+func place_assembly(point: Vector3, obstacles: Array) -> bool:
+	if held_part == "" or busy or not can_use.call(): return false
+	if get_tool.call() != "":
+		notice.emit("Return the tool before placing the assembly.")
+		return false
+	var placement := placement_for(point, obstacles)
+	if not placement.allowed:
+		notice.emit("Choose a clear table spot with room for the whole assembly.")
+		return false
+	var part: Node3D = contract.objects[held_part]
+	animate_assembly(part, placement.destination, func():
+		held_part = ""
+		changed.emit()
+		notice.emit("Assembly on the table. Click it to pick it up, or use Refit to mount it."))
+	return true
+
+func store_assembly() -> bool:
+	if held_part == "" or busy or not can_use.call(): return false
+	if get_tool.call() != "":
+		notice.emit("Return the tool before storing the assembly.")
+		return false
+	var id := held_part
+	var part: Node3D = contract.objects[id]
+	part.visible = false
+	part.global_position = Vector3(0, -100, 0)
+	stored.append(id)
+	held_part = ""
+	changed.emit()
+	notice.emit("%s stored. Use its lift button to retrieve it." % assembly_name(id))
+	return true
+
+func refit_assembly() -> bool:
+	if busy or not can_use.call(): return false
+	if get_tool.call() != "":
+		notice.emit("Return the tool before refitting the assembly.")
+		return false
+	var id := held_part if held_part != "" else "cooler-assembly" if "cooler-assembly" in removed else "fan-assembly" if "fan-assembly" in removed else ""
+	if id == "": return false
+	var check := decision("refit", id)
+	if not check.allowed:
+		notice.emit(check.reason)
+		return false
+	var part: Node3D = contract.objects[id]
+	var home: Dictionary = contract.homes[id]
+	var destination: Transform3D = home.parent.global_transform * home.transform
+	if id in stored: part.global_transform = Transform3D(destination.basis, destination.origin + Vector3(0, 0.5, 0))
+	part.visible = true
+	stored.erase(id)
+	animate_assembly(part, destination, func():
+		part.reparent(home.parent, true)
+		part.transform = home.transform
+		removed.erase(id)
+		held_part = ""
+		changed.emit()
+		notice.emit("%s seated. Refit its screws from the tray." % assembly_name(id)))
+	return true
+
 func set_muted(value: bool) -> void:
 	muted = value
 	if muted: audio.stop()
@@ -180,6 +320,9 @@ func set_muted(value: bool) -> void:
 
 func _process(delta: float) -> void:
 	advance_turn(delta)
+	if held_part != "" and not moving:
+		var part: Node3D = contract.objects[held_part]
+		part.global_position = held_position(part.global_basis)
 	if not active_screw.is_empty() and not muted and not audio.playing:
 		audio.play()
 
