@@ -22,7 +22,7 @@ BENCH is an interactive GPU repair game being built in Godot with GDScript and t
 | GPU authoring | [models/README.md](models/README.md) | Blender editing, export, metadata and stable object names |
 | Testing-desk authoring | [models/repair-shop.md](models/repair-shop.md) | Separate desk/board model and export workflow |
 
-Current scope: the browser supports inspection, screws/cable, assembly removal/refit/storage, blower cleaning and pad-residue scraping. Godot supports inspection, screwdriver handling, cable/screw service, fan/heatsink assembly handling, randomized part-specific dust cleaning and a debug-only aimed Dev blower with per-part 98% completion, audio and remaining-dust highlight. The regular blower, scraping and job progression are pending. The testing board is a visual prop in both. Replacement pads and electrical diagnosis are not implemented. Do not assume imported geometry implies gameplay support.
+Current scope: the browser supports inspection, screws/cable, assembly removal/refit/storage, blower cleaning and pad-residue scraping. Godot supports inspection, screwdriver handling, cable/screw service with persistent screw seats, fan/heatsink assembly handling, randomized part-specific dust cleaning, a debug-only aimed Dev blower with per-part 98% completion, debug clean/disassemble shortcuts, and a testing-board/monitor flow with simulated Tetris-style FPS. The regular blower, scraping and job progression are pending. The testing board remains a visual prop in the browser. Replacement pads and electrical diagnosis are not implemented. Do not assume imported geometry implies gameplay support.
 
 Migration direction: implement lasting gameplay and UI in Godot. Consult the scaffold to understand existing behavior and reuse suitable assets; change it only when needed for the task. Its current asset paths, rule-fixture generator and Pages deployment are transitional dependencies, not the final architecture. Before removing scaffold files, relocate any still-used asset sources and replace the TypeScript-dependent fixture generation so Godot remains independently runnable and testable. This direction does not itself request immediate deletion of the scaffold.
 
@@ -34,18 +34,19 @@ All paths in this table are under `godot/`. Scene node names and controller refe
 | --- | --- |
 | `scenes/workbench.tscn` | Main composition, imported assets, camera, lights and controller nodes |
 | `scenes/repair_desk.tscn`, `scenes/toolbox.tscn` | Editable native desk/holder/tray and toolbox/lid/screwdriver/Dev blower meshes |
+| `scenes/test_monitor.tscn`, `scripts/test_monitor.gd`, `scripts/testing_station.gd` | Native LCD/power button, falling-block display, GPU-to-board transfer, signal cable and test audio |
 | `scripts/workbench.gd` | Startup, input arbitration, controller wiring, desk alignment, obstacles and holder jaws |
 | `scripts/workbench_tools.gd` | Exclusive screwdriver/Dev blower state, lid/tool animation, nozzle aim, placement and busy guards |
-| `scripts/gpu_service.gd` | Cable deformation, screw progress, assembly lift/place/store/refit, tray transfer, exact refit and screwdriver audio |
+| `scripts/gpu_service.gd` | Cable deformation, screw progress and persistent seats, assembly lift/place/store/refit, tray transfer, exact refit, debug full disassembly and screwdriver audio |
 | `scripts/gpu_inspection.gd`, `scripts/orbit_camera.gd` | Whole-card inspection and home transforms; camera presets/orbit/pan/zoom |
-| `scripts/interaction_picker.gd` | Cached triangle queries, surface normals, cleaning rays through fan-hub decoration, depth-tested screw/plug targets and assembly action routing |
-| `scripts/gpu_cleaning.gd`, `shaders/dust_overlay.gdshader`, `shaders/dust_highlight.gdshader` | Randomized part-owned masks, fan exposed-face restriction, imported normal correction, visible low dust, debug through-part highlight and 30-second timer, aimed cleaning, audio |
-| `scripts/hud.gd` | Native UI, debug highlight button and signals; service decisions belong in controllers/rules |
+| `scripts/interaction_picker.gd` | Cached triangle queries, surface normals, cleaning rays through fan-hub decoration, depth-tested screw/hole/plug targets and assembly action routing |
+| `scripts/gpu_cleaning.gd`, `shaders/dust_overlay.gdshader`, `shaders/dust_highlight.gdshader` | Randomized part-owned masks, fan exposed-face restriction, imported normal correction, visible low dust, debug through-part highlight and 30-second timer, aimed cleaning, debug instant completion, audio |
+| `scripts/hud.gd` | Native UI, debug buttons and signals; service decisions belong in controllers/rules |
 | `scripts/asset_contract.gd` | Named-part binding, parent validation, original transforms and service definitions |
 | `scripts/service_rules.gd` | Pure rule evaluator; malformed graphs fail closed |
 | `tools/sync-assets.mjs` | Copy source assets and generate `assets/gpu-parts.json` with part metadata and hashes |
 | `tools/build-rule-fixtures.mjs` | Generate deterministic reference decisions from the browser rules into ignored `.godot/rule-fixtures.json` |
-| `tests/smoke.gd`, `tests/service_flow.gd` | Rule parity, asset/picking/camera/inspection, tool/cable/screw/assembly round trips, dust ownership and Dev blower checks; smoke invokes service flow |
+| `tests/smoke.gd`, `tests/service_flow.gd` | Rule parity, asset/picking/camera/inspection, test-board/monitor flow, tool/cable/screw/assembly round trips, dust ownership, Dev blower and debug shortcut checks; smoke invokes service flow |
 | `ASSET_CREDITS.md` | Godot asset attribution |
 
 ## Temporary browser scaffold ownership map
@@ -80,6 +81,7 @@ Startup flow: `index.html` -> `main.ts` -> asset loaders + `createWorkbench()` -
 | Camera, focus or touch behavior | `src/main.ts`, `src/interactions.ts`, `src/gpu-inspection.ts`; Godot: `orbit_camera.gd`, `gpu_inspection.gd`, `workbench.gd` |
 | Service order, new fastener or tool restriction | Asset metadata, `src/service-rules.ts`, `src/gpu-repair.ts`, `tests/service-rules.test.mjs`; check Godot rules/fixtures if shared behavior changes |
 | Tool equip/place/return | `src/workbench-tools.ts`, `src/interactions.ts`, `src/workbench.ts`, `tests/workbench-tools.test.mjs`; Godot: `workbench_tools.gd`, toolbox scene, service-flow tests |
+| Godot screw seats or hole picking | `godot/scripts/gpu_service.gd`, `godot/scripts/interaction_picker.gd`, `godot/scripts/workbench.gd`, `godot/tests/service_flow.gd` |
 | Cleaning speed, completion or next card | `src/gpu-cleaning.ts`; masks/appearance/progress in `src/gpu-dust.ts`; reset wiring in `src/interactions.ts` |
 | Scraping or residue picking | `src/gpu-pad-removal.ts`, `src/interactions.ts`, `tests/gpu-pad-removal.test.mjs`, `scripts/blender/add_worn_pads.py` |
 | Repair desk geometry | `src/workbench.ts`; Godot uses separate native `repair_desk.tscn` and `toolbox.tscn` |
@@ -94,7 +96,7 @@ Startup flow: `index.html` -> `main.ts` -> asset loaders + `createWorkbench()` -
 - Prefer `npm.cmd run model:export` for existing GPU edits. `model:build` refuses an existing source unless forced; regeneration with `--force` discards manual edits. Blender 4.5+ is documented; set `$env:BLENDER_BIN` to its executable if discovery fails.
 - `models/repair-shop.blend` exports to `models/repair-shop.glb`; `models/gpu-test-board.glb` is the standalone board export. The GPU `model:export` command does **not** export this desk. Follow `models/repair-shop.md`.
 - `src/assets/` contains runtime GPU/audio assets. `sounds/` retains audio sources and license notes; preserve attribution when changing recordings.
-- Run `node godot/tools/sync-assets.mjs` after changing shared GPU/desk assets or browser-sourced screwdriver/jingle audio. The Godot-specific `assets/sounds/compressed_air.wav` and `clean_jingle.wav` are supplied directly and are not copied by this script. Commit synchronized `godot/assets/` copies and metadata together; do not hand-edit `gpu-parts.json`. Keep Godot `.import` settings and `.gd.uid` files.
+- Run `node godot/tools/sync-assets.mjs` after changing shared GPU/desk assets or browser-sourced screwdriver/jingle audio. The Godot-specific `assets/sounds/compressed_air.wav`, `clean_jingle.wav`, `assets/attach.wav` and `assets/button_press.ogg` are supplied directly and are not copied by this script. Commit synchronized `godot/assets/` copies and metadata together; do not hand-edit `gpu-parts.json`. Keep Godot `.import` settings and `.gd.uid` files.
 - `node_modules/`, `dist/`, `artifacts/`, `godot/.godot/`, and `godot/build/` are ignored dependencies/build/cache/capture outputs. Change source rather than editing these to implement a fix. `.gitignore` is the authoritative list.
 
 ## Contracts to preserve
@@ -109,8 +111,12 @@ Startup flow: `index.html` -> `main.ts` -> asset loaders + `createWorkbench()` -
 - Fan dust generation excludes inward/underside faces (`outward.y < 0.6`); those surfaces can be enclosed by the mounted fan and would leave uncleanable dust. `smoke.gd` checks that generated fan masks can be cleared from visible mounted-fan triangles across randomized runs.
 - Scraped holes must disappear from both rendering and raycast picking. Browser scraping requires the cooler removed and the card set down in the holder.
 - Browser service completion requires at least 90% cleanliness and reassembly; reaching 99% while blowing clears the final dust. The development-only `Dev blover` must remain gated by development mode.
-- Godot dust stays with each selected mesh through assembly movement. About 40% of each cleanable mesh starts dusty at random positions. Low mask values retain a visible opacity floor until erased. The debug-only `highliht dust` button toggles a through-part magenta overlay; it activates automatically 30 seconds after a Dev blower pickup if dust remains. The Dev blower removes dust only when its nozzle points at a visible part, loops the supplied air recording during a hold, and clears each part's remainder at 98% with one jingle per part. This does not yet implement browser job completion or pad scraping.
+- Godot dust stays with each selected mesh through assembly movement. About 40% of each cleanable mesh starts dusty at random positions. Low mask values retain a visible opacity floor until erased. The debug-only `highlight dust` button toggles a through-part magenta overlay; it activates automatically 30 seconds after a Dev blower pickup if dust remains. The Dev blower removes dust only when its nozzle points at a visible part, loops the supplied air recording during a hold, and clears each part's remainder at 98% with one jingle per part. This does not yet implement browser job completion or pad scraping.
 - Browser DOM IDs bind HTML to controller queries. Preserve those bindings when editing UI.
+- Godot testing requires an assembled GPU with its fan cable connected and empty hands. `testing_station.gd` moves the same card to the imported board's PCIe slot and restores its original holder transform on removal. The monitor's falling-block display uses simulated presentation FPS from current cleanliness; keep BENCH's actual rendering responsive. `assets/attach.wav` is trimmed to 5.9 seconds at the source, so attachment playback ends naturally without a timer or silent tail.
+- Each Godot screw has a native recess marker anchored to its original parent/transform in `gpu_service.gd`. The marker remains when the screw moves to the tray; `interaction_picker.gd` exposes its empty center as `screw_hole` only from the visible side, and the same rule-checked hold action refits the associated screw.
+- The debug disassembly shortcut in `gpu_service.gd` normalizes partial service into a refittable state: cable unplugged, eight screws in tray slots, fan and heatsink on the repair table. The debug clean shortcut updates every dust mask and completion flag; `workbench.gd` refreshes the connected monitor's simulated rate.
+- The monitor screen in `scenes/test_monitor.tscn` uses a PlaneMesh so its texture spans the entire face. Godot's BoxMesh UV atlas would crop the Tetris image to one portion of the screen.
 
 ## Validation and run commands
 

@@ -10,6 +10,8 @@ const Picker = preload("res://scripts/interaction_picker.gd")
 @onready var cleaning = $Cleaning
 @onready var gpu: Node3D = $GPUAsset
 @onready var testing_desk: Node3D = $TestingDesk
+@onready var test_monitor: Node3D = $TestMonitor
+@onready var testing_station: Node = $TestingStation
 @onready var hud: CanvasLayer = $HUD
 var asset_contract: Dictionary
 var service_rules: RefCounted
@@ -44,14 +46,15 @@ func _ready() -> void:
 	var table_bounds: AABB = tabletop.global_transform * tabletop.get_aabb()
 	testing_desk.position += Vector3(12.5 - table_bounds.position.x, -table_bounds.end.y, -table_bounds.get_center().z)
 	table_bounds = tabletop.global_transform * tabletop.get_aabb()
-	camera_rig.testing_target = table_bounds.get_center()
+	camera_rig.testing_target = table_bounds.get_center() + Vector3(0, 1.2, 0)
 	camera_rig.select_view("repair")
 	inspection.configure(gpu, camera_rig.camera, Contract.bounds_in(gpu))
-	inspection.can_interact = func(): return not service.busy and service.held_part == "" and not tools.busy
+	inspection.can_interact = func(): return not service.busy and service.held_part == "" and not tools.busy and not testing_station.installed and not testing_station.moving
 	tools.configure($RepairDesk/Toolbox, camera_rig.camera, self,
 		func(id: String): return not service.busy and not inspection.moving and (service.held_part == "" or id in ["dev-blower", "toolbox"]))
 	service.configure(asset_contract, service_rules, self, camera_rig.camera,
-		func(): return not tools.busy and not inspection.moving, func(): return tools.equipped_tool)
+		func(): return not tools.busy and not inspection.moving and not testing_station.installed and not testing_station.moving,
+		func(): return tools.equipped_tool)
 	for node in $RepairDesk.find_children("Jaw*", "Node3D", true, false):
 		jaws.append(node)
 		node.set_meta("home_z", node.position.z)
@@ -60,16 +63,21 @@ func _ready() -> void:
 	for node in $RepairDesk.get_children():
 		if String(node.name).begins_with("Grid") or String(node.name).begins_with("MatPocket"):
 			node.set_meta("action", "desk")
+	testing_station.configure(gpu, testing_desk.find_child("gpu-testing-board", true, false), test_monitor,
+		inspection, service, tools, cleaning)
 	picker = Picker.new()
 	picker.configure(self, gpu, camera_rig.camera, service)
 	cleaning.configure(gpu, picker, tools)
 	hud.view_requested.connect(select_view)
+	hud.test_requested.connect(toggle_test_gpu)
 	hud.inspect_requested.connect(toggle_inspection)
 	hud.flip_requested.connect(inspection.flip)
 	hud.toolbox_requested.connect(tools.toggle_box)
 	hud.equip_requested.connect(tools.equip)
 	hud.dev_blower_requested.connect(func(): tools.equip("dev-blower"))
 	hud.highlight_dust_requested.connect(cleaning.toggle_highlight)
+	hud.debug_clean_requested.connect(debug_clean_gpu)
+	hud.debug_disassemble_requested.connect(debug_disassemble_gpu)
 	hud.return_requested.connect(tools.return_tool)
 	hud.cable_requested.connect(service.toggle_cable)
 	hud.assembly_requested.connect(lift_assembly)
@@ -78,27 +86,53 @@ func _ready() -> void:
 	hud.refit_started.connect(begin_refit)
 	hud.refit_ended.connect(func():
 		service.end_screw()
-		hud.refresh(inspection.held, inspection.moving, tools, service))
+		hud.refresh(inspection.held, inspection.moving, tools, service, cleaning, testing_station))
 	hud.mute_requested.connect(func():
 		service.set_muted(not service.muted)
-		cleaning.set_muted(service.muted))
+		cleaning.set_muted(service.muted)
+		testing_station.set_muted(service.muted)
+		test_monitor.set_muted(service.muted))
 	inspection.changed.connect(refresh_ui)
 	tools.changed.connect(refresh_ui)
 	service.changed.connect(refresh_ui)
 	cleaning.changed.connect(func(): hud.refresh_cleaning(cleaning))
+	testing_station.changed.connect(refresh_ui)
+	test_monitor.changed.connect(refresh_ui)
 	tools.notice.connect(hud.set_status)
 	service.notice.connect(hud.set_status)
 	cleaning.notice.connect(hud.set_status)
+	testing_station.notice.connect(hud.set_status)
+	test_monitor.notice.connect(hud.set_status)
 	refresh_ui()
 
 func ready_for_action() -> bool:
-	return not inspection.moving and not tools.busy and not service.busy
+	return not inspection.moving and not tools.busy and not service.busy and not testing_station.moving
 
 func select_view(view: String) -> void:
 	if inspection.held or service.held_part != "" or not ready_for_action(): return
 	camera_rig.select_view(view)
+	hud.set_testing_mode(view == "testing")
 	refresh_ui()
-	if view == "testing": hud.set_status("Testing desk is a visual prop.")
+
+func toggle_test_gpu() -> void:
+	if not ready_for_action(): return
+	var was_installed: bool = testing_station.installed
+	if testing_station.toggle_gpu():
+		camera_rig.select_view("repair" if was_installed else "testing")
+		hud.set_testing_mode(not was_installed)
+
+func debug_clean_gpu() -> void:
+	if not OS.is_debug_build(): return
+	if cleaning.debug_clean() and testing_station.installed:
+		test_monitor.set_connection(true, cleaning.progress)
+
+func debug_disassemble_gpu() -> void:
+	if not OS.is_debug_build() or not ready_for_action() or inspection.held or testing_station.installed: return
+	cleaning.end()
+	if service.debug_disassemble():
+		camera_rig.select_view("repair")
+		hud.set_testing_mode(false)
+		refresh_ui()
 
 func toggle_inspection() -> void:
 	if service.held_part != "": return
@@ -120,10 +154,12 @@ func refit_assembly() -> void:
 	service.refit_assembly()
 
 func refresh_ui() -> void:
-	hud.refresh(inspection.held, inspection.moving, tools, service, cleaning)
+	hud.refresh(inspection.held, inspection.moving, tools, service, cleaning, testing_station)
 	if service.busy or tools.busy: return
 	hud.set_status("Setting the GPU down..." if inspection.moving and not inspection.held else
 		"Lifting the GPU..." if inspection.moving else
+		"Moving GPU between benches..." if testing_station.moving else
+		"GPU on test board. Press the monitor power button to run the Tetris test, or remove the card to service it." if testing_station.installed else
 		"Hold and sweep over dusty surfaces with the Dev blower. Return it before servicing parts." if tools.equipped_tool == "dev-blower" else
 		"Hold a screw to turn it. Release to pause. Return the screwdriver before handling the cable." if tools.equipped_tool == "screwdriver" else
 		"Drag to rotate the assembly. Click a clear table spot to place it, or use Refit." if service.held_part != "" else
@@ -165,10 +201,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			dragged = false
 			service_press = false
 			var hit: Dictionary = picker.hit_at(event.position)
-			if event.button_index == MOUSE_BUTTON_LEFT and tools.equipped_tool == "dev-blower" and hit.get("action", "") not in ["desk", "toolbox", "dev-blower"]:
+			if event.button_index == MOUSE_BUTTON_LEFT and tools.equipped_tool == "dev-blower" and not testing_station.installed and hit.get("action", "") not in ["desk", "toolbox", "dev-blower", "test_board", "monitor_power"]:
 				service_press = true
 				cleaning.begin()
-			elif event.button_index == MOUSE_BUTTON_LEFT and hit.get("action", "") == "screw":
+			elif event.button_index == MOUSE_BUTTON_LEFT and hit.get("action", "") in ["screw", "screw_hole"]:
 				# A denied screw action owns the press, so it cannot rotate/lift the GPU.
 				service_press = true
 				service.begin_screw(hit.target.get_meta("part_id"))
@@ -188,6 +224,8 @@ func activate(screen_position: Vector2) -> void:
 	if not ready_for_action(): return
 	var hit: Dictionary = picker.hit_at(screen_position)
 	match hit.get("action", ""):
+		"monitor_power": test_monitor.toggle_power()
+		"test_board": toggle_test_gpu()
 		"screwdriver": tools.grab()
 		"dev-blower": tools.grab("dev-blower")
 		"toolbox":
@@ -196,7 +234,8 @@ func activate(screen_position: Vector2) -> void:
 		"cable": service.toggle_cable()
 		"assembly": lift_assembly(hit.target.get_meta("part_id"))
 		"gpu":
-			if not inspection.held: inspection.lift()
+			if testing_station.installed: toggle_test_gpu()
+			elif not inspection.held: inspection.lift()
 		"desk":
 			if tools.equipped_tool != "": tools.place(hit.point, placement_obstacles())
 			elif service.held_part != "": service.place_assembly(hit.point, placement_obstacles(service.held_part))
@@ -241,7 +280,7 @@ func _process(delta: float) -> void:
 		var pointer: Vector2 = get_viewport().get_mouse_position()
 		var surface: Dictionary = {} if get_viewport().gui_get_hovered_control() != null else picker.surface_hit_at(pointer, true)
 		tools.aim_blower(pointer, surface)
-		if cleaning.blowing and ready_for_action() and get_viewport().gui_get_hovered_control() == null:
+		if cleaning.blowing and not testing_station.installed and ready_for_action() and get_viewport().gui_get_hovered_control() == null:
 			cleaning.blow_at(pointer, delta, surface)
 		hud.refresh_cleaning(cleaning)
 	for jaw in jaws:
@@ -254,4 +293,4 @@ func _process(delta: float) -> void:
 		var over_ui: bool = get_viewport().gui_get_hovered_control() != null
 		var hit: Dictionary = {} if over_ui else picker.hit_at(get_viewport().get_mouse_position())
 		var action: String = hit.get("action", "")
-		Input.set_default_cursor_shape(Input.CURSOR_POINTING_HAND if action in ["gpu", "cable", "screw", "assembly", "toolbox", "screwdriver", "dev-blower"] else Input.CURSOR_ARROW)
+		Input.set_default_cursor_shape(Input.CURSOR_POINTING_HAND if action in ["gpu", "cable", "screw", "screw_hole", "assembly", "toolbox", "screwdriver", "dev-blower", "test_board", "monitor_power"] else Input.CURSOR_ARROW)

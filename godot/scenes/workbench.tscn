@@ -10,6 +10,8 @@
 [ext_resource type="Script" uid="uid://e030s2o307iu" path="res://scripts/workbench_tools.gd" id="8"]
 [ext_resource type="Script" uid="uid://bh502bshka0wt" path="res://scripts/gpu_service.gd" id="9"]
 [ext_resource type="Script" uid="uid://1fqhwofb0tc7" path="res://scripts/gpu_cleaning.gd" id="10"]
+[ext_resource type="PackedScene" path="res://scenes/test_monitor.tscn" id="11"]
+[ext_resource type="Script" path="res://scripts/testing_station.gd" id="12"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMaterial"]
 sky_top_color = Color(0.15, 0.19, 0.25, 1)
@@ -40,6 +42,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.3, 0.187, 0.7)
 
 [node name="TestingDesk" parent="." unique_id=1526808502 instance=ExtResource("3")]
 transform = Transform3D(5, 0, 0, 0, 5, 0, 0, 0, 5, 23, -4.2, 0)
+
+[node name="TestMonitor" parent="." instance=ExtResource("11")]
+position = Vector3(20.8, 0, 0.2)
 
 [node name="Environment" type="WorldEnvironment" parent="." unique_id=693631201]
 environment = SubResource("Environment")
@@ -80,3 +85,6 @@ script = ExtResource("9")
 
 [node name="Cleaning" type="Node" parent="." unique_id=17234935]
 script = ExtResource("10")
+
+[node name="TestingStation" type="Node" parent="."]
+script = ExtResource("12")

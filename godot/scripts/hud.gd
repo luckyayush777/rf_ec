@@ -14,6 +14,9 @@ signal refit_started
 signal refit_ended
 signal mute_requested
 signal highlight_dust_requested
+signal test_requested
+signal debug_clean_requested
+signal debug_disassemble_requested
 
 var inspect_button: Button
 var flip_button: Button
@@ -36,6 +39,11 @@ var clean_label: Label
 var part_clean_label: Label
 var remaining_label: Label
 var highlight_dust_button: Button
+var debug_clean_button: Button
+var debug_disassemble_button: Button
+var test_button: Button
+var service_controls: HFlowContainer
+var assembly_controls: HFlowContainer
 
 func _ready() -> void:
 	var panel := PanelContainer.new()
@@ -61,11 +69,13 @@ func _ready() -> void:
 		var button := make_button(entry[0], controls)
 		button.pressed.connect(func(): view_requested.emit(entry[1]))
 		view_buttons.append(button)
+	test_button = make_button("Connect GPU to test board", controls)
+	test_button.pressed.connect(func(): test_requested.emit())
 	inspect_button = make_button("Inspect GPU", controls)
 	inspect_button.pressed.connect(func(): inspect_requested.emit())
 	flip_button = make_button("Flip GPU", controls)
 	flip_button.pressed.connect(func(): flip_requested.emit())
-	var service_controls := HFlowContainer.new()
+	service_controls = HFlowContainer.new()
 	column.add_child(service_controls)
 	toolbox_button = make_button("Open toolbox", service_controls)
 	toolbox_button.pressed.connect(func(): toolbox_requested.emit())
@@ -80,7 +90,7 @@ func _ready() -> void:
 	refit_button = make_button("Hold to refit screw", service_controls)
 	refit_button.button_down.connect(func(): refit_started.emit())
 	refit_button.button_up.connect(func(): refit_ended.emit())
-	var assembly_controls := HFlowContainer.new()
+	assembly_controls = HFlowContainer.new()
 	column.add_child(assembly_controls)
 	fan_button = make_button("Lift fan", assembly_controls)
 	fan_button.pressed.connect(func(): assembly_requested.emit("fan-assembly"))
@@ -103,7 +113,7 @@ func _ready() -> void:
 	cleaning_panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	cleaning_panel.offset_left = 18
 	cleaning_panel.offset_right = 520
-	cleaning_panel.offset_top = -158
+	cleaning_panel.offset_top = -200
 	cleaning_panel.offset_bottom = -18
 	add_child(cleaning_panel)
 	var cleaning_margin := MarginContainer.new()
@@ -124,6 +134,14 @@ func _ready() -> void:
 	highlight_dust_button.toggle_mode = true
 	highlight_dust_button.visible = OS.is_debug_build()
 	highlight_dust_button.pressed.connect(func(): highlight_dust_requested.emit())
+	var debug_controls := HFlowContainer.new()
+	cleaning_column.add_child(debug_controls)
+	debug_clean_button = make_button("Debug: Clean GPU", debug_controls)
+	debug_clean_button.visible = OS.is_debug_build()
+	debug_clean_button.pressed.connect(func(): debug_clean_requested.emit())
+	debug_disassemble_button = make_button("Debug: Disassemble GPU", debug_controls)
+	debug_disassemble_button.visible = OS.is_debug_build()
+	debug_disassemble_button.pressed.connect(func(): debug_disassemble_requested.emit())
 	status_label = Label.new()
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status_label.text = "Loading workbench..."
@@ -140,36 +158,45 @@ func make_button(text: String, parent: Control) -> Button:
 func set_status(text: String) -> void:
 	status_label.text = text
 
-func refresh(held: bool, moving: bool, tools: Node, service: Node, cleaning: Node) -> void:
-	var busy: bool = moving or tools.busy or service.busy
+func set_testing_mode(value: bool) -> void:
+	service_controls.visible = not value
+	assembly_controls.visible = not value
+	service_label.visible = not value
+	turn_progress.visible = not value
+
+func refresh(held: bool, moving: bool, tools: Node, service: Node, cleaning: Node, station: Node) -> void:
+	var busy: bool = moving or tools.busy or service.busy or station.moving
+	test_button.text = "Remove GPU from test board" if station.installed else "Connect GPU to test board"
+	test_button.disabled = busy or held or service.held_part != "" or tools.equipped_tool != ""
 	inspect_button.text = "Set GPU down" if held else "Inspect GPU"
-	inspect_button.disabled = busy
+	inspect_button.disabled = busy or station.installed
 	flip_button.visible = held
-	flip_button.disabled = busy
+	flip_button.disabled = busy or station.installed
 	for button in view_buttons:
 		button.disabled = held or busy
 	toolbox_button.text = "Close toolbox" if tools.open else "Open toolbox"
-	toolbox_button.disabled = busy
+	toolbox_button.disabled = busy or station.installed
 	equip_button.visible = tools.equipped_tool == ""
-	equip_button.disabled = busy
+	equip_button.disabled = busy or station.installed
 	dev_blower_button.visible = OS.is_debug_build() and tools.equipped_tool == ""
-	dev_blower_button.disabled = busy
+	dev_blower_button.disabled = busy or station.installed
 	return_button.visible = tools.equipped_tool != ""
 	return_button.text = "Return Dev blower" if tools.equipped_tool == "dev-blower" else "Return screwdriver"
-	return_button.disabled = busy
+	return_button.disabled = busy or station.installed
 	cable_button.text = "Reconnect cable" if not service.cable_connected else "Unplug cable"
-	cable_button.disabled = busy or tools.equipped_tool != ""
+	cable_button.disabled = busy or station.installed or tools.equipped_tool != ""
 	# A held refit button stays enabled until release so it still emits button_up.
 	refit_button.visible = not service.removed.is_empty() or refit_button.button_pressed
-	refit_button.disabled = (busy and service.active_screw == "") or tools.equipped_tool != "screwdriver"
+	refit_button.disabled = station.installed or (busy and service.active_screw == "") or tools.equipped_tool != "screwdriver"
 	fan_button.text = "Pick up fan" if "fan-assembly" in service.removed else "Lift fan"
 	cooler_button.text = "Pick up heatsink" if "cooler-assembly" in service.removed else "Lift heatsink"
-	fan_button.disabled = busy or service.held_part != "" or tools.equipped_tool != ""
+	fan_button.disabled = busy or station.installed or service.held_part != "" or tools.equipped_tool != ""
 	cooler_button.disabled = fan_button.disabled
 	assembly_refit_button.visible = service.held_part != "" or "fan-assembly" in service.removed or "cooler-assembly" in service.removed
-	assembly_refit_button.disabled = busy or tools.equipped_tool != ""
+	assembly_refit_button.disabled = busy or station.installed or tools.equipped_tool != ""
 	assembly_store_button.visible = service.held_part != ""
-	assembly_store_button.disabled = busy
+	assembly_store_button.disabled = busy or station.installed
+	debug_disassemble_button.disabled = busy or held or station.installed
 	mute_button.text = "Sound off" if service.muted else "Sound on"
 	var fan_count := 0
 	var cooler_count := 0
@@ -188,6 +215,7 @@ func refresh(held: bool, moving: bool, tools: Node, service: Node, cleaning: Nod
 func refresh_cleaning(cleaning: Node) -> void:
 	highlight_dust_button.set_pressed_no_signal(cleaning.highlighted)
 	highlight_dust_button.disabled = cleaning.celebrated
+	debug_clean_button.disabled = cleaning.celebrated
 	var percent: int = floori(cleaning.progress * 100.0)
 	clean_label.text = "Dust cleaning: %d%%" % percent
 	part_clean_label.text = "PCB %d%%  |  Fan %d%%  |  Heatsink %d%%" % [

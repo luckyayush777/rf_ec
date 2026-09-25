@@ -75,12 +75,30 @@ func run(tree: SceneTree, bench: Node3D, expect: Callable) -> void:
 	await service.motion.finished
 	expect.call(screw.get_parent() == bench, "Removed screw did not detach from GPU")
 	expect.call(screw.position.is_equal_approx(Vector3(3.1, 0.2, 3.38)), "Fan screw used wrong tray slot")
-	bench.begin_refit()
+	var seat: Node3D = service.screw_seats["fan-screw-1"]
+	expect.call(seat.get_parent() == bench.asset_contract.homes["fan-screw-1"].parent and seat.visible,
+		"Fan screw seat did not remain on its mount")
+	var seat_screen: Vector2 = camera.unproject_position(seat.global_position)
+	var seat_hit: Dictionary = bench.picker.hit_at(seat_screen)
+	expect.call(seat_hit.get("action") == "screw_hole" and seat_hit.get("target") == seat,
+		"Empty fan screw hole is not pickable")
+	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
+		DirAccess.make_dir_recursive_absolute("res://build")
+		await RenderingServer.frame_post_draw
+		tree.root.get_texture().get_image().save_png("res://build/screw-hole-front.png")
+	down.position = seat_screen
+	bench._unhandled_input(down)
+	expect.call(service.active_screw == "fan-screw-1", "Clicking the empty hole did not start refitting")
 	service.advance_turn(0.3)
-	service.end_screw()
+	bench._input(up)
+	bench._unhandled_input(up)
 	inspection.rotate_item(Vector2(-8, 7))
-	expect.call(service.begin_screw("fan-screw-1"), "Paused refit could not resume")
+	down.position = camera.unproject_position(seat.global_position)
+	bench._unhandled_input(down)
+	expect.call(service.active_screw == "fan-screw-1", "Paused refit could not resume from its hole")
 	service.advance_turn(1.3)
+	bench._input(up)
+	bench._unhandled_input(up)
 	expect.call(screw.get_parent() == bench.asset_contract.homes["fan-screw-1"].parent, "Refit restored wrong parent")
 	expect.call(screw.transform.is_equal_approx(bench.asset_contract.homes["fan-screw-1"].transform), "Refit accumulated transform drift")
 	await tools.return_tool()
@@ -115,6 +133,16 @@ func run(tree: SceneTree, bench: Node3D, expect: Callable) -> void:
 		service.advance_turn(1.5)
 		await service.motion.finished
 	expect.call(service.removed.size() == 8, "Not all screws reached their tray rows")
+	inspection.flip()
+	await tree.process_frame
+	var rear_seat: Node3D = service.screw_seats["cooler-screw-1"]
+	var rear_seat_hit: Dictionary = bench.picker.hit_at(camera.unproject_position(rear_seat.global_position))
+	expect.call(rear_seat_hit.get("action") == "screw_hole" and rear_seat_hit.get("target") == rear_seat,
+		"Empty rear screw hole is not pickable after flipping")
+	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
+		await RenderingServer.frame_post_draw
+		tree.root.get_texture().get_image().save_png("res://build/screw-hole-back.png")
+	inspection.flip()
 	# Desktop tray picking, including rear screws after they are detached.
 	inspection.put_down()
 	await tree.create_timer(0.55).timeout
@@ -250,7 +278,7 @@ func run(tree: SceneTree, bench: Node3D, expect: Callable) -> void:
 		bench.cleaning.end()
 		expect.call(not bench.cleaning.air.playing, "Blower sound continued after release")
 	expect.call(bench.hud.highlight_dust_button.visible == OS.is_debug_build() and
-		bench.hud.highlight_dust_button.text == "highliht dust", "Debug dust button is missing or mislabeled")
+		bench.hud.highlight_dust_button.text == "highlight dust", "Debug dust button is missing or mislabeled")
 	bench.hud.highlight_dust_button.pressed.emit()
 	expect.call(bench.cleaning.highlighted, "Debug dust button did not enable highlighting")
 	for surface in bench.cleaning.surfaces:
@@ -275,4 +303,4 @@ func run(tree: SceneTree, bench: Node3D, expect: Callable) -> void:
 	await tools.return_tool()
 	service.set_process(true)
 	bench.select_view("repair")
-	print("Service flow checked: tools, cable, screw picking/round trips, fan/heatsink placement, storage and exact refit.")
+	print("Service flow checked: tools, cable, screw and empty-hole refit, fan/heatsink placement, storage and exact refit.")

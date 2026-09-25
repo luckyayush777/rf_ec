@@ -13,7 +13,7 @@ func select_view(view: String) -> void:
 	match view:
 		"testing":
 			target = testing_target
-			offset = Vector3(8, 11, 16)
+			offset = Vector3(5, 7, 11)
 		"both":
 			target = testing_target * 0.5
 			offset = Vector3(0, 26, 48)

@@ -103,6 +103,41 @@ func run() -> void:
 	var table_bounds: AABB = tabletop.global_transform * tabletop.get_aabb()
 	expect(absf(table_bounds.end.y) < 0.001 and absf(table_bounds.position.x - 12.5) < 0.001,
 		"Testing desk alignment differs from browser")
+	var station = bench.testing_station
+	var monitor = bench.test_monitor
+	expect(station.attach_audio.stream != null and monitor.power_audio.stream != null, "Testing sounds are not connected")
+	expect(absf(station.attach_audio.stream.get_length() - 5.9) < 0.05,
+		"GPU attachment audio still includes its silent tail")
+	expect(monitor.get_node("PowerButton").get_meta("action") == "monitor_power", "Physical monitor button is missing")
+	expect(station.board.get_meta("action") == "test_board", "Testing board is not interactive")
+	bench.select_view("testing")
+	var test_board_mesh: MeshInstance3D = station.board.find_child("pcb-substrate", true, false)
+	var board_screen: Vector2 = bench.camera_rig.camera.unproject_position(test_board_mesh.global_position)
+	expect(bench.picker.hit_at(board_screen).get("action") == "test_board", "Testing board cannot be picked")
+	var button_screen: Vector2 = bench.camera_rig.camera.unproject_position(monitor.button.global_position)
+	expect(bench.picker.hit_at(button_screen).get("action") == "monitor_power", "Monitor power button cannot be picked")
+	bench.activate(board_screen)
+	await create_timer(0.6).timeout
+	expect(station.installed and monitor.connected and monitor.simulated_fps <= 20, "Dirty GPU did not start the slow test")
+	expect(not bench.inspection.can_interact.call(), "Installed GPU can still be inspected")
+	bench.activate(button_screen)
+	for step in range(8): monitor._process(0.125)
+	expect(monitor.powered and monitor.presented_frames > 0 and monitor.piece_cells.size() == 4 and monitor.piece_y > -2,
+		"Falling-block test did not advance")
+	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
+		DirAccess.make_dir_recursive_absolute("res://build")
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png("res://build/testing-dirty.png")
+		monitor.image.save_png("res://build/tetris-feed.png")
+	monitor.reset_simulation()
+	for step in range(240): monitor.advance_demo(1.0 / 60.0)
+	expect(monitor.lines_cleared >= 1 and monitor.score >= 100,
+		"Falling-block demonstration did not clear and score a row")
+	monitor.reset_simulation()
+	expect(station.detach(), "GPU could not be removed from test board")
+	await create_timer(0.6).timeout
+	expect(not station.installed and not monitor.connected and bench.gpu.global_transform.is_equal_approx(station.home),
+		"GPU did not return to its repair-holder transform")
 	var inspection = bench.inspection
 	var camera: Camera3D = bench.camera_rig.camera
 	for view in ["both", "repair", "testing", "top"]:
@@ -181,6 +216,8 @@ func run() -> void:
 		await process_frame
 		await RenderingServer.frame_post_draw
 		root.get_texture().get_image().save_png("res://build/back.png")
+		inspection.put_down()
+		await create_timer(0.55).timeout
 	expect(dust.jingle.stream != null and dust.air.stream != null, "Cleaning sounds are not configured")
 	expect(dust.air.stream.loop_mode == AudioStreamWAV.LOOP_FORWARD and dust.air.stream.loop_begin > 0,
 		"Blower sustain segment is not looped")
@@ -193,7 +230,67 @@ func run() -> void:
 	expect(is_equal_approx(dust.progress, 1.0) and dust.completed_count == 3 and dust.celebrated,
 		"Cleaning did not complete all three parts once")
 	expect(not dust.highlighted, "Dust highlight remained on after full cleaning")
+	expect(station.attach(), "Clean GPU did not reattach to test board")
+	await create_timer(0.6).timeout
+	expect(monitor.connected and monitor.simulated_fps == 60, "Clean GPU did not start the smooth test")
+	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
+		bench.select_view("testing")
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png("res://build/testing-clean.png")
+	station.attach_audio.stop()
+	dust.jingle.stop()
+	station.attach_audio.stream = null
+	dust.jingle.stream = null
+	await create_timer(0.1).timeout
 	bench.queue_free()
+	await process_frame
+	# Debug shortcuts must leave the same controller state as normal service.
+	var debug_bench = packed.instantiate()
+	root.add_child(debug_bench)
+	await process_frame
+	expect(debug_bench.hud.debug_clean_button.visible and debug_bench.hud.debug_disassemble_button.visible,
+		"Debug shortcuts are missing from the HUD")
+	expect(debug_bench.testing_station.attach(), "Dirty GPU could not attach before debug cleaning")
+	await create_timer(0.6).timeout
+	expect(debug_bench.test_monitor.simulated_fps <= 20, "Debug fixture did not start dirty")
+	debug_bench.hud.debug_clean_button.pressed.emit()
+	expect(is_equal_approx(debug_bench.cleaning.progress, 1.0) and debug_bench.cleaning.celebrated and
+		debug_bench.cleaning.completed_count == 3 and not debug_bench.cleaning.highlighted,
+		"Debug clean did not complete all dust state")
+	for surface in debug_bench.cleaning.surfaces:
+		expect(surface.remaining == 0.0 and surface.data.count(0) == surface.data.size(),
+			"Debug clean left visible dust on " + surface.name)
+	expect(debug_bench.test_monitor.simulated_fps == 60,
+		"Debug cleaning did not update the connected monitor")
+	expect(debug_bench.testing_station.detach(), "Debug GPU could not leave test board")
+	await create_timer(0.6).timeout
+	debug_bench.hud.debug_disassemble_button.pressed.emit()
+	var debug_service = debug_bench.service
+	expect(debug_service.removed.size() == 10 and not debug_service.cable_connected and
+		debug_service.held_part == "" and debug_service.turns.is_empty() and debug_service.stored.is_empty(),
+		"Debug disassembly left incomplete service state")
+	for id in debug_service.fan_screws + debug_service.cooler_screws:
+		expect(id in debug_service.removed and debug_bench.asset_contract.objects[id].get_parent() == debug_bench and
+			debug_service.screw_seats[id].get_parent() == debug_bench.asset_contract.homes[id].parent,
+			"Debug disassembly misplaced " + id)
+	for id in ["fan-assembly", "cooler-assembly"]:
+		var part: Node3D = debug_bench.asset_contract.objects[id]
+		expect(id in debug_service.removed and part.get_parent() == debug_bench and part.visible and
+			part.global_position.y > -1.0, "Debug disassembly did not place " + id)
+	expect(not debug_bench.testing_station.can_attach(), "Disassembled GPU could attach to the test board")
+	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
+		debug_bench.select_view("repair")
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png("res://build/debug-disassembled.png")
+	expect(debug_service.refit_assembly(), "Debug-disassembled heatsink could not refit")
+	await debug_service.motion.finished
+	expect(debug_service.refit_assembly(), "Debug-disassembled fan could not refit")
+	await debug_service.motion.finished
+	expect(debug_service.cable_progress == 1.0 and "fan-assembly" not in debug_service.removed and
+		"cooler-assembly" not in debug_service.removed, "Debug disassembly broke normal assembly refit")
+	debug_bench.testing_station.attach_audio.stop()
+	debug_bench.testing_station.attach_audio.stream = null
+	debug_bench.queue_free()
 	await process_frame
 	print("PASS: %d reference rule decisions, invalid graph checks, asset hierarchy, camera/picking and five inspection cycles." % checked if failures.is_empty() else "FAIL: " + str(failures.size()))
 	quit(0 if failures.is_empty() else 1)

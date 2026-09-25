@@ -1,0 +1,141 @@
+[gd_scene load_steps=14 format=3]
+
+[ext_resource type="Script" path="res://scripts/test_monitor.gd" id="1"]
+[ext_resource type="AudioStream" path="res://assets/button_press.ogg" id="2"]
+
+[sub_resource type="StandardMaterial3D" id="Plastic"]
+albedo_color = Color(0.085, 0.092, 0.105, 1)
+roughness = 0.78
+
+[sub_resource type="StandardMaterial3D" id="Bezel"]
+albedo_color = Color(0.15, 0.16, 0.17, 1)
+roughness = 0.57
+
+[sub_resource type="StandardMaterial3D" id="ScreenMaterial"]
+shading_mode = 0
+albedo_color = Color(1, 1, 1, 1)
+roughness = 0.65
+
+[sub_resource type="StandardMaterial3D" id="ButtonMaterial"]
+albedo_color = Color(0.26, 0.28, 0.3, 1)
+roughness = 0.62
+
+[sub_resource type="BoxMesh" id="BaseMesh"]
+size = Vector3(1.45, 0.12, 0.95)
+material = SubResource("Plastic")
+
+[sub_resource type="BoxMesh" id="StemMesh"]
+size = Vector3(0.18, 1.45, 0.16)
+material = SubResource("Plastic")
+
+[sub_resource type="BoxMesh" id="BodyMesh"]
+size = Vector3(4.35, 2.85, 0.22)
+material = SubResource("Plastic")
+
+[sub_resource type="PlaneMesh" id="PanelMesh"]
+size = Vector2(4.08, 2.46)
+material = SubResource("ScreenMaterial")
+
+[sub_resource type="BoxMesh" id="BezelMesh"]
+size = Vector3(4.28, 0.13, 0.035)
+material = SubResource("Bezel")
+
+[sub_resource type="BoxMesh" id="PowerButtonMesh"]
+size = Vector3(0.25, 0.14, 0.08)
+material = SubResource("ButtonMaterial")
+
+[sub_resource type="BoxMesh" id="LEDMesh"]
+size = Vector3(0.08, 0.035, 0.018)
+material = SubResource("ButtonMaterial")
+
+[node name="TestMonitor" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Base" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.07, 0.18)
+mesh = SubResource("BaseMesh")
+
+[node name="Stem" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.78, 0)
+mesh = SubResource("StemMesh")
+
+[node name="Housing" type="MeshInstance3D" parent="."]
+position = Vector3(0, 2.35, 0)
+mesh = SubResource("BodyMesh")
+
+[node name="Screen" type="MeshInstance3D" parent="."]
+position = Vector3(0, 2.41, 0.13)
+rotation_degrees = Vector3(90, 0, 0)
+mesh = SubResource("PanelMesh")
+
+[node name="LowerBezel" type="MeshInstance3D" parent="."]
+position = Vector3(0, 1.04, 0.119)
+mesh = SubResource("BezelMesh")
+
+[node name="PowerButton" type="MeshInstance3D" parent="."]
+position = Vector3(1.92, 1.04, 0.16)
+mesh = SubResource("PowerButtonMesh")
+
+[node name="PowerLED" type="MeshInstance3D" parent="."]
+position = Vector3(1.63, 1.04, 0.153)
+mesh = SubResource("LEDMesh")
+
+[node name="Status" type="Label3D" parent="."]
+position = Vector3(-1.78, 1.04, 0.142)
+text = "BENCH LCD  /  TEST INPUT"
+font_size = 48
+pixel_size = 0.004
+modulate = Color(0.63, 0.67, 0.7, 1)
+outline_size = 0
+horizontal_alignment = 0
+
+[node name="PowerLabel" type="Label3D" parent="."]
+position = Vector3(1.18, 1.04, 0.142)
+text = "POWER"
+font_size = 48
+pixel_size = 0.004
+modulate = Color(0.7, 0.74, 0.76, 1)
+outline_size = 0
+horizontal_alignment = 0
+
+[node name="Readout" type="Label3D" parent="."]
+position = Vector3(-1.78, 3.34, 0.143)
+text = "NO SIGNAL"
+font_size = 48
+pixel_size = 0.006
+modulate = Color(0.7, 0.84, 0.84, 1)
+outline_size = 0
+horizontal_alignment = 0
+
+[node name="FpsReadout" type="Label3D" parent="."]
+visible = false
+position = Vector3(0.9, 3.34, 0.143)
+text = "SIM 08 FPS"
+font_size = 48
+pixel_size = 0.0045
+modulate = Color(0.7, 0.84, 0.84, 1)
+outline_size = 0
+horizontal_alignment = 0
+
+[node name="NextLabel" type="Label3D" parent="."]
+visible = false
+position = Vector3(-1.72, 2.76, 0.143)
+text = "NEXT"
+font_size = 48
+pixel_size = 0.005
+modulate = Color(0.77, 0.83, 0.87, 1)
+outline_size = 0
+horizontal_alignment = 0
+
+[node name="Stats" type="Label3D" parent="."]
+visible = false
+position = Vector3(0.88, 2.45, 0.143)
+text = "SCORE\n000000\nLINES\n00"
+font_size = 48
+pixel_size = 0.005
+modulate = Color(0.77, 0.83, 0.87, 1)
+outline_size = 0
+horizontal_alignment = 0
+
+[node name="PowerOnSound" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("2")

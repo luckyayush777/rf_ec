@@ -16,6 +16,7 @@ func configure(scene: Node3D, card: Node3D, view_camera: Camera3D, service: Node
 		entries.append({"node": mesh, "source": mesh.mesh, "triangles": mesh.mesh.generate_triangle_mesh()})
 	for id in service.fan_screws + service.cooler_screws:
 		targets.append({"node": service.contract.objects[id], "id": id, "action": "screw", "radius": 0.14})
+		targets.append({"node": service.screw_seats[id], "id": id, "action": "screw_hole", "radius": 0.14})
 	targets.append({"node": service.contract.objects["fan-plug"], "id": "fan-plug", "action": "cable", "radius": 0.18})
 
 func action_for(node: Node3D) -> Dictionary:
@@ -36,6 +37,8 @@ func hit_at(screen: Vector2) -> Dictionary:
 	# Small forgiving targets remain depth-tested against the actual visible surfaces.
 	for target in targets:
 		var node: Node3D = target.node
+		if target.action == "screw_hole" and not is_removed.call(target.id): continue
+		if target.action == "screw_hole" and node.global_basis.y.normalized().dot(-direction) < 0.15: continue
 		if target.action == "screw" and not is_removed.call(target.id) and node.global_basis.y.normalized().dot(-direction) < 0.15: continue
 		var center := node.global_position
 		var offset := origin - center

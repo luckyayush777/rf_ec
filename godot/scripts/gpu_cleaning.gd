@@ -291,6 +291,13 @@ func clean_all() -> void:
 		surface.texture.update(Image.create_from_data(WIDTH, HEIGHT, false, Image.FORMAT_L8, data))
 	changed.emit()
 
+func debug_clean() -> bool:
+	if not OS.is_debug_build() or celebrated: return false
+	end()
+	clean_all()
+	finish_if_ready(false)
+	return true
+
 func clean_part(owner: String) -> void:
 	for surface in surfaces:
 		if surface.owner != owner: continue
@@ -301,7 +308,7 @@ func clean_part(owner: String) -> void:
 		surface.texture.update(Image.create_from_data(WIDTH, HEIGHT, false, Image.FORMAT_L8, data))
 	changed.emit()
 
-func finish_if_ready() -> bool:
+func finish_if_ready(play_audio: bool = true) -> bool:
 	if celebrated: return false
 	var newly_clean: Array[String] = []
 	for owner in ["board", "fan-assembly", "cooler-assembly"]:
@@ -310,7 +317,7 @@ func finish_if_ready() -> bool:
 			completed_parts[owner] = true
 			newly_clean.append(owner)
 			completed_count += 1
-			if not muted: jingle.play()
+			if play_audio and not muted: jingle.play()
 			notice.emit("%s clean!" % owner.replace("-assembly", "").capitalize())
 	if completed_parts.size() == 3:
 		celebrated = true

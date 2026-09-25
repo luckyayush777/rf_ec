@@ -13,3 +13,5 @@ Keep this attribution with distributed builds. GPU and testing-desk assets are c
 - Source: https://opengameart.org/content/win-jingle
 
 `assets/sounds/compressed_air.wav` and `assets/sounds/clean_jingle.wav` were supplied for this Godot port. The former plays during the Dev blower hold; the latter plays when each part becomes clean.
+
+`assets/attach.wav` and `assets/button_press.ogg` were supplied for the testing station. They play when the GPU seats in the test board and when the monitor is turned on.

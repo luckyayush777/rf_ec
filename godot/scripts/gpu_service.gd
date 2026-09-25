@@ -23,6 +23,7 @@ var active_screw := ""
 var turns: Dictionary = {}
 var fan_screws: Array = []
 var cooler_screws: Array = []
+var screw_seats: Dictionary = {}
 var wires: Array = []
 var motion: Tween
 var muted := false
@@ -51,6 +52,7 @@ func configure(parts: Dictionary, evaluator: RefCounted, scene: Node3D, view_cam
 	for id in fan_screws + cooler_screws:
 		contract.objects[id].set_meta("action", "screw")
 		contract.objects[id].set_meta("part_id", id)
+		create_screw_seat(id)
 	for index in range(2):
 		var id := "fan-positive-wire" if index == 0 else "fan-ground-wire"
 		var wire: MeshInstance3D = contract.objects[id]
@@ -59,6 +61,81 @@ func configure(parts: Dictionary, evaluator: RefCounted, scene: Node3D, view_cam
 	audio.stream = preload("res://assets/manual-screwdriver.wav")
 	audio.volume_db = -4.0
 	add_child(audio)
+
+func create_screw_seat(id: String) -> void:
+	var home: Dictionary = contract.homes[id]
+	var seat := Node3D.new()
+	seat.name = id + "-seat"
+	seat.transform = home.transform
+	seat.set_meta("action", "screw_hole")
+	seat.set_meta("part_id", id)
+	home.parent.add_child(seat)
+	var rim_material := StandardMaterial3D.new()
+	rim_material.albedo_color = Color(0.31, 0.34, 0.36)
+	rim_material.metallic = 0.65
+	rim_material.roughness = 0.54
+	var rim := MeshInstance3D.new()
+	rim.name = "MetalRim"
+	var rim_mesh := TorusMesh.new()
+	rim_mesh.inner_radius = 0.085
+	rim_mesh.outer_radius = 0.135
+	rim_mesh.material = rim_material
+	rim.mesh = rim_mesh
+	rim.position.y = 0.017
+	seat.add_child(rim)
+	var well_material := StandardMaterial3D.new()
+	well_material.albedo_color = Color(0.027, 0.031, 0.034)
+	well_material.roughness = 1.0
+	var well := MeshInstance3D.new()
+	well.name = "Recess"
+	var well_mesh := CylinderMesh.new()
+	well_mesh.top_radius = 0.085
+	well_mesh.bottom_radius = 0.085
+	well_mesh.height = 0.006
+	well_mesh.material = well_material
+	well.mesh = well_mesh
+	well.position.y = 0.015
+	seat.add_child(well)
+	screw_seats[id] = seat
+
+func debug_disassemble() -> bool:
+	if not OS.is_debug_build() or busy or not can_use.call(): return false
+	# Normalize partial service too: paused turns and stored/placed assemblies end
+	# in the same fully separated, refittable layout.
+	audio.stop()
+	active_screw = ""
+	turns.clear()
+	removed.clear()
+	stored.clear()
+	held_part = ""
+	cable_connected = false
+	apply_cable_pose(1.0)
+	for id in fan_screws + cooler_screws:
+		var part: Node3D = contract.objects[id]
+		part.reparent(world, true)
+		var fan: bool = id in fan_screws
+		var index: int = (fan_screws if fan else cooler_screws).find(id)
+		part.global_transform = Transform3D(Basis(Vector3.BACK, PI / 2),
+			Vector3(3.1 + index * 0.48, 0.20, 3.38 if fan else 4.12))
+		removed.append(id)
+	debug_place_assembly("fan-assembly", Vector3(-7, 0.05, 4))
+	debug_place_assembly("cooler-assembly", Vector3(-2, 0.05, -4))
+	changed.emit()
+	notice.emit("Debug: GPU fully disassembled. Refit the heatsink, then fan, screws and cable.")
+	return true
+
+func debug_place_assembly(id: String, table_point: Vector3) -> void:
+	var part: Node3D = contract.objects[id]
+	var home: Transform3D = contract.objects["gpu"].global_transform * contract.homes["cooler-assembly"].transform
+	if id == "fan-assembly": home *= contract.homes[id].transform
+	part.reparent(world, true)
+	part.global_transform = home
+	part.visible = true
+	var bounds: AABB = part.global_transform * Contract.bounds_in(part)
+	var offset := table_point - bounds.get_center()
+	offset.y = table_point.y + 0.025 - bounds.position.y
+	part.global_position += offset
+	removed.append(id)
 
 func decision(kind: String, id: String) -> Dictionary:
 	return rules.check(kind, id, removed, {"fan-plug": cable_connected}, get_tool.call())
