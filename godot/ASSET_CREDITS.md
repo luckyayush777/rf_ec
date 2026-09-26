@@ -14,4 +14,8 @@ Keep this attribution with distributed builds. GPU and testing-desk assets are c
 
 `assets/sounds/compressed_air.wav` and `assets/sounds/clean_jingle.wav` were supplied for this Godot port. The former plays during the Dev blower hold; the latter plays when each part becomes clean.
 
-`assets/attach.wav` and `assets/button_press.ogg` were supplied for the testing station. They play when the GPU seats in the test board and when the monitor is turned on.
+`assets/sounds/gpu_sounds/gpu_attach_short.wav` and `assets/button_press.ogg` were supplied for the testing station. They play when the GPU seats in the test board and when the monitor is turned on.
+
+`assets/sounds/ambient_gpu.wav` and `assets/sounds/loud_gpu.wav` were supplied for GPU fan audio. The testing station loops their sustained middle sections and blends them according to remaining dust.
+
+`assets/shop-interior.glb` is the repository-authored workshop, exported from `models/shop-interior.blend`. Visual references and export instructions are recorded in `models/shop-interior.md`; no third-party model or photo textures are embedded.

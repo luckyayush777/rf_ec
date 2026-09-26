@@ -48,6 +48,12 @@ func run() -> void:
 	await process_frame
 	await physics_frame
 	expect(bench.asset_contract.errors.is_empty(), "Imported GPU metadata contract failed")
+	var room: Node3D = bench.get_node("ShopInterior")
+	expect(room.find_child("oscilloscope-body", true, false) != null and
+		room.find_child("SCREWS-text", true, false) != null, "Workshop props missing")
+	var ceiling: Node3D = room.find_child("ceiling", true, false)
+	expect(ceiling != null and not ceiling.is_visible_in_tree(), "Workshop cutaway ceiling blocks the camera")
+	expect(not bench.get_node("RepairDesk/Floor").visible, "Old floor overlaps workshop floor")
 	expect(bench.asset_contract.objects.has("fan-positive-wire"), "Cable wire missing")
 	expect(bench.asset_contract.homes.size() == 20, "Expected 20 part home transforms")
 	expect(bench.asset_contract.service_parts.size() == 11, "Expected two assemblies, eight screws, one connector")
@@ -106,8 +112,9 @@ func run() -> void:
 	var station = bench.testing_station
 	var monitor = bench.test_monitor
 	expect(station.attach_audio.stream != null and monitor.power_audio.stream != null, "Testing sounds are not connected")
-	expect(absf(station.attach_audio.stream.get_length() - 5.9) < 0.05,
-		"GPU attachment audio still includes its silent tail")
+	expect(station.attach_audio.stream.resource_path == "res://assets/sounds/gpu_sounds/gpu_attach_short.wav" and
+		station.attach_audio.stream.loop_mode == AudioStreamWAV.LOOP_DISABLED,
+		"GPU attachment must use the supplied short recording without looping")
 	expect(monitor.get_node("PowerButton").get_meta("action") == "monitor_power", "Physical monitor button is missing")
 	expect(station.board.get_meta("action") == "test_board", "Testing board is not interactive")
 	bench.select_view("testing")
@@ -119,6 +126,23 @@ func run() -> void:
 	bench.activate(board_screen)
 	await create_timer(0.6).timeout
 	expect(station.installed and monitor.connected and monitor.simulated_fps <= 20, "Dirty GPU did not start the slow test")
+	var housing: Node3D = bench.gpu.find_child("fan-housing", true, false)
+	var housing_home := housing.transform
+	for step in range(120): station._process(1.0 / 60.0)
+	expect(station.fan_speed > 4.0 and station.quiet_audio.playing and station.loud_audio.playing,
+		"Dirty installed GPU did not spin up and play fan loops with the monitor off")
+	var rotor_before: Transform3D = station.rotor.transform
+	station._process(0.013)
+	expect(not station.rotor.transform.is_equal_approx(rotor_before) and housing.transform.is_equal_approx(housing_home),
+		"Fan animation failed to rotate only the rotor")
+	expect(station.quiet_audio.stream.loop_mode == AudioStreamWAV.LOOP_FORWARD and
+		station.loud_audio.stream.loop_mode == AudioStreamWAV.LOOP_FORWARD, "Fan recordings do not loop")
+	station.set_muted(true)
+	station._process(0.1)
+	expect(station.quiet_audio.volume_db == -80.0 and station.loud_audio.volume_db == -80.0,
+		"Fan process overrode sound mute")
+	station.set_muted(false)
+	expect(station.loud_audio.volume_db > -20.0, "Fan sound did not unmute")
 	expect(not bench.inspection.can_interact.call(), "Installed GPU can still be inspected")
 	bench.activate(button_screen)
 	for step in range(8): monitor._process(0.125)
@@ -138,6 +162,10 @@ func run() -> void:
 	await create_timer(0.6).timeout
 	expect(not station.installed and not monitor.connected and bench.gpu.global_transform.is_equal_approx(station.home),
 		"GPU did not return to its repair-holder transform")
+	for step in range(60): station._process(1.0 / 60.0)
+	expect(station.fan_speed == 0.0 and not station.quiet_audio.playing and not station.loud_audio.playing and
+		station.rotor.transform.is_equal_approx(station.rotor_home) and station.fan_label.transform.is_equal_approx(station.label_home),
+		"Removed GPU did not stop its fan/audio and restore authored transforms")
 	var inspection = bench.inspection
 	var camera: Camera3D = bench.camera_rig.camera
 	for view in ["both", "repair", "testing", "top"]:
@@ -253,6 +281,14 @@ func run() -> void:
 	expect(debug_bench.testing_station.attach(), "Dirty GPU could not attach before debug cleaning")
 	await create_timer(0.6).timeout
 	expect(debug_bench.test_monitor.simulated_fps <= 20, "Debug fixture did not start dirty")
+	var fan_station = debug_bench.testing_station
+	for step in range(120): fan_station._process(1.0 / 60.0)
+	var dirty_volume: float = fan_station.loud_audio.volume_db
+	# Partial repair must produce an intermediate speed/noise, not an on/off switch.
+	for surface in debug_bench.cleaning.surfaces: surface.remaining = surface.mass * 0.5
+	for step in range(180): fan_station._process(1.0 / 60.0)
+	expect(fan_station.fan_speed > 4.0 and fan_station.fan_speed < 5.0 and
+		fan_station.loud_audio.volume_db < dirty_volume - 4.0, "Partial cleaning did not reduce fan speed/noise")
 	debug_bench.hud.debug_clean_button.pressed.emit()
 	expect(is_equal_approx(debug_bench.cleaning.progress, 1.0) and debug_bench.cleaning.celebrated and
 		debug_bench.cleaning.completed_count == 3 and not debug_bench.cleaning.highlighted,
@@ -262,6 +298,10 @@ func run() -> void:
 			"Debug clean left visible dust on " + surface.name)
 	expect(debug_bench.test_monitor.simulated_fps == 60,
 		"Debug cleaning did not update the connected monitor")
+	for step in range(240): fan_station._process(1.0 / 60.0)
+	expect(absf(fan_station.fan_speed - fan_station.CLEAN_FAN_SPEED) < 0.01 and
+		fan_station.loud_audio.volume_db < -60.0 and fan_station.quiet_audio.playing,
+		"Clean installed GPU did not settle to the quiet fan loop")
 	expect(debug_bench.testing_station.detach(), "Debug GPU could not leave test board")
 	await create_timer(0.6).timeout
 	debug_bench.hud.debug_disassemble_button.pressed.emit()

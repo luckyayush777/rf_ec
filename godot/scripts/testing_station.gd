@@ -16,6 +16,19 @@ var installed := false
 var moving := false
 var motion: Tween
 var attach_audio: AudioStreamPlayer
+var quiet_audio: AudioStreamPlayer
+var loud_audio: AudioStreamPlayer
+var muted := false
+var rotor: Node3D
+var rotor_home := Transform3D.IDENTITY
+var fan_label: Node3D
+var label_home := Transform3D.IDENTITY
+var fan_angle := 0.0
+var fan_speed := 0.0
+var fan_demand := 0.0
+# Visual turns/second are deliberately below real RPM to limit frame aliasing.
+const CLEAN_FAN_SPEED := 2.0
+const DIRTY_FAN_SPEED := 7.0
 
 func configure(card: Node3D, test_board: Node3D, display: Node3D, inspect: Node,
 		gpu_service: Node, workbench_tools: Node, gpu_cleaning: Node) -> void:
@@ -30,9 +43,56 @@ func configure(card: Node3D, test_board: Node3D, display: Node3D, inspect: Node,
 	board.set_meta("action", "test_board")
 	attach_audio = AudioStreamPlayer.new()
 	attach_audio.name = "GPUAttachSound"
-	attach_audio.stream = preload("res://assets/attach.wav")
+	attach_audio.stream = preload("res://assets/sounds/gpu_sounds/gpu_attach_short.wav")
 	board.add_child(attach_audio)
+	rotor = gpu.find_child("fan-rotor", true, false)
+	rotor_home = rotor.transform
+	fan_label = gpu.find_child("fan-brand-label", true, false)
+	label_home = fan_label.transform
+	quiet_audio = make_fan_audio("QuietFan", preload("res://assets/sounds/ambient_gpu.wav"))
+	loud_audio = make_fan_audio("LoudFan", preload("res://assets/sounds/loud_gpu.wav"))
 	build_display_cable()
+
+func make_fan_audio(node_name: String, source: AudioStreamWAV) -> AudioStreamPlayer:
+	var player := AudioStreamPlayer.new()
+	player.name = node_name
+	var stream := source.duplicate() as AudioStreamWAV
+	# Loop the sustained middle of each recording, excluding its start/end.
+	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	stream.loop_begin = stream.mix_rate
+	stream.loop_end = int((stream.get_length() - 1.0) * stream.mix_rate)
+	player.stream = stream
+	player.volume_db = -80.0
+	add_child(player)
+	return player
+
+func _process(delta: float) -> void:
+	if rotor == null: return
+	var running := installed and not moving
+	var target_demand := clampf(1.0 - float(cleaning.progress), 0.0, 1.0)
+	fan_demand = lerpf(fan_demand, target_demand, 1.0 - exp(-delta * 3.0))
+	var target_speed := lerpf(CLEAN_FAN_SPEED, DIRTY_FAN_SPEED, fan_demand) if running else 0.0
+	fan_speed = move_toward(fan_speed, target_speed, delta * 10.0)
+	fan_angle = fposmod(fan_angle + fan_speed * TAU * delta, TAU)
+	# glTF converts Blender's rotor Z axis to Godot Y. Preserve imported bases.
+	var spin := Transform3D(Basis(Vector3.UP, fan_angle), Vector3.ZERO)
+	rotor.transform = rotor_home * spin
+	# The authored hub label is a sibling of the rotor; orbit it about that pivot.
+	fan_label.transform = rotor_home * spin * rotor_home.affine_inverse() * label_home
+	if not running and fan_speed == 0.0:
+		fan_angle = 0.0
+		rotor.transform = rotor_home
+		fan_label.transform = label_home
+	update_fan_audio(running)
+
+func update_fan_audio(running: bool) -> void:
+	for player in [quiet_audio, loud_audio]:
+		if running and not player.playing: player.play(1.0)
+		elif not running: player.stop()
+	var spin_gain := clampf(fan_speed / CLEAN_FAN_SPEED, 0.0, 1.0)
+	# Preserve the recordings' character; add the stronger layer as dust rises.
+	quiet_audio.volume_db = -80.0 if muted else linear_to_db(maxf(0.0001, spin_gain * lerpf(0.35, 0.15, fan_demand)))
+	loud_audio.volume_db = -80.0 if muted else linear_to_db(maxf(0.0001, spin_gain * fan_demand))
 
 func build_display_cable() -> void:
 	var cable := Node3D.new()
@@ -63,7 +123,9 @@ func build_display_cable() -> void:
 		segment.global_basis = Basis(Quaternion(Vector3.UP, (finish - start).normalized()))
 
 func set_muted(value: bool) -> void:
+	muted = value
 	attach_audio.volume_db = -80.0 if value else 0.0
+	update_fan_audio(installed and not moving)
 
 func can_attach() -> bool:
 	if moving or inspection.held or inspection.moving or service.busy or tools.busy: return false
@@ -106,6 +168,7 @@ func detach() -> bool:
 	attach_audio.stop()
 	moving = true
 	monitor.set_connection(false)
+	update_fan_audio(false)
 	changed.emit()
 	motion = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	motion.tween_property(gpu, "global_transform", home, 0.55)
@@ -118,6 +181,10 @@ func detach() -> bool:
 	return true
 
 func _exit_tree() -> void:
+	for player in [quiet_audio, loud_audio]:
+		if player != null:
+			player.stop()
+			player.stream = null
 	if attach_audio != null:
 		attach_audio.stop()
 		attach_audio.stream = null

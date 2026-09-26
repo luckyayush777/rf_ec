@@ -7,9 +7,11 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 ## Implemented
 
 - Imported GPU, including its original component hierarchy and 12 separate worn-pad residue meshes.
+- Imported workshop interior with a brick back wall, painted side wall, tiled floor, background instrument bench, oscilloscope, labelled parts bins, soldering station, stool and trolley. **Both desks** frames the room; front/right walls and ceiling are hidden for the cutaway camera. The props are scenery. See [room authoring](../models/shop-interior.md).
 - Native, editable repair-desk scene with mat, holder jaws, tray, hinged toolbox, simplified lamp/spare-parts props, and floor.
 - Imported second testing desk, aligned beside the repair desk using the browser's tabletop bounds and spacing.
 - Native LCD test monitor with a physical power button, status LED and a visible signal cable to the testing board. The assembled GPU seats in the board and returns to its repair holder; the monitor runs a deterministic Tetris-style falling-block demo at a simulated rate tied to cleaning progress (8 FPS dirty, up to 60 FPS clean). Attachment and power-on sounds are included.
+- The test-board GPU fan spins with its hub label while the housing stays fixed. Dustier cards run faster and blend in `loud_gpu.wav`; clean cards settle to `ambient_gpu.wav`. Speed and sound ease toward the current cleanliness, including live debug cleaning. Removing the card stops the loops and spins the rotor down to its authored pose. Monitor power controls only the display; the seated card keeps running. These are simulated cooling responses, not measured RPM or temperature.
 - Camera presets: Both desks, Repair, Testing, Top; mouse orbit, pan, and zoom.
 - Surface picking, animated whole-GPU lift/set-down, independent inspection rotation/zoom, and flip.
 - Holder jaws open during inspection and close when the GPU returns.
@@ -86,7 +88,8 @@ GitHub Pages still builds the original Vite app. There is no Godot Web export pr
 | `scenes/repair_desk.tscn` | Editable desk/mat/holder/tray and prop meshes. |
 | `scenes/toolbox.tscn` | Editable toolbox walls, lid pivot, screwdriver and Dev blower meshes. |
 | `scenes/test_monitor.tscn`, `scripts/test_monitor.gd` | Editable LCD housing, power button, sound and deterministic falling-block display. |
-| `scripts/testing_station.gd` | PCIe fixture interaction, GPU transfer, monitor connection and signal cable. |
+| `scripts/testing_station.gd` | PCIe fixture interaction, GPU transfer, monitor connection, signal cable, fan animation and cleanliness-driven fan audio. |
+| `scenes/shop_interior.tscn`, `scripts/shop_interior.gd` | Imported workshop shell and props, editor-visible layout conversion and cutaway visibility. |
 | `scripts/workbench.gd` | Startup, controller wiring, input arbitration, desk alignment, placement obstacles and jaw motion. |
 | `scripts/workbench_tools.gd` | Exclusive screwdriver/Dev blower locations, lid/tool animations and placement guards. |
 | `scripts/gpu_cleaning.gd`, `shaders/dust_overlay.gdshader`, `shaders/dust_highlight.gdshader` | Randomized dust masks, aimed cleaning, visible low-density residue, debug highlight, air loop and per-part jingles. |
@@ -107,13 +110,13 @@ The engine port uses ordinary imported GLB scenes; the sidecar avoids reliance o
 
 ## Asset updates
 
-The Blender/browser assets remain the source of truth. After changing `../src/assets/gpu.glb`, `../models/repair-shop.glb`, screwdriver audio, or `../src/assets/cleaning-complete.ogg`, run from the repository root:
+The Blender/browser assets remain the source of truth. After changing `../src/assets/gpu.glb`, `../models/repair-shop.glb`, `../models/shop-interior.glb`, screwdriver audio, or `../src/assets/cleaning-complete.ogg`, run from the repository root:
 
 ```powershell
 node godot/tools/sync-assets.mjs
 ```
 
-Godot reimports the copies in `assets/`. The supplied `assets/sounds/compressed_air.wav`, `assets/sounds/clean_jingle.wav`, `assets/attach.wav` and `assets/button_press.ogg` live directly in Godot and are not overwritten by this sync script. Commit copied assets, generated JSON, `.import` settings and `.gd.uid` files; do not commit `.godot/` caches or `build/` captures. Do not hand-edit generated metadata or copy only one of the GPU/metadata pair. Existing asset/license notes remain in [the repository README](../README.md), [the model workflow](../models/README.md) and [the Godot asset credits](ASSET_CREDITS.md).
+Godot reimports the copies in `assets/`. The supplied fan recordings `assets/sounds/ambient_gpu.wav` and `assets/sounds/loud_gpu.wav`, plus `assets/sounds/compressed_air.wav`, `assets/sounds/clean_jingle.wav`, `assets/sounds/gpu_sounds/gpu_attach_short.wav` and `assets/button_press.ogg` live directly in Godot and are not overwritten by this sync script. Commit copied assets, generated JSON, `.import` settings and `.gd.uid` files; do not commit `.godot/` caches or `build/` captures. Do not hand-edit generated metadata or copy only one of the GPU/metadata pair. Existing asset/license notes remain in [the repository README](../README.md), [the model workflow](../models/README.md) and [the Godot asset credits](ASSET_CREDITS.md).
 
 ## Command-line checks
 
