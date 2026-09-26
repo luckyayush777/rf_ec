@@ -99,8 +99,8 @@ func build_display_cable() -> void:
 	cable.name = "BoardToMonitorCable"
 	monitor.get_parent().add_child(cable)
 	var points := [
-		Vector3(18.38, 0.7, -0.28),
-		Vector3(18.65, 0.42, -1.35),
+		board.global_position + Vector3(0.7, 0.3, 0),
+		board.global_position + Vector3(0.9, 0.15, -1.0),
 		Vector3(20.78, 0.42, -1.35),
 		Vector3(20.78, 2.1, 0.06)]
 	var jacket := StandardMaterial3D.new()
@@ -128,7 +128,7 @@ func set_muted(value: bool) -> void:
 	update_fan_audio(installed and not moving)
 
 func can_attach() -> bool:
-	if moving or inspection.held or inspection.moving or service.busy or tools.busy: return false
+	if moving or inspection.moving or service.busy or tools.busy: return false
 	if service.held_part != "" or tools.equipped_tool != "": return false
 	if not service.removed.is_empty() or not service.cable_connected: return false
 	return true
@@ -143,12 +143,13 @@ func attach() -> bool:
 		notice.emit("Reassemble the GPU, reconnect its cable, set it down, and free your hands before testing.")
 		return false
 	var bounds: AABB = preload("res://scripts/asset_contract.gd").bounds_in(gpu)
-	var basis := Basis(Vector3.RIGHT, PI / 2.0).scaled(Vector3.ONE * 0.5)
+	inspection.held = false
+	var basis := Basis(Vector3.RIGHT, PI / 2.0).scaled(home.basis.get_scale())
 	var slot_center := board.global_transform * Vector3.ZERO
 	# Imported board origin is not guaranteed to be at the slot. Use the socket mesh.
 	var socket: Node3D = board.find_child("pcie-x16-socket", true, false)
 	if socket != null: slot_center = socket.global_position
-	var destination := Transform3D(basis, slot_center + Vector3(0.25, 0.95, 0.33) - basis * bounds.get_center())
+	var destination := Transform3D(basis, slot_center + Vector3(0.125, 0.475, 0.165) - basis * bounds.get_center())
 	moving = true
 	changed.emit()
 	motion = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)

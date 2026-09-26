@@ -1,6 +1,6 @@
 """Export the edited GPU hierarchy, without rebuilding it or exporting the stage.
 
-Run through `npm run model:export`, or import export_gpu from build_gpu.py.
+Run through `the export_gpu.py script`, or import export_gpu from build_gpu.py.
 The native file keeps curves/modifiers; only temporary copies are converted.
 """
 import argparse
@@ -17,8 +17,8 @@ def hierarchy(root):
     return [root, *root.children_recursive]
 
 
-def web_vector(vector):
-    # Blender Z-up -> glTF / Three.js Y-up. Custom properties aren't auto-converted.
+def gltf_vector(vector):
+    # Blender Z-up -> glTF / Godot Y-up. Custom properties aren't auto-converted.
     return [float(vector[0]), float(vector[2]), -float(vector[1])]
 
 
@@ -61,10 +61,10 @@ def export_gpu(filepath):
             if 'part_role' in obj:
                 part = {
                     'role': obj['part_role'],
-                    'assembledPosition': web_vector(obj.location),
+                    'assembledPosition': gltf_vector(obj.location),
                 }
                 if 'removal_direction' in obj:
-                    part['removalDirection'] = web_vector(obj['removal_direction'])
+                    part['removalDirection'] = gltf_vector(obj['removal_direction'])
                 if 'requires_json' in obj:
                     part['requires'] = json.loads(obj['requires_json'])
                 if 'attachment' in obj:
@@ -107,6 +107,6 @@ def export_gpu(filepath):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--output', type=Path, default=ROOT / 'src/assets/gpu.glb')
+    parser.add_argument('--output', type=Path, default=ROOT / 'models/gpu.glb')
     args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else [])
     export_gpu(args.output.resolve())

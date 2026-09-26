@@ -109,7 +109,7 @@ func run(tree: SceneTree, bench: Node3D, expect: Callable) -> void:
 	expect.call(not service.cable_connected and is_equal_approx(service.cable_progress, 1.0), "Cable did not reach unplugged state")
 	var plug: Node3D = bench.asset_contract.objects["fan-plug"]
 	var plug_home: Transform3D = bench.asset_contract.homes["fan-plug"].transform
-	expect.call(plug.position.is_equal_approx(plug_home.origin + Vector3(0, 0.22, 0.58)), "Plug displacement differs from browser")
+	expect.call(plug.position.is_equal_approx(plug_home.origin + Vector3(0, 0.22, 0.58)), "Plug displacement differs from service contract")
 	for wire in service.wires:
 		var original: PackedVector3Array = wire.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 		var bent: PackedVector3Array = wire.node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]

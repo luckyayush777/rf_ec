@@ -1,4 +1,6 @@
 extends CanvasLayer
+signal tool_selected(id: String)
+signal tool_menu_closed
 signal view_requested(view: String)
 signal inspect_requested
 signal flip_requested
@@ -44,9 +46,19 @@ var debug_disassemble_button: Button
 var test_button: Button
 var service_controls: HFlowContainer
 var assembly_controls: HFlowContainer
+var main_panel: PanelContainer
+var cleaning_panel: PanelContainer
+var reticle: Label
+var interaction_hint: Label
+var notice_label: Label
+var fps_mode := false
+var tool_overlay: ColorRect
+var tool_buttons: Dictionary = {}
+var tool_close_button: Button
 
 func _ready() -> void:
 	var panel := PanelContainer.new()
+	main_panel = panel
 	panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	panel.offset_left = 18
 	panel.offset_top = 18
@@ -109,7 +121,7 @@ func _ready() -> void:
 	turn_progress.custom_minimum_size.y = 12
 	turn_progress.show_percentage = false
 	column.add_child(turn_progress)
-	var cleaning_panel := PanelContainer.new()
+	cleaning_panel = PanelContainer.new()
 	cleaning_panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	cleaning_panel.offset_left = 18
 	cleaning_panel.offset_right = 520
@@ -155,8 +167,69 @@ func make_button(text: String, parent: Control) -> Button:
 	parent.add_child(button)
 	return button
 
+func enable_first_person() -> void:
+	fps_mode = true
+	main_panel.hide()
+	cleaning_panel.hide()
+	reticle = Label.new()
+	reticle.text = "+"
+	reticle.add_theme_color_override("font_outline_color", Color.BLACK)
+	reticle.add_theme_constant_override("outline_size", 4)
+	reticle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(reticle)
+	reticle.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	reticle.offset_left = -6
+	reticle.offset_top = -12
+	interaction_hint = Label.new()
+	interaction_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	interaction_hint.add_theme_color_override("font_outline_color", Color.BLACK)
+	interaction_hint.add_theme_constant_override("outline_size", 3)
+	interaction_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	interaction_hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	interaction_hint.offset_top = -100
+	interaction_hint.offset_bottom = -20
+	add_child(interaction_hint)
+	notice_label = Label.new()
+	notice_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	notice_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	notice_label.add_theme_constant_override("outline_size", 3)
+	notice_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	notice_label.offset_left = 24
+	notice_label.offset_top = 18
+	notice_label.offset_right = -24
+	notice_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	notice_label.text = "BENCH / REPAIR SHOP"
+	add_child(notice_label)
+
+func set_menu_open(value: bool) -> void:
+	if not fps_mode: return
+	cleaning_panel.visible = value and (tool_overlay == null or not tool_overlay.visible)
+	reticle.visible = not value
+
+func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Node, captured: bool) -> void:
+	if not fps_mode: return
+	set_menu_open(not captured)
+	var action: String = hit.get("action", "")
+	var prompt := ""
+	match action:
+		"screw", "screw_hole": prompt = "Hold LMB: turn screw" if tools.equipped_tool == "screwdriver" else "Screwdriver required"
+		"gpu": prompt = "E: pick up / remove GPU"
+		"test_board": prompt = "E: connect / remove GPU"
+		"monitor_power": prompt = "E: monitor power"
+		"toolbox": prompt = "E / Click: select a tool"
+		"screwdriver", "dev-blower", "thermal-camera": prompt = "E: pick up " + action.replace("-", " ")
+		"cable": prompt = "E: connect / disconnect fan cable"
+		"assembly": prompt = "E: inspect GPU / lift loosened assembly"
+		"desk":
+			if tools.equipped_tool != "" or service.held_part != "": prompt = "E: place on desk"
+	if inspection.held or service.held_part != "": prompt += "   |   RMB + mouse: rotate   F: flip   Q: return/refit"
+	elif tools.equipped_tool != "": prompt += "   |   Q: return tool"
+	if tools.equipped_tool == "thermal-camera": prompt += "   |   Hold RMB: thermal view"
+	interaction_hint.text = (prompt + "\nWASD: move   Mouse: look   E: interact   Tab/Esc: release mouse") if captured else "Mouse released — Tab/Esc to resume"
+
 func set_status(text: String) -> void:
 	status_label.text = text
+	if notice_label != null: notice_label.text = text
 
 func set_testing_mode(value: bool) -> void:
 	service_controls.visible = not value
@@ -229,3 +302,64 @@ func refresh_cleaning(cleaning: Node) -> void:
 	else:
 		remaining_label.text = "Cleaning %s: %d%%" % [String(cleaning.target_part).replace("-assembly", "").capitalize(),
 			floori(cleaning.part_progress(cleaning.target_part) * 100.0)]
+
+func show_tool_menu(tools: Node, service: Node) -> void:
+	if tool_overlay == null:
+		tool_overlay = ColorRect.new()
+		tool_overlay.color = Color(0.015, 0.025, 0.04, 0.86)
+		tool_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		tool_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+		add_child(tool_overlay)
+		var center := CenterContainer.new()
+		center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		tool_overlay.add_child(center)
+		var panel := PanelContainer.new()
+		panel.custom_minimum_size = Vector2(460, 0)
+		center.add_child(panel)
+		var margin := MarginContainer.new()
+		for side in ["left", "right", "top", "bottom"]:
+			margin.add_theme_constant_override("margin_" + side, 24)
+		panel.add_child(margin)
+		var column := VBoxContainer.new()
+		column.add_theme_constant_override("separation", 14)
+		margin.add_child(column)
+		var title := Label.new()
+		title.text = "TOOLBOX"
+		title.add_theme_font_size_override("font_size", 28)
+		column.add_child(title)
+		var help := Label.new()
+		help.text = "Select a tool to equip it.
+Use the mouse or arrow keys and Enter."
+		column.add_child(help)
+		for entry in [["screwdriver", "Screwdriver  /  Remove and refit screws"], ["dev-blower", "Dev blower  /  Clean dust"], ["thermal-camera", "Thermal camera  /  Inspect surface heat"], ["", "Empty hands  /  Return current tool"]]:
+			if entry[0] == "dev-blower" and not OS.is_debug_build(): continue
+			var id: String = entry[0]
+			var button := make_button(entry[1], column)
+			button.custom_minimum_size.y = 58
+			button.focus_mode = Control.FOCUS_ALL
+			button.set_meta("label", entry[1])
+			button.pressed.connect(func(): tool_selected.emit(id))
+			tool_buttons[id] = button
+		tool_close_button = make_button("Close  /  Esc", column)
+		tool_close_button.focus_mode = Control.FOCUS_ALL
+		tool_close_button.pressed.connect(func(): tool_menu_closed.emit())
+	tool_overlay.show()
+	cleaning_panel.hide()
+	if reticle != null: reticle.hide()
+	refresh_tool_menu(tools, service, false)
+	for button in tool_buttons.values():
+		if not button.disabled:
+			button.grab_focus()
+			break
+
+func refresh_tool_menu(tools: Node, service: Node, selecting: bool) -> void:
+	if tool_overlay == null or not tool_overlay.visible: return
+	for id in tool_buttons:
+		var button: Button = tool_buttons[id]
+		button.text = button.get_meta("label") + ("  [Equipped]" if tools.equipped_tool == id else "")
+		button.disabled = selecting or tools.busy or service.busy or (service.held_part != "" and id not in ["", "dev-blower"])
+	tool_close_button.disabled = selecting
+
+func hide_tool_menu() -> void:
+	if tool_overlay != null: tool_overlay.hide()
+	set_menu_open(false)

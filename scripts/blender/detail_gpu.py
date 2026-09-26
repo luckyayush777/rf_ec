@@ -99,4 +99,4 @@ for obj in root.children_recursive:
         obj.data.extrude = 0
 
 bpy.ops.wm.save_as_mainfile(filepath=str(model.ROOT / 'models/gpu.blend'))
-export_gpu(model.ROOT / 'src/assets/gpu.glb')
+export_gpu(model.ROOT / 'models/gpu.glb')

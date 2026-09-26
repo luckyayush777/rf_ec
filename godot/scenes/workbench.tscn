@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" uid="uid://b6yn0kkw4h5qn" path="res://assets/gpu.glb" id="2"]
 [ext_resource type="PackedScene" uid="uid://3jtcrctuwwjw" path="res://assets/repair-shop.glb" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/repair_desk.tscn" id="4"]
-[ext_resource type="Script" uid="uid://b7hl3njuu7klj" path="res://scripts/orbit_camera.gd" id="5"]
+[ext_resource type="Script" uid="uid://du6d45p7ovyp0" path="res://scripts/first_person.gd" id="5"]
 [ext_resource type="Script" uid="uid://b36acmrkd3uu1" path="res://scripts/gpu_inspection.gd" id="6"]
 [ext_resource type="Script" uid="uid://dipq7248aavi2" path="res://scripts/hud.gd" id="7"]
 [ext_resource type="Script" uid="uid://e030s2o307iu" path="res://scripts/workbench_tools.gd" id="8"]
@@ -13,6 +13,9 @@
 [ext_resource type="PackedScene" path="res://scenes/test_monitor.tscn" id="11"]
 [ext_resource type="Script" uid="uid://dnj6gjc5faftr" path="res://scripts/testing_station.gd" id="12"]
 [ext_resource type="PackedScene" path="res://scenes/shop_interior.tscn" id="13"]
+[ext_resource type="PackedScene" path="res://scenes/thermal_camera.tscn" id="14"]
+[ext_resource type="Script" uid="uid://dovq11xywy24x" path="res://scripts/gpu_thermal.gd" id="15"]
+[ext_resource type="Script" uid="uid://nl05uojs5tda" path="res://scripts/thermal_camera.gd" id="16"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMaterial"]
 sky_top_color = Color(0.15, 0.19, 0.25, 1)
@@ -39,15 +42,14 @@ script = ExtResource("1")
 [node name="RepairDesk" parent="." unique_id=1572951251 instance=ExtResource("4")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.77174807, -0.29260135, -0.85501385)
 
-[node name="ShopInterior" parent="." instance=ExtResource("13")]
-position = Vector3(9, -4.5, 0)
-scale = Vector3(5, 5, 5)
+[node name="ShopInterior" parent="." unique_id=813433152 instance=ExtResource("13")]
+transform = Transform3D(5, 0, 0, 0, 5, 0, 0, 0, 5, 9, -4.5, 0)
 
 [node name="GPUAsset" parent="." unique_id=1522925928 instance=ExtResource("2")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.3, 0.187, 0.7)
+transform = Transform3D(0.25, 0, 0, 0, 0.25, 0, 0, 0, 0.25, -3.071748, -0.185851, 3.312241)
 
 [node name="TestingDesk" parent="." unique_id=1526808502 instance=ExtResource("3")]
-transform = Transform3D(5, 0, 0, 0, 5, 0, 0, 0, 5, 23, -4.2, 0)
+transform = Transform3D(3.75, 0, 0, 0, 5, 0, 0, 0, 3.75, 23, -4.2, 0)
 
 [node name="TestMonitor" parent="." unique_id=323176578 instance=ExtResource("11")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20.8, 0, 0.2)
@@ -94,3 +96,14 @@ script = ExtResource("10")
 
 [node name="TestingStation" type="Node" parent="." unique_id=1154617675]
 script = ExtResource("12")
+
+[node name="ThermalCameraStand" type="Node3D" parent="." unique_id=1663517971]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0.765, 2.5)
+
+[node name="ThermalCamera" parent="ThermalCameraStand" unique_id=624872605 instance=ExtResource("14")]
+
+[node name="Thermal" type="Node" parent="." unique_id=814245634]
+script = ExtResource("15")
+
+[node name="ThermalViewer" type="Node" parent="." unique_id=2043495283]
+script = ExtResource("16")

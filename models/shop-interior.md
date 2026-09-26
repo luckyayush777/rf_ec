@@ -36,7 +36,7 @@ Set `$blenderExe` to your installed executable, then run from the repository roo
 & $blenderExe --background models/shop-interior.blend --python-exit-code 1 --python scripts/blender/export_shop_interior.py
 ```
 
-After exporting, run `node godot/tools/sync-assets.mjs` from the repository root
+After exporting, run `python godot/tools/sync_assets.py` from the repository root
 to copy the asset into Godot and update the source hash manifest.
 
 This writes `models/shop-interior.glb` with the **entire room**, including hidden
@@ -66,5 +66,6 @@ no reference photos or third-party models are embedded in the asset.
 Validated with Blender 5.2.2: saved source reopened for export, both rendered
 views inspected, and exported GLB checked for room, scope, waveform and labels.
 Godot rendered acceptance checks cover placement and the existing service flows.
-Use **Both desks** to see the room. Props are scenery, with no service interactions
-or player collision system.
+The editor retains the cutaway overview. First-person runtime closes the shell,
+adds a front entrance door and builds static collision for the room/furniture.
+The new background props remain scenery; playable tools and GPU parts are separate.

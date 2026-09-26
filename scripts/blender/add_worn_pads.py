@@ -21,7 +21,7 @@ else:
     worn = bpy.data.materials['Worn thermal pad']
 model.MATERIALS['Worn thermal pad'] = worn
 
-# Each chip keeps three separate pieces, so the browser can scrape them away.
+# Each chip keeps three separate pieces, for future scraping interactions.
 for i, (x, y) in enumerate([(-1.58, .55), (-1.58, -.55), (.68, .55), (.68, -.55)]):
     for j, (dx, dy, width, depth) in enumerate([
         (-.12, -.12, .20, .25), (.105, -.09, .18, .22), (-.015, .17, .30, .18),
@@ -33,4 +33,4 @@ for i, (x, y) in enumerate([(-1.58, .55), (-1.58, -.55), (.68, .55), (.68, -.55)
 
 bpy.context.preferences.filepaths.save_version = 0
 bpy.ops.wm.save_as_mainfile(filepath=str(model.ROOT / 'models/gpu.blend'))
-export_gpu(model.ROOT / 'src/assets/gpu.glb')
+export_gpu(model.ROOT / 'models/gpu.glb')

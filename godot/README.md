@@ -1,84 +1,92 @@
-# Godot port — GPU disassembly
+# BENCH - GPU repair
 
 Open [project.godot](project.godot) in Godot and press **F5**. If the Project Manager opens, choose **Import**, select this file, then **Import & Edit**. The main scene is [scenes/workbench.tscn](scenes/workbench.tscn).
 
-Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibility renderer** for a future browser export. No external Godot plugins are required.
+Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibility renderer** for desktop play. No external Godot plugins are required.
 
 ## Implemented
 
 - Imported GPU, including its original component hierarchy and 12 separate worn-pad residue meshes.
-- Imported workshop interior with a brick back wall, painted side wall, tiled floor, background instrument bench, oscilloscope, labelled parts bins, soldering station, stool and trolley. **Both desks** frames the room; front/right walls and ceiling are hidden for the cutaway camera. The props are scenery. See [room authoring](../models/shop-interior.md).
+- Imported workshop interior with a brick back wall, painted side wall, tiled floor, background instrument bench, oscilloscope, labelled parts bins, soldering station, stool and trolley. The runtime is enclosed for first-person play; the editor keeps a cutaway overview. The props are scenery. See [room authoring](../models/shop-interior.md).
 - Native, editable repair-desk scene with mat, holder jaws, tray, hinged toolbox, simplified lamp/spare-parts props, and floor.
-- Imported second testing desk, aligned beside the repair desk using the browser's tabletop bounds and spacing.
+- Imported second testing desk, aligned beside the repair desk using tabletop bounds.
 - Native LCD test monitor with a physical power button, status LED and a visible signal cable to the testing board. The assembled GPU seats in the board and returns to its repair holder; the monitor runs a deterministic Tetris-style falling-block demo at a simulated rate tied to cleaning progress (8 FPS dirty, up to 60 FPS clean). Attachment and power-on sounds are included.
 - The test-board GPU fan spins with its hub label while the housing stays fixed. Dustier cards run faster and blend in `loud_gpu.wav`; clean cards settle to `ambient_gpu.wav`. Speed and sound ease toward the current cleanliness, including live debug cleaning. Removing the card stops the loops and spins the rotor down to its authored pose. Monitor power controls only the display; the seated card keeps running. These are simulated cooling responses, not measured RPM or temperature.
-- Camera presets: Both desks, Repair, Testing, Top; mouse orbit, pan, and zoom.
+- First-person-only play: WASD walking, captured mouse-look, capsule collision against the room/desks, a centred interaction prompt and distance-limited picking. Tab/Escape releases the mouse; focus loss pauses active holds. Orbit poses remain only for existing automated service fixtures.
+- Handheld thermal camera on the repair desk, with a live low-resolution display and RMB viewfinder. The fixed 20-100 degrees C palette shows visible surface heat at 9 Hz, with a spot readout and an approximation warning for reflective metal. Separate memory/core/cooler temperatures warm under test-board power and cool gradually when disconnected. Internal fan/heatsink dust is the main fault. Existing front/rear memory packages have native U1-U10 / VRAM markings.
 - Surface picking, animated whole-GPU lift/set-down, independent inspection rotation/zoom, and flip.
 - Holder jaws open during inspection and close when the GPU returns.
 - Metadata adapter that validates named parts and original parent relationships, records original transforms, and creates service definitions.
+- Separate toolbox selection menu with keyboard focus, large buttons, automatic return-before-switch, and empty-hands selection. Available tools are the screwdriver, debug-only Dev blower, and thermal camera.
 - Screwdriver equip/return, automatic toolbox opening, and desk placement/retrieval with footprint and obstacle checks. Inspection can continue with the screwdriver equipped.
 - Fan cable unplug/reconnect with plug animation and wire deformation. Cable handling requires empty hands; cooler screws require the cable unplugged.
 - All eight screws support 1.5-second hold-to-turn removal/refit, independent paused progress, labeled tray slots, and exact original parent/transform restoration. Shallow screw seats remain visible when screws move to the tray; click an empty seat with the screwdriver to refit that screw.
 - Fan and heatsink/cooler assemblies can be lifted after their cable/screw requirements are met, rotated while held, placed on clear repair-table space, picked up again, stored, and refitted to their exact original mounts. The fan travels with the cooler if still attached.
 - Part-owned amber dust masks on the PCB front/back, fan, heatsink, and screw heads. Each new workbench covers about 40% of each cleanable mesh in randomized patches. Fan dust is generated only on exposed upper faces, so it does not appear inside the housing or beneath blades. Cleaning one surface leaves the other parts and sides dirty, including after detachment or refit. Imported mesh winding is corrected so masks align with rendered and picked faces; decorative pieces over the fan hub do not block cleaning its cap.
-- Development-only **Dev blower** in the toolbox. Its nozzle follows the pointer and must point at a visible part to remove dust. Holding the trigger plays the supplied air recording, with its steady section looped. The bottom panel shows overall and per-part cleanliness. At 98% cleanliness, that part's remaining dust clears and its jingle plays once (unless sound is muted).
+- Development-only **Dev blower** in the toolbox. Its nozzle follows the crosshair and must point at a visible part to remove dust. Holding the trigger plays the supplied air recording, with its steady section looped. The Tab menu shows overall and per-part cleanliness. At 98% cleanliness, that part's remaining dust clears and its jingle plays once (unless sound is muted).
 - Debug builds also have **Debug: Clean GPU** and **Debug: Disassemble GPU** in the bottom panel. Clean GPU clears every dust mask and updates a connected test monitor to 60 simulated FPS immediately. Disassemble GPU unplugs the cable, moves all eight screws to their tray slots, and places the fan and heatsink on the repair table; normal refitting still works afterward. Disassembly is available when the GPU is set down and off the test board.
 - Low-density dust remains visible until its mask is fully erased. In debug builds, the bottom **highlight dust** button toggles a magenta view of remaining dust through parts. If dust remains 30 seconds after equipping the Dev blower, this view turns on automatically. Rotate, flip or remove parts to expose dust before cleaning it.
 - Pointer release, Escape and window focus loss pause active screw turns. Tool/cable/inspection changes are blocked during active service animations.
 - Screwdriver, blower and cleaning jingles share a sound toggle; see [asset credits](ASSET_CREDITS.md).
-- Ported service-rule evaluator, exercised against 1,024 deterministic decisions generated by the existing TypeScript implementation and used by the live cable/screw controller.
+- Service-rule evaluator, exercised against 1,024 checked-in expected decisions and used by the live cable/screw controller.
 
 ## Controls
 
 | Action | Control |
 | --- | --- |
-| Orbit camera | Left or right drag over the scene |
-| Pan camera | Middle drag |
-| Zoom | Mouse wheel |
-| Inspect GPU | Click the GPU or **Inspect GPU** |
-| Rotate inspected GPU | Drag over the scene |
-| Inspect the other side | **Flip GPU** |
-| Return to the holder | **Set GPU down**, or Escape with empty hands |
-| Change view | Camera buttons, available while GPU is set down |
-| Connect GPU to test board | With the GPU assembled, cable connected and hands empty, click the test board or **Connect GPU to test board** |
-| Run the test | In Testing view, click the monitor's lower-right power button; the monitor shows **NO SIGNAL** without a GPU |
-| Return GPU for cleaning | Click the installed GPU/test board or **Remove GPU from test board**; repeat the test after cleaning |
-| Open/close toolbox | Click the toolbox or its UI button |
-| Equip screwdriver | Click it inside the open box, or **Equip screwdriver** |
-| Place screwdriver | Click a clear tabletop/mat spot while equipped |
-| Pick up placed screwdriver | Click it on the desk |
-| Return screwdriver | **Return screwdriver**, click the open toolbox, or Escape |
-| Unplug/reconnect cable | Click the plug/socket/wires, or the cable button, with empty hands |
-| Remove a screw | Equip screwdriver, then hold a visible screw; release to pause |
-| Access rear screws | Inspect GPU and use **Flip GPU** or drag to expose its back |
-| Refit a screw | With the screwdriver equipped, hold the empty screw hole, a tray screw, or **Hold to refit screw** (cooler row first) |
-| Pause active turn | Release, Escape, or switch away from the window |
-| Lift fan or heatsink | Click the assembly or its **Lift** button after removing its screws; return the screwdriver first |
-| Rotate or zoom a held assembly | Drag or use the mouse wheel |
-| Place an assembly | Click a clear spot on the repair table; its full footprint must fit without hitting the GPU, tools, or other parts |
-| Pick up a placed assembly | Click it, or use its **Pick up** button |
-| Store a held assembly | **Store assembly** |
-| Refit an assembly | **Refit assembly**, or Escape while holding it; if both are off, refit the cooler before the fan |
-| Equip Dev blower | Click it in the open toolbox, or **Equip Dev blower**, in a debug build |
-| Clean dust | Point the Dev blower nozzle at a visible GPU or detached-part surface, then hold the left mouse button and sweep |
-| Highlight remaining dust | Click **highlight dust** in the bottom panel in a debug build; it also turns on 30 seconds after picking up the Dev blower if dust remains |
-| Skip to a clean GPU | Click **Debug: Clean GPU** in the bottom panel in a debug build; a connected test monitor switches to 60 simulated FPS |
-| Skip to full disassembly | Set the GPU down off the test board, then click **Debug: Disassemble GPU** in the bottom panel in a debug build |
-| Place Dev blower | Click a clear desk spot while equipped |
-| Rotate an item while blowing | Right drag over the scene; mouse wheel zooms the held item |
-| Toggle sound | **Sound on/off** |
+| Walk / look | WASD / mouse; no third-person view or camera presets |
+| Release/resume mouse | Tab or Escape; releasing also ends screw/blower holds |
+| Interact / pick up | Aim the crosshair and press E (or click); move within reach |
+| Inspect GPU | E on the card; RMB + mouse rotates, F flips, wheel adjusts holding distance |
+| Return held card | Q returns it to the repair holder |
+| Carry GPU to testing | With an assembled GPU and empty tool hand, E on the test board; a held card transfers directly |
+| Remove tested card | E on the installed card or board; it returns to the holder |
+| Monitor power | E on its physical button; monitor power does not disconnect board power |
+| Select / switch tool | Click the toolbox or press E on it; choose a tool in the separate menu with mouse or arrow keys + Enter. Esc closes it. |
+| Turn/refit screw | Equip screwdriver, hold LMB on a visible screw or empty screw seat; release pauses |
+| Connect fan cable | With empty tool hand, E on plug/socket/wire |
+| Lift assembly | E on fan/heatsink after removing its cable/screw dependencies |
+| Rotate / place / refit assembly | RMB + mouse / E on clear repair tabletop / Q; cooler refits before fan |
+| Clean dust | Equip Dev blower, hold LMB and sweep over exposed surfaces; remove assemblies to reach internal dust |
+| Thermal camera | E on orange camera on the repair desk; hold RMB for its larger viewfinder |
+| Place / retrieve a tool | E on clear repair tabletop / E on placed tool |
+| Return equipped tool | Q; thermal camera returns to its desk stand, other tools to the toolbox |
+| Debug clean/disassemble and dust highlight | Tab to release mouse and open the debug cleaning menu |
+| Toggle sound | M |
 
-Basic touch taps/drags use mouse emulation. Two-finger gestures and the browser's focus mode are not ported yet. Picking uses local-space triangle queries with small, depth-tested screw/plug targets; front/back orientation prevents selecting rear screws through the PCB. The hover cursor indicates targets; a general interaction highlight is still pending.
+This controller targets desktop keyboard/mouse. The centred ray is depth-tested:
+hidden screws and memory cannot be picked through another surface. Most room props
+are fixed scenery; the GPU, service assemblies and three tools are the supported
+pickup objects. There is no jumping or free physics throwing.
 
-Try the phase: inspect the GPU, unplug the cable, equip the screwdriver, hold each front screw, flip the card and hold each rear screw. Release halfway through a turn to test resuming. Return the screwdriver, lift the fan and heatsink, and place them on clear parts of the table. Refit the heatsink before the fan, refit screws from the tray, and reconnect the cable. The connector rule permits reconnection before every screw is tightened.
+## Thermal investigation loop
 
-## Still to port
+Seat the dirty, assembled GPU in the test board and give it about 30-60 seconds to
+warm. Take the orange thermal camera and walk around to the exposed rear VRAM
+packages. Hold RMB and note their surface readings and the fixed colour scale.
+Front memory covered by the cooler is occluded, just as it is in the ordinary view.
 
-The regular blower, scraper, directional pad scraping, comparison view, job progression, air particles, general interaction highlights, and full touch/focus controls are pending. Dust uses shader overlays; the browser's raised dust clumps are not ported. The imported pad remnants are geometry only at this stage. The repair desk uses simple meshes/materials and is not a complete visual reproduction of the browser desk.
+Return the camera with Q, remove the GPU, disassemble and clean internal parts,
+reassemble, then repeat the **same powered test**. Fan/heatsink cleaning reduces
+memory heat even if PCB dust remains. An unpowered card also cools, so a cold reading
+immediately after servicing is not proof of repair. Reconnect it to compare under
+load. The card retains heat for a while after removal, allowing inspection during
+cooldown. The test board supplies power whenever the card is seated, independently
+of the monitor switch.
 
-The testing board remains a visual prop in the browser prototype. The Godot falling-block feed is a controlled simulation of GPU performance, not a measurement of actual rendered FPS or electrical diagnosis. Alcohol and replacement supplies have no gameplay yet; the alcohol prop itself has not yet been recreated in the native repair desk.
+This is a gameplay simulation: ambient is 24 degrees C; model memory targets are 48 degrees C clean
+and 94 degrees C fully dusty, approached gradually. Surface readings differ from those
+internal model values. Emissivity is simplified (0.95 for packages, lower for shiny
+GPU metal); real camera calibration, reflections, per-texel heat diffusion and
+hardware-specific safe limits are not simulated. Bad pads, bad contact, electrical
+faults and hardware telemetry are not implemented. FPS/fan sound still use the
+existing cleanliness-driven presentation model.
 
-GitHub Pages still builds the original Vite app. There is no Godot Web export preset or Godot deployment workflow yet, and no Web build has been validated. Add that after the gameplay milestone and test the Compatibility shaders in an actual browser.
+## Pending gameplay
+
+The regular blower, directional pad scraping, comparison view, job progression, air particles and general interaction highlights are pending. Imported pad remnants are geometry only. Alcohol and replacement supplies have no gameplay yet. The falling-block feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
+
+No deployment workflow or export preset is configured.
 
 ## Where to edit
 
@@ -91,30 +99,34 @@ GitHub Pages still builds the original Vite app. There is no Godot Web export pr
 | `scripts/testing_station.gd` | PCIe fixture interaction, GPU transfer, monitor connection, signal cable, fan animation and cleanliness-driven fan audio. |
 | `scenes/shop_interior.tscn`, `scripts/shop_interior.gd` | Imported workshop shell and props, editor-visible layout conversion and cutaway visibility. |
 | `scripts/workbench.gd` | Startup, controller wiring, input arbitration, desk alignment, placement obstacles and jaw motion. |
-| `scripts/workbench_tools.gd` | Exclusive screwdriver/Dev blower locations, lid/tool animations and placement guards. |
+| `scripts/workbench_tools.gd` | Exclusive screwdriver/Dev blower/thermal-camera locations, lid/tool animations and placement guards. |
 | `scripts/gpu_cleaning.gd`, `shaders/dust_overlay.gdshader`, `shaders/dust_highlight.gdshader` | Randomized dust masks, aimed cleaning, visible low-density residue, debug highlight, air loop and per-part jingles. |
 | `scripts/gpu_service.gd` | Cable state/deformation, screw progress, assembly handling/placement, exact refit and screwdriver audio. |
 | `scripts/interaction_picker.gd` | Cached triangle picking, live-transform tracking, depth-tested screw/plug targets, cleaning rays through fan-hub decoration, surface normals and action routing. |
-| `scripts/orbit_camera.gd` | Camera target, presets, orbit/pan/zoom. |
+| `scripts/first_person.gd` | Runtime walking body, collision generation, mouse capture/look and reach. `orbit_camera.gd` supplies only legacy test poses. |
+| `scripts/gpu_thermal.gd` | Dust-dependent heating/cooling, surface temperature/emissivity and VRAM markings. |
+| `scripts/thermal_camera.gd`, `shaders/thermal_surface.gdshader`, `scenes/thermal_camera.tscn` | Pickup instrument, separate depth-tested thermal world, display, spot readout and fixed palette. |
 | `scripts/gpu_inspection.gd` | Whole-GPU inspection state and exact home-transform restoration. |
-| `scripts/hud.gd` | Native UI controls and signals; no service decisions. |
+| `scripts/hud.gd` | Native UI, accessible toolbox selection overlay and signals; workbench owns selection/switching guards. |
 | `scripts/asset_contract.gd` | Map source part names to imported nodes, validate parents, capture transforms. |
 | `scripts/service_rules.gd` | Pure dependency/tool checks. Invalid graphs fail closed with errors. |
 | `assets/gpu-parts.json` | Generated part metadata and source asset SHA-256 hashes. |
-| `tools/sync-assets.mjs` | Copies source GLBs/audio and extracts part metadata reproducibly. |
-| `tools/build-rule-fixtures.mjs` | Generates expected service decisions from the browser rules. Requires the root Node dependencies installed. |
+| `tools/sync_assets.py` | Copies Blender GLBs and extracts part metadata using Python standard library. |
+| `tests/fixtures/service-rules.json` | Checked-in expected service decisions; no generation step or external toolchain. |
 | `tests/smoke.gd` | Rule parity, malformed graphs, metadata/hierarchy, picking, camera, inspection, test-board/monitor flow, randomized dust coverage, fan mask orientation/hub cleaning, mounted-fan dust reachability, per-part completion and debug shortcut checks. |
 | `tests/service_flow.gd` | Called by smoke: tool lifecycle/busy guards, cable deformation/reset, front/rear/tray picking, pause/resume/cancel, assembly placement/refit/storage, blower aim/audio/cleaning, debug highlight timing/button, and eight screw round trips. |
 
-The engine port uses ordinary imported GLB scenes; the sidecar avoids reliance on importer-specific handling of custom extras. The asset adapter preserves `part` metadata, and the native service controller uses its captured parent/local transforms. Rule acceptance and missing-dependency lists match the reference fixture cases; denial wording is currently simplified, and invalid input returns a denial/error list instead of throwing a JavaScript exception.
+Godot uses ordinary imported GLB scenes; the sidecar avoids reliance on importer-specific handling of custom extras. The asset adapter preserves part metadata and captures original parents and transforms. Rule acceptance and missing-dependency lists are checked against frozen regression cases; malformed graphs fail closed.
 
 ## Asset updates
 
-The Blender/browser assets remain the source of truth. After changing `../src/assets/gpu.glb`, `../models/repair-shop.glb`, `../models/shop-interior.glb`, screwdriver audio, or `../src/assets/cleaning-complete.ogg`, run from the repository root:
+Blender exports in `../models/` are the model sources. After changing `gpu.glb`, `repair-shop.glb` or `shop-interior.glb`, run from the repository root:
 
 ```powershell
-node godot/tools/sync-assets.mjs
+python godot/tools/sync_assets.py
 ```
+
+Python 3 needs no third-party packages. Audio, including screwdriver and completion sounds, is maintained directly in `assets/`.
 
 Godot reimports the copies in `assets/`. The supplied fan recordings `assets/sounds/ambient_gpu.wav` and `assets/sounds/loud_gpu.wav`, plus `assets/sounds/compressed_air.wav`, `assets/sounds/clean_jingle.wav`, `assets/sounds/gpu_sounds/gpu_attach_short.wav` and `assets/button_press.ogg` live directly in Godot and are not overwritten by this sync script. Commit copied assets, generated JSON, `.import` settings and `.gd.uid` files; do not commit `.godot/` caches or `build/` captures. Do not hand-edit generated metadata or copy only one of the GPU/metadata pair. Existing asset/license notes remain in [the repository README](../README.md), [the model workflow](../models/README.md) and [the Godot asset credits](ASSET_CREDITS.md).
 
@@ -128,15 +140,26 @@ $godotExe = 'C:\Users\user\Desktop\ayush.dev\godot\Godot_v4.7.2-stable_win64_con
 # Import assets and check scripts.
 & $godotExe --headless --editor --path godot --import
 
-# Generate reference decisions, then run the engine acceptance checks.
-node godot/tools/build-rule-fixtures.mjs
+# Run acceptance checks using the checked-in regression fixture.
 & $godotExe --headless --path godot --script res://tests/smoke.gd
+& $godotExe --headless --path godot --script res://tests/first_person_flow.gd
+& $godotExe --headless --path godot --script res://tests/thermal_flow.gd
+& $godotExe --headless --path godot --script res://tests/scale_toolbox_flow.gd
 
 # Run the game, or open the editor.
 & $godotExe --path godot
 & $godotExe --editor --path godot
 ```
 
-Optional rendered acceptance run: append `-- --capture` to the test command and omit `--headless`. It runs the same checks, writes repair/overview/front/back/service-tray, screw-hole and testing-monitor PNGs to ignored `build/`, then exits. Service tests tick hold progress explicitly for reproducibility and run real tool/cable/tray animations. The automated tests do not certify touch or browser behavior; check those manually when they are implemented.
+The first-person flow checks walking/collision, mouse release, proximity and pickup/return. The thermal flow checks physical camera pickup, placement, exclusivity, occlusion, internal cleaning under equal load and cooldown; append `-- --capture` without `--headless` for player/dirty/clean thermal PNGs.
 
-The next gameplay milestone is pad-residue scraping and the remaining cleaning/job controls. See [the engine handoff](../ENGINE_PORT_HANDOFF.md) for the complete browser behavior contract.
+Optional legacy rendered acceptance run: append `-- --capture` to the test command and omit `--headless`. It runs the same checks, writes repair/overview/front/back/service-tray, screw-hole and testing-monitor PNGs to ignored `build/`, then exits. Service tests tick hold progress explicitly for reproducibility and run real tool/cable/tray animations. The automated tests do not certify audible sound quality; check that manually.
+
+The next gameplay milestone is pad-residue scraping and the remaining cleaning/job controls.
+
+The GPU uses a 0.25 scene scale (about 30 cm wide at the room's five units per
+meter). Inspection, rotation, detached assemblies, tray screws and test-board
+attachment preserve that physical scale. The holder is resized to fit. The test
+desk footprint is 25% smaller, and the test board is resized independently;
+the desk height and monitor size stay unchanged. `scale_toolbox_flow.gd -- --capture`
+also captures the holder, held card, test station and toolbox menu under `build/`.

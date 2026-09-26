@@ -28,5 +28,5 @@ objects['fan-assembly']['requires_json'] = json.dumps(['fan-plug'] + [f'fan-scre
 objects['gpu']['service_order'] = 'Unplug fan → remove four fan screws → lift fan; optionally remove rear cooler screws → lift cooler. Refit in reverse order.'
 bpy.context.view_layer.update()
 bpy.ops.wm.save_as_mainfile(filepath=str(source))
-export_gpu(model.ROOT / 'src/assets/gpu.glb')
+export_gpu(model.ROOT / 'models/gpu.glb')
 print('GPU_UPDATED: four bored fan mounting posts; original source backed up at', backup)

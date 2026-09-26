@@ -1,5 +1,5 @@
 extends RefCounted
-## Port of src/service-rules.ts. No scene, UI, or animation dependency.
+## Service dependency evaluator. No scene, UI, or animation dependency.
 ## Invalid definitions fail closed and report errors; no debug-only assertions.
 
 var parts: Dictionary = {}

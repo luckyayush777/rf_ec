@@ -1,0 +1,61 @@
+[gd_scene load_steps=10 format=3]
+
+[sub_resource type="StandardMaterial3D" id="Rubber"]
+albedo_color = Color(0.035, 0.045, 0.06, 1)
+roughness = 0.85
+[sub_resource type="StandardMaterial3D" id="Orange"]
+albedo_color = Color(0.95, 0.42, 0.06, 1)
+roughness = 0.6
+[sub_resource type="StandardMaterial3D" id="Glass"]
+albedo_color = Color(0.09, 0.015, 0.16, 1)
+metallic = 0.7
+roughness = 0.15
+[sub_resource type="BoxMesh" id="Body"]
+size = Vector3(1.1, 0.8, 0.55)
+material = SubResource("Orange")
+[sub_resource type="BoxMesh" id="Grip"]
+size = Vector3(0.42, 0.75, 0.45)
+material = SubResource("Rubber")
+[sub_resource type="CylinderMesh" id="Lens"]
+top_radius = 0.27
+bottom_radius = 0.3
+height = 0.26
+material = SubResource("Rubber")
+[sub_resource type="CylinderMesh" id="LensGlass"]
+top_radius = 0.22
+bottom_radius = 0.22
+height = 0.02
+material = SubResource("Glass")
+[sub_resource type="QuadMesh" id="Display"]
+size = Vector2(0.90, 0.56)
+material = SubResource("Glass")
+[sub_resource type="BoxMesh" id="Bezel"]
+size = Vector3(1.0, 0.66, 0.06)
+material = SubResource("Rubber")
+
+[node name="ThermalCamera" type="Node3D"]
+[node name="Body" type="MeshInstance3D" parent="."]
+mesh = SubResource("Body")
+[node name="Grip" type="MeshInstance3D" parent="."]
+position = Vector3(0, -0.68, 0)
+mesh = SubResource("Grip")
+[node name="Lens" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0, -0.37)
+rotation = Vector3(1.5708, 0, 0)
+mesh = SubResource("Lens")
+[node name="LensGlass" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0, -0.51)
+rotation = Vector3(1.5708, 0, 0)
+mesh = SubResource("LensGlass")
+[node name="Bezel" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0, 0.3)
+mesh = SubResource("Bezel")
+[node name="Display" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0, 0.335)
+mesh = SubResource("Display")
+[node name="Brand" type="Label3D" parent="."]
+position = Vector3(0, 0.35, 0.34)
+text = "BENCH IR-1"
+font_size = 32
+pixel_size = 0.0025
+outline_size = 0

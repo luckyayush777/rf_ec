@@ -13,9 +13,9 @@ func expect(condition: bool, message: String) -> void:
 		push_error(message)
 
 func run() -> void:
-	var fixture_path := "res://.godot/rule-fixtures.json"
+	var fixture_path := "res://tests/fixtures/service-rules.json"
 	if not FileAccess.file_exists(fixture_path):
-		push_error("Run node godot/tools/build-rule-fixtures.mjs before this test.")
+		push_error("Missing checked-in service-rule regression fixture.")
 		quit(1)
 		return
 	var fixture_sets: Array = JSON.parse_string(FileAccess.get_file_as_string(fixture_path))
@@ -44,6 +44,7 @@ func run() -> void:
 
 	var packed: PackedScene = load("res://scenes/workbench.tscn")
 	var bench = packed.instantiate()
+	bench.get_node("CameraRig").legacy_test_mode = true
 	root.add_child(bench)
 	await process_frame
 	await physics_frame
@@ -107,8 +108,8 @@ func run() -> void:
 	expect(bench.testing_desk.find_child("floor", true, false) == null, "Second floor was not removed")
 	var tabletop: MeshInstance3D = bench.testing_desk.find_child("desk-top", true, false)
 	var table_bounds: AABB = tabletop.global_transform * tabletop.get_aabb()
-	expect(absf(table_bounds.end.y) < 0.001 and absf(table_bounds.position.x - 12.5) < 0.001,
-		"Testing desk alignment differs from browser")
+	expect(absf(table_bounds.end.y) < 0.001 and absf(table_bounds.position.x - 14.5) < 0.001,
+		"Testing desk alignment differs from scene contract")
 	var station = bench.testing_station
 	var monitor = bench.test_monitor
 	expect(station.attach_audio.stream != null and monitor.power_audio.stream != null, "Testing sounds are not connected")
@@ -274,6 +275,7 @@ func run() -> void:
 	await process_frame
 	# Debug shortcuts must leave the same controller state as normal service.
 	var debug_bench = packed.instantiate()
+	debug_bench.get_node("CameraRig").legacy_test_mode = true
 	root.add_child(debug_bench)
 	await process_frame
 	expect(debug_bench.hud.debug_clean_button.visible and debug_bench.hud.debug_disassemble_button.visible,

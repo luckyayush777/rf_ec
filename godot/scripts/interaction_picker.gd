@@ -43,7 +43,8 @@ func hit_at(screen: Vector2) -> Dictionary:
 		var center := node.global_position
 		var offset := origin - center
 		var b: float = offset.dot(direction)
-		var discriminant: float = b * b - offset.length_squared() + target.radius * target.radius
+		var radius: float = target.radius * node.global_basis.get_scale().length() / sqrt(3.0)
+		var discriminant: float = b * b - offset.length_squared() + radius * radius
 		if discriminant < 0.0: continue
 		var distance: float = -b - sqrt(discriminant)
 		if distance < 0.0 or distance > nearest + 0.005: continue

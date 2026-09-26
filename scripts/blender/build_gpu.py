@@ -1,8 +1,8 @@
 """Create an editable, simplified GPU and a separate preview stage in Blender 4.5+.
 
-Run: npm run model:build
+Run: blender --background --python scripts/blender/build_gpu.py
 Existing .blend files are protected unless --force is supplied. Export edits with
-model:export instead of regenerating. This script runs in a fresh background process.
+export_gpu.py instead of regenerating. This script runs in a fresh background process.
 """
 import argparse
 import json
@@ -340,15 +340,15 @@ def main():
     global MODEL
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--blend', type=Path, default=ROOT / 'models/gpu.blend')
-    parser.add_argument('--glb', type=Path, default=ROOT / 'src/assets/gpu.glb')
+    parser.add_argument('--glb', type=Path, default=ROOT / 'models/gpu.glb')
     parser.add_argument('--force', action='store_true', help='Regenerate and overwrite an existing .blend file')
     parser.add_argument('--render', type=Path, help='Optional preview PNG path')
     args = parser.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
     args.blend, args.glb = args.blend.resolve(), args.glb.resolve()
     if args.blend.exists() and not args.force:
-        raise RuntimeError(f'{args.blend} already exists. Use model:export to preserve edits, or --force to regenerate.')
+        raise RuntimeError(f'{args.blend} already exists. Use export_gpu.py to preserve edits, or --force to regenerate.')
     if not bpy.app.background:
-        raise RuntimeError('Run via npm run model:build in a separate Blender background process.')
+        raise RuntimeError('Run via blender --background --python scripts/blender/build_gpu.py in a separate Blender background process.')
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
     scene.name = 'BENCH — GPU study'
@@ -365,9 +365,9 @@ def main():
     text.write('BENCH GPU\n\nEdit meshes normally. The heatsink fin count is an Array modifier.\n'
                'The two fan wires are editable Bezier curves. Fan blades share mesh data.\n'
                'Select fan-rotor to spin it around local Z; select assembly empties to move whole parts.\n'
-               'Save this file, then run npm run model:export from the project.\n'
-               'Do not run model:build -- --force after manual edits unless you want to replace them.\n'
-               'The STAGE collection is for preview only and is excluded from browser exports.\n')
+               'Save this file, then run the export_gpu.py script from the project.\n'
+               'Do not run build_gpu.py with --force after manual edits unless you want to replace them.\n'
+               'The STAGE collection is for preview only and is excluded from GPU exports.\n')
     bpy.ops.object.select_all(action='DESELECT')
     root.select_set(True)
     bpy.context.view_layer.objects.active = root

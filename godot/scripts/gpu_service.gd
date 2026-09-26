@@ -115,7 +115,7 @@ func debug_disassemble() -> bool:
 		part.reparent(world, true)
 		var fan: bool = id in fan_screws
 		var index: int = (fan_screws if fan else cooler_screws).find(id)
-		part.global_transform = Transform3D(Basis(Vector3.BACK, PI / 2),
+		part.global_transform = Transform3D(Basis(Vector3.BACK, PI / 2).scaled(part.global_basis.get_scale()),
 			Vector3(3.1 + index * 0.48, 0.20, 3.38 if fan else 4.12))
 		removed.append(id)
 	debug_place_assembly("fan-assembly", Vector3(-7, 0.05, 4))
@@ -246,7 +246,7 @@ func complete_screw(id: String) -> void:
 	part.reparent(world, true)
 	var fan: bool = id in fan_screws
 	var index: int = (fan_screws if fan else cooler_screws).find(id)
-	var destination := Transform3D(Basis(Vector3.BACK, PI / 2), Vector3(3.1 + index * 0.48, 0.20, 3.38 if fan else 4.12))
+	var destination := Transform3D(Basis(Vector3.BACK, PI / 2).scaled(part.global_basis.get_scale()), Vector3(3.1 + index * 0.48, 0.20, 3.38 if fan else 4.12))
 	var origin := part.global_transform
 	moving = true
 	changed.emit()
@@ -263,7 +263,7 @@ func complete_screw(id: String) -> void:
 func held_position(basis: Basis) -> Vector3:
 	var size: Vector2 = get_viewport().get_visible_rect().size
 	var aspect: float = size.x / maxf(size.y, 1.0)
-	var distance: float = maxf(7.0, held_radius * 1.2 / (tan(deg_to_rad(camera.fov / 2.0)) * minf(1.0, aspect))) * held_zoom
+	var distance: float = maxf(1.8, held_radius * 1.2 / (tan(deg_to_rad(camera.fov / 2.0)) * minf(1.0, aspect))) * held_zoom
 	return camera.global_transform * Vector3(0, -0.1, -distance) - basis * held_center
 
 func lift_assembly(id: String) -> bool:
@@ -281,10 +281,10 @@ func lift_assembly(id: String) -> bool:
 	part.reparent(world, true)
 	var bounds: AABB = Contract.bounds_in(part)
 	held_center = bounds.get_center()
-	held_radius = bounds.size.length() * 0.5
+	held_radius = (bounds.size * part.global_basis.get_scale()).length() * 0.5
 	held_zoom = 1.0
 	held_part = id
-	var facing := camera.global_basis * Basis.from_euler(Vector3(0.95, -0.12, -0.08))
+	var facing := camera.global_basis * Basis.from_euler(Vector3(0.95, -0.12, -0.08)).scaled(part.global_basis.get_scale())
 	var destination := Transform3D(facing, held_position(facing))
 	if was_stored: part.global_position = destination.origin + Vector3(0, -0.4, 0)
 	animate_assembly(part, destination, func(): notice.emit("%s lifted. Drag to rotate; click a clear table spot to place it, or use Refit." % assembly_name(id)))
@@ -311,7 +311,7 @@ func rotate_held(relative: Vector2) -> void:
 	if held_part == "" or busy: return
 	var part: Node3D = contract.objects[held_part]
 	part.global_basis = (Basis(camera.global_basis.y.normalized(), relative.x * 0.009)
-		* Basis(camera.global_basis.x.normalized(), relative.y * 0.009) * part.global_basis).orthonormalized()
+		* Basis(camera.global_basis.x.normalized(), relative.y * 0.009) * part.global_basis).orthonormalized().scaled(part.global_basis.get_scale())
 
 func zoom_held(factor: float) -> void:
 	if held_part != "" and not busy: held_zoom = clampf(held_zoom * factor, 0.5, 1.5)

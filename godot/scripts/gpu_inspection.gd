@@ -18,13 +18,13 @@ func configure(card: Node3D, view_camera: Camera3D, bounds: AABB) -> void:
 	camera = view_camera
 	home = gpu.transform
 	center = bounds.get_center()
-	radius = bounds.size.length() * 0.5
+	radius = (bounds.size * gpu.global_basis.get_scale()).length() * 0.5
 
 func held_position() -> Vector3:
 	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 	var aspect: float = viewport_size.x / maxf(viewport_size.y, 1.0)
 	# Camera uses KEEP_HEIGHT; preserve enough horizontal room in a narrow window.
-	var view_distance: float = maxf(7.0, radius * 1.2 / (tan(deg_to_rad(camera.fov / 2.0)) * minf(1.0, aspect))) * zoom_factor
+	var view_distance: float = maxf(1.8, radius * 1.2 / (tan(deg_to_rad(camera.fov / 2.0)) * minf(1.0, aspect))) * zoom_factor
 	return camera.global_transform * Vector3(0, -0.1, -view_distance) - gpu.global_basis * center
 
 func lift() -> void:
@@ -32,7 +32,7 @@ func lift() -> void:
 		return
 	held = true
 	zoom_factor = 1.0
-	var facing: Basis = camera.global_basis * Basis.from_euler(Vector3(0.95, -0.12, -0.08))
+	var facing: Basis = camera.global_basis * Basis.from_euler(Vector3(0.95, -0.12, -0.08)).scaled(home.basis.get_scale())
 	var destination := Transform3D(facing, Vector3.ZERO)
 	var original_basis: Basis = gpu.global_basis
 	gpu.global_basis = facing
@@ -61,7 +61,7 @@ func rotate_item(relative: Vector2) -> void:
 	if not held or moving or not can_interact.call():
 		return
 	gpu.global_basis = (Basis(camera.global_basis.y.normalized(), relative.x * 0.009)
-		* Basis(camera.global_basis.x.normalized(), relative.y * 0.009) * gpu.global_basis).orthonormalized()
+		* Basis(camera.global_basis.x.normalized(), relative.y * 0.009) * gpu.global_basis).orthonormalized().scaled(home.basis.get_scale())
 
 func zoom(factor: float) -> void:
 	if held and not moving and can_interact.call():

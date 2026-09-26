@@ -5,8 +5,12 @@ signal notice(text: String)
 
 var location := "toolbox"
 var dev_location := "toolbox"
+var thermal_location := "stand"
+var thermal_camera: Node3D
+var thermal_stand: Node3D
+var thermal_home: Transform3D
 var equipped_tool: String:
-	get: return "screwdriver" if location == "held" else "dev-blower" if dev_location == "held" else ""
+	get: return "screwdriver" if location == "held" else "dev-blower" if dev_location == "held" else "thermal-camera" if thermal_location == "held" else ""
 var open := false
 var busy := false
 var toolbox: Node3D
@@ -29,22 +33,30 @@ func configure(box: Node3D, view_camera: Camera3D, scene: Node3D, allowed: Calla
 	dev_blower.visible = OS.is_debug_build()
 	camera = view_camera
 	world = scene
+	thermal_stand = world.get_node("ThermalCameraStand")
+	thermal_camera = thermal_stand.get_node("ThermalCamera")
+	thermal_home = thermal_camera.transform
+	thermal_camera.set_meta("action", "thermal-camera")
 	can_use = allowed
 	toolbox.set_meta("action", "toolbox")
 	screwdriver.set_meta("action", "screwdriver")
 	dev_blower.set_meta("action", "dev-blower")
 
 func tool_node(id: String) -> Node3D:
+	if id == "thermal-camera": return thermal_camera
 	return dev_blower if id == "dev-blower" else screwdriver
 
 func tool_home(id: String) -> Transform3D:
+	if id == "thermal-camera": return thermal_home
 	return dev_home if id == "dev-blower" else home
 
 func tool_location(id: String) -> String:
+	if id == "thermal-camera": return thermal_location
 	return dev_location if id == "dev-blower" else location
 
 func set_tool_location(id: String, value: String) -> void:
-	if id == "dev-blower": dev_location = value
+	if id == "thermal-camera": thermal_location = value
+	elif id == "dev-blower": dev_location = value
 	else: location = value
 
 func toggle_box() -> void:
@@ -62,7 +74,7 @@ func move_lid(value: bool) -> void:
 	await tween.finished
 
 func equip(id: String = "screwdriver") -> void:
-	if id not in ["screwdriver", "dev-blower"] or (id == "dev-blower" and not OS.is_debug_build()): return
+	if id not in ["screwdriver", "dev-blower", "thermal-camera"] or (id == "dev-blower" and not OS.is_debug_build()): return
 	if busy or equipped_tool != "" or not can_use.call(id): return
 	busy = true
 	changed.emit()
@@ -73,7 +85,7 @@ func equip(id: String = "screwdriver") -> void:
 	await move_tool(id, held_pose(id))
 	busy = false
 	changed.emit()
-	notice.emit("Hold and sweep over dusty surfaces to clean them." if id == "dev-blower" else
+	notice.emit("Thermal camera equipped. Hold RMB to inspect surface heat." if id == "thermal-camera" else "Hold and sweep over dusty surfaces to clean them." if id == "dev-blower" else
 		"Screwdriver equipped. Hold a screw to turn it; release to pause.")
 
 func grab(id: String = "screwdriver") -> void:
@@ -85,13 +97,13 @@ func return_tool() -> void:
 	if busy or id == "" or not can_use.call(id): return
 	busy = true
 	changed.emit()
-	if not open: await move_lid(true)
-	set_tool_location(id, "toolbox")
-	tool_node(id).reparent(toolbox, true)
+	if id != "thermal-camera" and not open: await move_lid(true)
+	set_tool_location(id, "stand" if id == "thermal-camera" else "toolbox")
+	tool_node(id).reparent(thermal_stand if id == "thermal-camera" else toolbox, true)
 	await move_tool(id, tool_home(id))
 	busy = false
 	changed.emit()
-	notice.emit("Dev blower returned." if id == "dev-blower" else "Screwdriver returned. Hands are free for the fan cable.")
+	notice.emit("Thermal camera returned." if id == "thermal-camera" else "Dev blower returned." if id == "dev-blower" else "Screwdriver returned. Hands are free for the fan cable.")
 
 func place(point: Vector3, obstacles: Array) -> bool:
 	var id := equipped_tool
@@ -100,6 +112,9 @@ func place(point: Vector3, obstacles: Array) -> bool:
 	var target := point + Vector3(0, 0.37 if large else 0.205, 0)
 	var footprint := AABB(target + (Vector3(-1.45, -0.35, -0.4) if large else Vector3(-1.35, -0.19, -0.25)),
 		Vector3(2.9, 0.7, 0.8) if large else Vector3(2.7, 0.41, 0.5))
+	if id == "thermal-camera":
+		target = point + Vector3(0, 1.055, 0)
+		footprint = AABB(point + Vector3(-0.6, 0.01, -0.55), Vector3(1.2, 1.45, 1.1))
 	if footprint.position.x < -9.75 or footprint.end.x > 9.75 or footprint.position.z < -5.75 or footprint.end.z > 5.75:
 		notice.emit("Choose a clear spot with room for the whole tool.")
 		return false
@@ -122,6 +137,8 @@ func move_tool(id: String, destination: Transform3D) -> Signal:
 	return tween.finished
 
 func held_pose(id: String = "screwdriver") -> Transform3D:
+	if id == "thermal-camera":
+		return Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * 0.7), Vector3(0.85, -0.55, -1.7))
 	var aspect: float = get_viewport().get_visible_rect().size.aspect()
 	var half_height: float = 2.3 * tan(deg_to_rad(camera.fov / 2.0))
 	var size: float = minf(0.32 if id == "dev-blower" else 0.36, half_height * aspect * 0.58)
