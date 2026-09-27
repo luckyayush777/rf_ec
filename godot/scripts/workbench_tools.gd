@@ -28,8 +28,8 @@ func configure(box: Node3D, view_camera: Camera3D, scene: Node3D, allowed: Calla
 	lid = box.get_node("Lid")
 	screwdriver = box.get_node("Screwdriver")
 	dev_blower = box.get_node("DevBlower")
-	home = screwdriver.transform
-	dev_home = dev_blower.transform
+	home = screwdriver.get_meta("roll_home")
+	dev_home = dev_blower.get_meta("roll_home")
 	dev_blower.visible = OS.is_debug_build()
 	camera = view_camera
 	world = scene
@@ -70,7 +70,7 @@ func toggle_box() -> void:
 func move_lid(value: bool) -> void:
 	open = value
 	var tween := create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-	tween.tween_property(lid, "rotation:x", -1.72 if open else 0.0, 0.55)
+	tween.tween_method(toolbox.set_opening, toolbox.opening, 1.0 if open else 0.0, 0.55)
 	await tween.finished
 
 func equip(id: String = "screwdriver") -> void:
@@ -86,7 +86,7 @@ func equip(id: String = "screwdriver") -> void:
 	busy = false
 	changed.emit()
 	notice.emit("Thermal camera equipped. Hold RMB to inspect surface heat." if id == "thermal-camera" else "Hold and sweep over dusty surfaces to clean them." if id == "dev-blower" else
-		"Screwdriver equipped. Hold a screw to turn it; release to pause.")
+		"Screwdriver equipped. Click the GPU for a close-up, then hold a screw to turn it.")
 
 func grab(id: String = "screwdriver") -> void:
 	if tool_location(id) == "toolbox" and not open: return

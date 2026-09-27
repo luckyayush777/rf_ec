@@ -28,7 +28,9 @@ static func bind_parts(gpu: Node3D) -> Dictionary:
 static func bounds_in(root: Node3D) -> AABB:
 	var bounds := AABB()
 	var started := false
-	for node in root.find_children("*", "MeshInstance3D", true, false):
+	var meshes := root.find_children("*", "MeshInstance3D", true, false)
+	if root is MeshInstance3D: meshes.push_front(root)
+	for node in meshes:
 		var mesh_node := node as MeshInstance3D
 		if mesh_node.mesh == null:
 			continue
@@ -37,3 +39,7 @@ static func bounds_in(root: Node3D) -> AABB:
 		bounds = bounds.merge(box) if started else box
 		started = true
 	return bounds
+
+static func fits_table(footprint: AABB, table: MeshInstance3D) -> bool:
+	var bounds: AABB = table.global_transform * table.get_aabb()
+	return footprint.position.x >= bounds.position.x + 0.08 and footprint.end.x <= bounds.end.x - 0.08 and footprint.position.z >= bounds.position.z + 0.08 and footprint.end.z <= bounds.end.z - 0.08

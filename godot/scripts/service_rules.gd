@@ -64,12 +64,14 @@ func check(kind: String, id: String, removed: Array = [], connected: Dictionary 
 	if not parts.has(id):
 		return deny("Unknown service part: " + id)
 	var part: Dictionary = parts[id]
-	var actions: Dictionary = {"fastener": ["remove", "refit"], "assembly": ["remove", "refit", "pickup"], "connector": ["connect", "disconnect"]}
+	var actions: Dictionary = {"fastener": ["remove", "refit"], "assembly": ["remove", "refit", "pickup", "inspect"], "connector": ["connect", "disconnect"]}
 	if kind not in actions.get(part.kind, []):
 		return deny("Invalid %s action: %s" % [part.kind, kind])
 	if part.kind == "fastener" and tool != "screwdriver":
 		return deny("Pick up the screwdriver to remove or refit a screw.")
-	if part.kind != "fastener" and not tool.is_empty():
+	if kind == "inspect" and id not in removed:
+		return deny("Detach the part before inspecting it in your hand.")
+	if part.kind != "fastener" and kind != "inspect" and not tool.is_empty():
 		return deny("Set the %s down before handling the %s." % [tool, id.replace("-", " ")])
 	var required: Array = []
 	if kind == "remove":

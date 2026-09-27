@@ -212,17 +212,18 @@ func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Nod
 	var action: String = hit.get("action", "")
 	var prompt := ""
 	match action:
-		"screw", "screw_hole": prompt = "Hold LMB: turn screw" if tools.equipped_tool == "screwdriver" else "Screwdriver required"
-		"gpu": prompt = "E: pick up / remove GPU"
+		"screw", "screw_hole": prompt = "E: pick up GPU  |  Click: focus" if tools.equipped_tool != "" else "Screwdriver required"
+		"gpu": prompt = "E: pick up GPU  |  Click: focus" if tools.equipped_tool in ["screwdriver", "dev-blower"] else "E: pick up / remove GPU"
 		"test_board": prompt = "E: connect / remove GPU"
 		"monitor_power": prompt = "E: monitor power"
-		"toolbox": prompt = "E / Click: select a tool"
+		"toolbox": prompt = "E / Click: unroll tool bag"
 		"screwdriver", "dev-blower", "thermal-camera": prompt = "E: pick up " + action.replace("-", " ")
 		"cable": prompt = "E: connect / disconnect fan cable"
 		"assembly": prompt = "E: inspect GPU / lift loosened assembly"
 		"desk":
-			if tools.equipped_tool != "" or service.held_part != "": prompt = "E: place on desk"
+			if tools.equipped_tool != "" or service.held_part != "" or inspection.held: prompt = "E: place on desk"
 	if inspection.held or service.held_part != "": prompt += "   |   RMB + mouse: rotate   F: flip   Q: return/refit"
+	if inspection.held or service.held_part != "": prompt += "   |   R: focus"
 	elif tools.equipped_tool != "": prompt += "   |   Q: return tool"
 	if tools.equipped_tool == "thermal-camera": prompt += "   |   Hold RMB: thermal view"
 	interaction_hint.text = (prompt + "\nWASD: move   Mouse: look   E: interact   Tab/Esc: release mouse") if captured else "Mouse released — Tab/Esc to resume"
@@ -303,61 +304,12 @@ func refresh_cleaning(cleaning: Node) -> void:
 		remaining_label.text = "Cleaning %s: %d%%" % [String(cleaning.target_part).replace("-assembly", "").capitalize(),
 			floori(cleaning.part_progress(cleaning.target_part) * 100.0)]
 
-func show_tool_menu(tools: Node, service: Node) -> void:
-	if tool_overlay == null:
-		tool_overlay = ColorRect.new()
-		tool_overlay.color = Color(0.015, 0.025, 0.04, 0.86)
-		tool_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		tool_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-		add_child(tool_overlay)
-		var center := CenterContainer.new()
-		center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		tool_overlay.add_child(center)
-		var panel := PanelContainer.new()
-		panel.custom_minimum_size = Vector2(460, 0)
-		center.add_child(panel)
-		var margin := MarginContainer.new()
-		for side in ["left", "right", "top", "bottom"]:
-			margin.add_theme_constant_override("margin_" + side, 24)
-		panel.add_child(margin)
-		var column := VBoxContainer.new()
-		column.add_theme_constant_override("separation", 14)
-		margin.add_child(column)
-		var title := Label.new()
-		title.text = "TOOLBOX"
-		title.add_theme_font_size_override("font_size", 28)
-		column.add_child(title)
-		var help := Label.new()
-		help.text = "Select a tool to equip it.
-Use the mouse or arrow keys and Enter."
-		column.add_child(help)
-		for entry in [["screwdriver", "Screwdriver  /  Remove and refit screws"], ["dev-blower", "Dev blower  /  Clean dust"], ["thermal-camera", "Thermal camera  /  Inspect surface heat"], ["", "Empty hands  /  Return current tool"]]:
-			if entry[0] == "dev-blower" and not OS.is_debug_build(): continue
-			var id: String = entry[0]
-			var button := make_button(entry[1], column)
-			button.custom_minimum_size.y = 58
-			button.focus_mode = Control.FOCUS_ALL
-			button.set_meta("label", entry[1])
-			button.pressed.connect(func(): tool_selected.emit(id))
-			tool_buttons[id] = button
-		tool_close_button = make_button("Close  /  Esc", column)
-		tool_close_button.focus_mode = Control.FOCUS_ALL
-		tool_close_button.pressed.connect(func(): tool_menu_closed.emit())
-	tool_overlay.show()
-	cleaning_panel.hide()
-	if reticle != null: reticle.hide()
-	refresh_tool_menu(tools, service, false)
-	for button in tool_buttons.values():
-		if not button.disabled:
-			button.grab_focus()
-			break
-
 func refresh_tool_menu(tools: Node, service: Node, selecting: bool) -> void:
 	if tool_overlay == null or not tool_overlay.visible: return
 	for id in tool_buttons:
 		var button: Button = tool_buttons[id]
 		button.text = button.get_meta("label") + ("  [Equipped]" if tools.equipped_tool == id else "")
-		button.disabled = selecting or tools.busy or service.busy or (service.held_part != "" and id not in ["", "dev-blower"])
+		button.disabled = selecting or tools.busy or service.busy
 	tool_close_button.disabled = selecting
 
 func hide_tool_menu() -> void:

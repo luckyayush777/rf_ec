@@ -41,6 +41,10 @@ func run() -> void:
 	expect(not auxiliary.check("remove", "aux-assembly", [], {"aux-plug": true}).allowed, "Auxiliary connector ignored")
 	expect(auxiliary.check("remove", "aux-assembly", [], {"aux-plug": false}).allowed, "Disconnected auxiliary connector blocked removal")
 	expect(not auxiliary.check("pickup", "aux-plug").allowed, "Invalid connector action accepted")
+	expect(auxiliary.check("inspect", "aux-assembly", ["aux-assembly"], {}, "dev-blower").allowed, "Detached assembly inspection rejected the equipped tool")
+	expect(not auxiliary.check("inspect", "aux-assembly", [], {}, "dev-blower").allowed, "Inspection bypassed assembly detachment")
+	expect(not auxiliary.check("remove", "aux-assembly", [], {"aux-plug": false}, "dev-blower").allowed, "Inspection exception bypassed empty-hand removal")
+	expect(not auxiliary.check("refit", "aux-assembly", ["aux-assembly"], {}, "dev-blower").allowed, "Inspection exception bypassed empty-hand refit")
 
 	var packed: PackedScene = load("res://scenes/workbench.tscn")
 	var bench = packed.instantiate()

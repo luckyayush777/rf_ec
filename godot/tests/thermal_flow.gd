@@ -67,8 +67,19 @@ func run() -> void:
 	bench.thermal_viewer._process(0.2)
 	var reading: Dictionary = bench.thermal_viewer.sample_center()
 	expect(reading.get("mesh") == chip and reading.get("temperature", 0.0) > 80, "Thermal spot did not read the visible VRAM package")
+	expect(bench.thermal_viewer.spot_temperature.text == "%.1f °C" % reading.temperature, "Physical LCD is missing the aimed surface temperature")
+	expect(bench.thermal_viewer.spot_target.text == reading.label, "Physical LCD target identity does not match the crosshair")
 	expect(chip.get_node_or_null("MemoryMarking") != null, "VRAM package has no visible identity")
 	await capture(bench, "dirty")
+	bench.thermal_viewer.aiming = false
+	await capture(bench, "handheld")
+	expect(not bench.thermal_viewer.panel.visible and bench.thermal_viewer.spot_temperature.text == "%.1f °C" % reading.temperature,
+		"Temperature is only available while aiming the enlarged view")
+	aim(bench, bench.get_node("RepairDesk/Mat").global_position)
+	bench.thermal_viewer._process(0.2)
+	expect(bench.thermal_viewer.spot_temperature.text == "%.1f °C" % bench.thermal_viewer.latest_reading.temperature,
+		"Temperature did not update when pointing away from the chip")
+	bench.thermal_viewer.aiming = true
 	# A hidden front package must not show through the PCB in the rear view.
 	var hidden: MeshInstance3D = bench.gpu.find_child("memory-package-0", true, false)
 	aim(bench, hidden.global_transform * hidden.get_aabb().get_center())

@@ -21,11 +21,8 @@ func configure(card: Node3D, view_camera: Camera3D, bounds: AABB) -> void:
 	radius = (bounds.size * gpu.global_basis.get_scale()).length() * 0.5
 
 func held_position() -> Vector3:
-	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
-	var aspect: float = viewport_size.x / maxf(viewport_size.y, 1.0)
-	# Camera uses KEEP_HEIGHT; preserve enough horizontal room in a narrow window.
-	var view_distance: float = maxf(1.8, radius * 1.2 / (tan(deg_to_rad(camera.fov / 2.0)) * minf(1.0, aspect))) * zoom_factor
-	return camera.global_transform * Vector3(0, -0.1, -view_distance) - gpu.global_basis * center
+	var offset := preload("res://scripts/held_part_pose.gd").center_offset(camera, radius, zoom_factor)
+	return camera.global_transform * offset - gpu.global_basis * center
 
 func lift() -> void:
 	if held or moving or not can_interact.call():
@@ -46,16 +43,37 @@ func put_down() -> void:
 	held = false
 	animate_to((gpu.get_parent() as Node3D).global_transform * home)
 
-func animate_to(destination: Transform3D) -> void:
+func animate_to(destination: Transform3D, restore_holder: bool = true) -> void:
 	moving = true
 	changed.emit()
 	motion = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	motion.tween_property(gpu, "global_transform", destination, 0.48)
 	motion.finished.connect(func():
-		if not held:
+		if not held and restore_holder:
 			gpu.transform = home
 		moving = false
 		changed.emit())
+
+func placement_for(point: Vector3, obstacles: Array) -> Dictionary:
+	if not held or moving: return {}
+	var upright: Basis = gpu.get_parent().global_basis * home.basis
+	var pose := Transform3D(upright, gpu.global_position)
+	var bounds: AABB = pose * preload("res://scripts/asset_contract.gd").bounds_in(gpu)
+	var offset := point - bounds.get_center()
+	offset.y = point.y + 0.025 - bounds.position.y
+	var proposed := AABB(bounds.position + offset, bounds.size)
+	var allowed: bool = preload("res://scripts/asset_contract.gd").fits_table(proposed, gpu.get_parent().get_node("RepairDesk/Tabletop"))
+	for obstacle in obstacles:
+		if proposed.intersects(obstacle.grow(0.08)): allowed = false
+	return {"allowed": allowed, "destination": Transform3D(upright, pose.origin + offset)}
+
+func place(point: Vector3, obstacles: Array) -> bool:
+	if not held or moving or not can_interact.call(): return false
+	var placement := placement_for(point, obstacles)
+	if not placement.get("allowed", false): return false
+	held = false
+	animate_to(placement.destination, false)
+	return true
 
 func rotate_item(relative: Vector2) -> void:
 	if not held or moving or not can_interact.call():

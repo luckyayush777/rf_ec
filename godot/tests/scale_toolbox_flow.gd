@@ -22,29 +22,48 @@ func run() -> void:
 	player.set_physics_process(false)
 	player.body.position = Vector3(3, -4.35, 6.2)
 	player.update_camera()
-	aim(bench, bench.tools.toolbox.global_position + Vector3(0, 0.6, 1.0))
+	aim(bench, bench.tools.toolbox.global_position + Vector3(0, 0.6, 0.0))
 	var center := root.get_visible_rect().size * 0.5
 	expect(bench.interaction_hit(center).get("action") == "toolbox", "Toolbox not reachable from front of repair bench")
 	bench.activate(center)
 	expect(bench.tool_menu_open and not player.captured, "Toolbox did not open a separate cursor menu")
 	expect(root.gui_get_focus_owner() is Button, "Tool menu did not focus a keyboard-accessible button")
+	await create_timer(0.25).timeout
+	expect(bench.tools.toolbox.opening > 0 and bench.tools.toolbox.opening < 1, "Bag did not visibly unroll over time")
+	var pocket: Node3D = bench.tools.toolbox.strips[3]
+	expect(absf(bench.tools.screwdriver.position.x - pocket.position.x) < 0.01, "Revealed tool drifted away from its rolling pocket")
+	await capture("toolbox-unrolling")
+	await create_timer(0.4).timeout
 	await capture("toolbox-menu")
-	bench.hud.tool_buttons["screwdriver"].pressed.emit()
+	var tool_point: Vector2 = bench.closeup.camera.unproject_position(bench.tools.screwdriver.get_node("Shaft").global_position)
+	expect(bench.closeup.pick.hit_at(tool_point).get("action") == "screwdriver", "Visible screwdriver in pouch is not clickable")
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	click.position = tool_point + bench.closeup.surface.global_position
+	if DisplayServer.get_name() == "headless":
+		click.position = tool_point
+		bench.closeup.view_input(click)
+	else: root.push_input(click)
 	await create_timer(1.0).timeout
 	expect(bench.tools.equipped_tool == "screwdriver" and player.captured and not bench.tool_menu_open, "Menu selection failed to equip screwdriver and resume play")
 	bench.open_tool_menu()
+	await create_timer(0.65).timeout
 	bench.hud.tool_buttons["thermal-camera"].pressed.emit()
-	await create_timer(0.8).timeout
+	await create_timer(1.3).timeout
 	expect(bench.tools.equipped_tool == "thermal-camera" and bench.tools.location == "toolbox", "Menu did not return previous tool before switching")
 	bench.open_tool_menu()
+	await create_timer(0.65).timeout
 	bench.hud.tool_buttons[""].pressed.emit()
-	await create_timer(0.4).timeout
+	await create_timer(1.0).timeout
 	expect(bench.tools.equipped_tool == "", "Empty hands did not return current tool")
 	bench.open_tool_menu()
+	await create_timer(0.65).timeout
 	var escape := InputEventKey.new()
 	escape.physical_keycode = KEY_ESCAPE
 	escape.pressed = true
 	bench.first_person_input(escape)
+	await create_timer(0.65).timeout
 	expect(not bench.tool_menu_open and player.captured, "Escape did not close tool menu and resume play")
 	player.body.position = Vector3(-3, -4.35, 6.2)
 	player.update_camera()

@@ -188,7 +188,7 @@ func apply_cable_pose(value: float) -> void:
 		wire.node.mesh = bent
 
 func begin_screw(id: String) -> bool:
-	if busy or held_part != "" or not can_use.call() or id not in fan_screws + cooler_screws: return false
+	if busy or not can_use.call() or id not in fan_screws + cooler_screws: return false
 	var reinstall: bool = id in removed
 	var check := decision("refit" if reinstall else "remove", id)
 	if not check.allowed:
@@ -196,6 +196,12 @@ func begin_screw(id: String) -> bool:
 		return false
 	if not turns.has(id):
 		turns[id] = {"progress": 0.0, "reinstall": reinstall, "from": contract.objects[id].global_transform}
+		if reinstall:
+			# Place the screw at its seat immediately; the hold only drives its thread.
+			var part: Node3D = contract.objects[id]
+			part.reparent(contract.homes[id].parent, true)
+			part.transform = contract.homes[id].transform
+			part.position += part.basis.y * 0.34
 	active_screw = id
 	changed.emit()
 	notice.emit("Hold to %s %s. Release to pause." % ["tighten" if reinstall else "remove", id.replace("-", " ")])
@@ -217,10 +223,9 @@ func advance_turn(delta: float) -> void:
 	turn.progress = minf(1.0, turn.progress + maxf(0.0, delta) / 1.5)
 	var home: Transform3D = contract.homes[id].transform
 	if turn.reinstall:
-		var destination: Transform3D = contract.homes[id].parent.global_transform * home
-		part.global_transform = (turn.from as Transform3D).interpolate_with(destination, turn.progress)
-		part.global_position.y += sin(PI * turn.progress) * 0.35
-		part.basis = part.basis * Basis(Vector3.UP, -TAU * 3 * turn.progress)
+		part.transform = home
+		part.position += home.basis.y * 0.34 * (1.0 - turn.progress)
+		part.basis = home.basis * Basis(Vector3.UP, -TAU * 3 * turn.progress)
 	else:
 		part.transform = home
 		part.position += home.basis.y * 0.34 * turn.progress
@@ -261,15 +266,13 @@ func complete_screw(id: String) -> void:
 		notice.emit(id.replace("-", " ").capitalize() + " in tray. Hold it with the screwdriver to refit."))
 
 func held_position(basis: Basis) -> Vector3:
-	var size: Vector2 = get_viewport().get_visible_rect().size
-	var aspect: float = size.x / maxf(size.y, 1.0)
-	var distance: float = maxf(1.8, held_radius * 1.2 / (tan(deg_to_rad(camera.fov / 2.0)) * minf(1.0, aspect))) * held_zoom
-	return camera.global_transform * Vector3(0, -0.1, -distance) - basis * held_center
+	var offset := preload("res://scripts/held_part_pose.gd").center_offset(camera, held_radius, held_zoom)
+	return camera.global_transform * offset - basis * held_center
 
 func lift_assembly(id: String) -> bool:
-	if busy or held_part != "" or not can_use.call() or id not in ["fan-assembly", "cooler-assembly"]: return false
+	if busy or held_part != "" or not can_use.call() or rules.parts.get(id, {}).get("kind") != "assembly" or not contract.objects.has(id): return false
 	var already_removed: bool = id in removed
-	var check := decision("pickup" if already_removed else "remove", id)
+	var check := decision("inspect" if already_removed and get_tool.call() != "" else "pickup" if already_removed else "remove", id)
 	if not check.allowed:
 		notice.emit(check.reason)
 		return false
@@ -291,7 +294,7 @@ func lift_assembly(id: String) -> bool:
 	return true
 
 func assembly_name(id: String) -> String:
-	return "Fan and cable" if id == "fan-assembly" else "Heatsink and cooler"
+	return "Fan and cable" if id == "fan-assembly" else "Heatsink and cooler" if id == "cooler-assembly" else id.replace("-", " ").capitalize()
 
 func animate_assembly(part: Node3D, destination: Transform3D, done: Callable) -> void:
 	moving = true
@@ -328,16 +331,13 @@ func placement_for(point: Vector3, obstacles: Array) -> Dictionary:
 	var offset := point - bounds.get_center()
 	offset.y = point.y + 0.025 - bounds.position.y
 	var proposed := AABB(bounds.position + offset, bounds.size)
-	var allowed: bool = proposed.position.x >= -9.75 and proposed.end.x <= 9.75 and proposed.position.z >= -5.75 and proposed.end.z <= 5.75
+	var allowed: bool = Contract.fits_table(proposed, world.get_node("RepairDesk/Tabletop"))
 	for obstacle in obstacles:
 		if proposed.intersects(obstacle.grow(0.08)): allowed = false
 	return {"allowed": allowed, "destination": Transform3D(upright, original.origin + offset)}
 
 func place_assembly(point: Vector3, obstacles: Array) -> bool:
 	if held_part == "" or busy or not can_use.call(): return false
-	if get_tool.call() != "":
-		notice.emit("Return the tool before placing the assembly.")
-		return false
 	var placement := placement_for(point, obstacles)
 	if not placement.allowed:
 		notice.emit("Choose a clear table spot with room for the whole assembly.")

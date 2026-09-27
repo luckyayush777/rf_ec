@@ -6,6 +6,8 @@ var camera: Camera3D
 var proxies: Array[Dictionary] = []
 var panel: PanelContainer
 var readout: Label
+var spot_temperature: Label
+var spot_target: Label
 var screen_material: StandardMaterial3D
 var aiming := false
 var elapsed := 0.0
@@ -31,6 +33,30 @@ func configure(world: Node3D) -> void:
 	camera.fov = 35.0
 	camera.far = 150.0
 	viewport.add_child(camera)
+	# Burn the spot reading into the camera feed, so the physical LCD shows it too.
+	var screen_ui := CanvasLayer.new()
+	viewport.add_child(screen_ui)
+	spot_temperature = Label.new()
+	spot_temperature.position = Vector2(8, 5)
+	spot_temperature.add_theme_font_size_override("font_size", 24)
+	spot_temperature.add_theme_color_override("font_outline_color", Color.BLACK)
+	spot_temperature.add_theme_constant_override("outline_size", 5)
+	screen_ui.add_child(spot_temperature)
+	spot_target = Label.new()
+	spot_target.position = Vector2(8, 178)
+	spot_target.size.x = 304
+	spot_target.add_theme_font_size_override("font_size", 12)
+	spot_target.add_theme_color_override("font_outline_color", Color.BLACK)
+	spot_target.add_theme_constant_override("outline_size", 4)
+	spot_target.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	screen_ui.add_child(spot_target)
+	var spot_cross := Label.new()
+	spot_cross.text = "+"
+	spot_cross.position = Vector2(151, 84)
+	spot_cross.add_theme_font_size_override("font_size", 24)
+	spot_cross.add_theme_color_override("font_outline_color", Color.BLACK)
+	spot_cross.add_theme_constant_override("outline_size", 4)
+	screen_ui.add_child(spot_cross)
 	var ambient := ShaderMaterial.new()
 	ambient.shader = preload("res://shaders/thermal_surface.gdshader")
 	for source in bench.find_children("*", "MeshInstance3D", true, false):
@@ -68,13 +94,6 @@ func configure(world: Node3D) -> void:
 	display.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	display.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	column.add_child(display)
-	var cross := Label.new()
-	cross.text = "+"
-	cross.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	cross.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	cross.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	cross.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	display.add_child(cross)
 	var gradient := Gradient.new()
 	gradient.offsets = PackedFloat32Array([0.0, 0.25, 0.5, 0.75, 1.0])
 	gradient.colors = PackedColorArray([Color(0.025, 0.015, 0.14), Color(0.28, 0.04, 0.55), Color(0.92, 0.12, 0.1), Color(1, 0.72, 0.08), Color(1, 0.98, 0.82)])
@@ -125,6 +144,8 @@ func _process(delta: float) -> void:
 		if entry.heated: entry.material.set_shader_parameter("temperature", bench.thermal.apparent_temperature(source))
 	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 	latest_reading = sample_center()
+	spot_temperature.text = "-- °C" if latest_reading.is_empty() else "%.1f °C" % latest_reading.temperature
+	spot_target.text = "No surface in range" if latest_reading.is_empty() else latest_reading.label
 	last_update_frame = Engine.get_process_frames()
 	readout.text = "No surface in range\n20°C   —   FIXED SCALE   —   100°C" if latest_reading.is_empty() else \
 		"%.1f°C  |  %s\n%s   |   20–100°C fixed scale" % [latest_reading.temperature, latest_reading.label,
