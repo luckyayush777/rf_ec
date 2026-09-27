@@ -3,14 +3,45 @@ extends Node
 signal changed
 signal notice(text: String)
 
-var location := "toolbox"
-var dev_location := "toolbox"
-var thermal_location := "stand"
+const PASTE_TOOLS := ["spudger", "ipa-wipe", "paste-syringe"]
+const TOOLS := ["screwdriver", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe"]
+## Roll-pocket tools and their node names in scenes/toolbox.tscn.
+const ROLL_NODES := {"screwdriver": "Screwdriver", "dev-blower": "DevBlower", "spudger": "Spudger", "ipa-wipe": "IpaWipe", "paste-syringe": "PasteSyringe"}
+const EQUIP_NOTICES := {
+	"screwdriver": "Screwdriver equipped. Click the GPU for a close-up, then hold a screw to turn it.",
+	"dev-blower": "Hold and sweep over dusty surfaces to clean them.",
+	"thermal-camera": "Thermal camera equipped. Hold RMB to inspect surface heat.",
+	"spudger": "Plastic spudger equipped. Click the bare die or heatsink base, then hold and drag to scrape off old paste.",
+	"ipa-wipe": "IPA wipe equipped. Hold and rub the scraped surfaces to lift the remaining film.",
+	"paste-syringe": "Paste syringe equipped. Click the bare die, then hold to squeeze; drag to lay a line."}
+const NAMES := {"screwdriver": "screwdriver", "dev-blower": "Dev blower", "thermal-camera": "thermal camera",
+	"spudger": "spudger", "ipa-wipe": "IPA wipe", "paste-syringe": "paste syringe"}
+const RETURN_NOTICES := {
+	"screwdriver": "Screwdriver returned. Hands are free for the fan cable.",
+	"dev-blower": "Dev blower returned.",
+	"thermal-camera": "Thermal camera returned."}
+
+var locations := {"screwdriver": "toolbox", "dev-blower": "toolbox", "thermal-camera": "stand",
+	"spudger": "toolbox", "ipa-wipe": "toolbox", "paste-syringe": "toolbox"}
+var location: String:
+	get: return locations["screwdriver"]
+	set(value): locations["screwdriver"] = value
+var dev_location: String:
+	get: return locations["dev-blower"]
+	set(value): locations["dev-blower"] = value
+var thermal_location: String:
+	get: return locations["thermal-camera"]
+	set(value): locations["thermal-camera"] = value
+var nodes: Dictionary = {}
+var homes: Dictionary = {}
 var thermal_camera: Node3D
 var thermal_stand: Node3D
 var thermal_home: Transform3D
 var equipped_tool: String:
-	get: return "screwdriver" if location == "held" else "dev-blower" if dev_location == "held" else "thermal-camera" if thermal_location == "held" else ""
+	get:
+		for id in TOOLS:
+			if locations[id] == "held": return id
+		return ""
 var open := false
 var busy := false
 var toolbox: Node3D
@@ -26,10 +57,15 @@ var can_use: Callable
 func configure(box: Node3D, view_camera: Camera3D, scene: Node3D, allowed: Callable) -> void:
 	toolbox = box
 	lid = box.get_node("Lid")
-	screwdriver = box.get_node("Screwdriver")
-	dev_blower = box.get_node("DevBlower")
-	home = screwdriver.get_meta("roll_home")
-	dev_home = dev_blower.get_meta("roll_home")
+	for id in ROLL_NODES:
+		var node: Node3D = box.get_node(ROLL_NODES[id])
+		nodes[id] = node
+		homes[id] = node.get_meta("roll_home")
+		node.set_meta("action", id)
+	screwdriver = nodes["screwdriver"]
+	dev_blower = nodes["dev-blower"]
+	home = homes["screwdriver"]
+	dev_home = homes["dev-blower"]
 	dev_blower.visible = OS.is_debug_build()
 	camera = view_camera
 	world = scene
@@ -37,27 +73,22 @@ func configure(box: Node3D, view_camera: Camera3D, scene: Node3D, allowed: Calla
 	thermal_camera = thermal_stand.get_node("ThermalCamera")
 	thermal_home = thermal_camera.transform
 	thermal_camera.set_meta("action", "thermal-camera")
+	nodes["thermal-camera"] = thermal_camera
+	homes["thermal-camera"] = thermal_home
 	can_use = allowed
 	toolbox.set_meta("action", "toolbox")
-	screwdriver.set_meta("action", "screwdriver")
-	dev_blower.set_meta("action", "dev-blower")
 
 func tool_node(id: String) -> Node3D:
-	if id == "thermal-camera": return thermal_camera
-	return dev_blower if id == "dev-blower" else screwdriver
+	return nodes.get(id, screwdriver)
 
 func tool_home(id: String) -> Transform3D:
-	if id == "thermal-camera": return thermal_home
-	return dev_home if id == "dev-blower" else home
+	return homes.get(id, home)
 
 func tool_location(id: String) -> String:
-	if id == "thermal-camera": return thermal_location
-	return dev_location if id == "dev-blower" else location
+	return locations.get(id, "")
 
 func set_tool_location(id: String, value: String) -> void:
-	if id == "thermal-camera": thermal_location = value
-	elif id == "dev-blower": dev_location = value
-	else: location = value
+	locations[id] = value
 
 func toggle_box() -> void:
 	if busy or not can_use.call("toolbox"): return
@@ -74,7 +105,7 @@ func move_lid(value: bool) -> void:
 	await tween.finished
 
 func equip(id: String = "screwdriver") -> void:
-	if id not in ["screwdriver", "dev-blower", "thermal-camera"] or (id == "dev-blower" and not OS.is_debug_build()): return
+	if id not in TOOLS or (id == "dev-blower" and not OS.is_debug_build()): return
 	if busy or equipped_tool != "" or not can_use.call(id): return
 	busy = true
 	changed.emit()
@@ -85,8 +116,7 @@ func equip(id: String = "screwdriver") -> void:
 	await move_tool(id, held_pose(id))
 	busy = false
 	changed.emit()
-	notice.emit("Thermal camera equipped. Hold RMB to inspect surface heat." if id == "thermal-camera" else "Hold and sweep over dusty surfaces to clean them." if id == "dev-blower" else
-		"Screwdriver equipped. Click the GPU for a close-up, then hold a screw to turn it.")
+	notice.emit(EQUIP_NOTICES[id])
 
 func grab(id: String = "screwdriver") -> void:
 	if tool_location(id) == "toolbox" and not open: return
@@ -103,7 +133,7 @@ func return_tool() -> void:
 	await move_tool(id, tool_home(id))
 	busy = false
 	changed.emit()
-	notice.emit("Thermal camera returned." if id == "thermal-camera" else "Dev blower returned." if id == "dev-blower" else "Screwdriver returned. Hands are free for the fan cable.")
+	notice.emit(RETURN_NOTICES.get(id, NAMES[id].capitalize() + " returned."))
 
 func place(point: Vector3, obstacles: Array) -> bool:
 	var id := equipped_tool
@@ -115,7 +145,7 @@ func place(point: Vector3, obstacles: Array) -> bool:
 	if id == "thermal-camera":
 		target = point + Vector3(0, 1.055, 0)
 		footprint = AABB(point + Vector3(-0.6, 0.01, -0.55), Vector3(1.2, 1.45, 1.1))
-	if footprint.position.x < -9.75 or footprint.end.x > 9.75 or footprint.position.z < -5.75 or footprint.end.z > 5.75:
+	if not preload("res://scripts/asset_contract.gd").fits_table(footprint, world.get_node("RepairDesk/Tabletop")):
 		notice.emit("Choose a clear spot with room for the whole tool.")
 		return false
 	for obstacle in obstacles:
@@ -162,5 +192,6 @@ func blower_points_at(point: Vector3) -> bool:
 	return to_point.length() > 0.01 and direction.dot(to_point.normalized()) > 0.985
 
 func _process(_delta: float) -> void:
-	if equipped_tool == "screwdriver" and not busy:
-		screwdriver.transform = held_pose()
+	var id := equipped_tool
+	if (id == "screwdriver" or id in PASTE_TOOLS) and not busy:
+		tool_node(id).transform = held_pose(id)

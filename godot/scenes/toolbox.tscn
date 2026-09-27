@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/tool_roll.gd" id="ToolRoll"]
 
@@ -93,6 +93,95 @@ material = SubResource("Silver")
 size = Vector3(0.15, 0.025, 0.073)
 material = SubResource("Silver")
 
+[sub_resource type="StandardMaterial3D" id="Nylon"]
+albedo_color = Color(0.09, 0.2, 0.42, 1)
+roughness = 0.62
+
+[sub_resource type="BoxMesh" id="SpudgerBodyMesh"]
+size = Vector3(1.55, 0.11, 0.2)
+material = SubResource("Nylon")
+
+[sub_resource type="PrismMesh" id="SpudgerBladeMesh"]
+left_to_right = 0.5
+size = Vector3(0.11, 0.5, 0.2)
+material = SubResource("Nylon")
+
+[sub_resource type="BoxMesh" id="SpudgerGripMesh"]
+size = Vector3(0.62, 0.125, 0.215)
+material = SubResource("Black")
+
+[sub_resource type="StandardMaterial3D" id="Cloth"]
+albedo_color = Color(0.93, 0.94, 0.92, 1)
+roughness = 1.0
+
+[sub_resource type="StandardMaterial3D" id="IpaBlue"]
+albedo_color = Color(0.16, 0.5, 0.82, 1)
+roughness = 0.5
+
+[sub_resource type="BoxMesh" id="WipePadMesh"]
+size = Vector3(0.62, 0.16, 0.5)
+material = SubResource("Cloth")
+
+[sub_resource type="CylinderMesh" id="WipeBottleMesh"]
+top_radius = 0.17
+bottom_radius = 0.19
+height = 0.95
+radial_segments = 20
+material = SubResource("IpaBlue")
+
+[sub_resource type="CylinderMesh" id="WipeCapMesh"]
+top_radius = 0.08
+bottom_radius = 0.12
+height = 0.16
+radial_segments = 16
+material = SubResource("Cloth")
+
+[sub_resource type="StandardMaterial3D" id="SyringeBarrel"]
+transparency = 1
+albedo_color = Color(0.82, 0.85, 0.86, 0.55)
+roughness = 0.3
+metallic = 0.1
+
+[sub_resource type="StandardMaterial3D" id="PasteGrey"]
+albedo_color = Color(0.55, 0.57, 0.6, 1)
+roughness = 0.3
+metallic = 0.35
+
+[sub_resource type="CylinderMesh" id="SyringeBarrelMesh"]
+top_radius = 0.12
+bottom_radius = 0.12
+height = 1.05
+radial_segments = 20
+material = SubResource("SyringeBarrel")
+
+[sub_resource type="CylinderMesh" id="SyringePasteMesh"]
+top_radius = 0.1
+bottom_radius = 0.1
+height = 0.62
+radial_segments = 16
+material = SubResource("PasteGrey")
+
+[sub_resource type="CylinderMesh" id="SyringeNozzleMesh"]
+top_radius = 0.02
+bottom_radius = 0.07
+height = 0.34
+radial_segments = 16
+material = SubResource("SyringeBarrel")
+
+[sub_resource type="CylinderMesh" id="SyringePlungerMesh"]
+top_radius = 0.035
+bottom_radius = 0.035
+height = 0.5
+radial_segments = 12
+material = SubResource("Black")
+
+[sub_resource type="CylinderMesh" id="SyringeThumbMesh"]
+top_radius = 0.16
+bottom_radius = 0.16
+height = 0.04
+radial_segments = 20
+material = SubResource("Black")
+
 [node name="Toolbox" type="Node3D"]
 script = ExtResource("ToolRoll")
 
@@ -165,4 +254,78 @@ text = "DEV BLOWER"
 font_size = 28
 pixel_size = 0.006
 modulate = Color(1, 0.92, 1, 1)
+outline_size = 0
+
+[node name="Spudger" type="Node3D" parent="."]
+
+[node name="Body" type="MeshInstance3D" parent="Spudger"]
+position = Vector3(0.1, 0, 0)
+mesh = SubResource("SpudgerBodyMesh")
+
+[node name="Grip" type="MeshInstance3D" parent="Spudger"]
+position = Vector3(-0.35, 0, 0)
+mesh = SubResource("SpudgerGripMesh")
+
+[node name="Blade" type="MeshInstance3D" parent="Spudger"]
+position = Vector3(1.125, 0, 0)
+rotation_degrees = Vector3(0, 0, -90)
+mesh = SubResource("SpudgerBladeMesh")
+
+[node name="IpaWipe" type="Node3D" parent="."]
+
+[node name="Bottle" type="MeshInstance3D" parent="IpaWipe"]
+position = Vector3(-0.3, 0, 0)
+rotation_degrees = Vector3(0, 0, -90)
+mesh = SubResource("WipeBottleMesh")
+
+[node name="Cap" type="MeshInstance3D" parent="IpaWipe"]
+position = Vector3(0.25, 0, 0)
+rotation_degrees = Vector3(0, 0, -90)
+mesh = SubResource("WipeCapMesh")
+
+[node name="Pad" type="MeshInstance3D" parent="IpaWipe"]
+position = Vector3(0.62, 0, 0)
+mesh = SubResource("WipePadMesh")
+
+[node name="IpaLabel" type="Label3D" parent="IpaWipe"]
+position = Vector3(-0.3, 0.2, 0)
+rotation_degrees = Vector3(-90, 0, 0)
+text = "IPA 99%"
+font_size = 28
+pixel_size = 0.006
+outline_size = 0
+
+[node name="PasteSyringe" type="Node3D" parent="."]
+
+[node name="Paste" type="MeshInstance3D" parent="PasteSyringe"]
+position = Vector3(0.12, 0, 0)
+rotation_degrees = Vector3(0, 0, -90)
+mesh = SubResource("SyringePasteMesh")
+
+[node name="Barrel" type="MeshInstance3D" parent="PasteSyringe"]
+rotation_degrees = Vector3(0, 0, -90)
+mesh = SubResource("SyringeBarrelMesh")
+
+[node name="Nozzle" type="MeshInstance3D" parent="PasteSyringe"]
+position = Vector3(0.695, 0, 0)
+rotation_degrees = Vector3(0, 0, -90)
+mesh = SubResource("SyringeNozzleMesh")
+
+[node name="Plunger" type="MeshInstance3D" parent="PasteSyringe"]
+position = Vector3(-0.75, 0, 0)
+rotation_degrees = Vector3(0, 0, -90)
+mesh = SubResource("SyringePlungerMesh")
+
+[node name="Thumb" type="MeshInstance3D" parent="PasteSyringe"]
+position = Vector3(-1.0, 0, 0)
+rotation_degrees = Vector3(0, 0, -90)
+mesh = SubResource("SyringeThumbMesh")
+
+[node name="PasteLabel" type="Label3D" parent="PasteSyringe"]
+position = Vector3(0, 0.14, 0)
+rotation_degrees = Vector3(-90, 0, 0)
+text = "PASTE"
+font_size = 24
+pixel_size = 0.006
+modulate = Color(0.1, 0.12, 0.14, 1)
 outline_size = 0

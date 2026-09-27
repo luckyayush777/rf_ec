@@ -3,6 +3,9 @@ extends Node
 const Contract = preload("res://scripts/asset_contract.gd")
 signal changed
 signal notice(text: String)
+## An assembly left, or returned to, its mounted home. Contact faces react to these.
+signal assembly_detached(id: String)
+signal assembly_seated(id: String)
 
 var contract: Dictionary
 var rules: RefCounted
@@ -136,6 +139,7 @@ func debug_place_assembly(id: String, table_point: Vector3) -> void:
 	offset.y = table_point.y + 0.025 - bounds.position.y
 	part.global_position += offset
 	removed.append(id)
+	assembly_detached.emit(id)
 
 func decision(kind: String, id: String) -> Dictionary:
 	return rules.check(kind, id, removed, {"fan-plug": cable_connected}, get_tool.call())
@@ -278,7 +282,9 @@ func lift_assembly(id: String) -> bool:
 		return false
 	var part: Node3D = contract.objects[id]
 	var was_stored: bool = id in stored
-	if not already_removed: removed.append(id)
+	if not already_removed:
+		removed.append(id)
+		assembly_detached.emit(id)
 	stored.erase(id)
 	part.visible = true
 	part.reparent(world, true)
@@ -387,7 +393,8 @@ func refit_assembly() -> bool:
 		removed.erase(id)
 		held_part = ""
 		changed.emit()
-		notice.emit("%s seated. Refit its screws from the tray." % assembly_name(id)))
+		notice.emit("%s seated. Refit its screws from the tray." % assembly_name(id))
+		assembly_seated.emit(id))
 	return true
 
 func set_muted(value: bool) -> void:

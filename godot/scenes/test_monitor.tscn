@@ -129,8 +129,8 @@ horizontal_alignment = 0
 
 [node name="Stats" type="Label3D" parent="."]
 visible = false
-position = Vector3(0.88, 2.45, 0.143)
-text = "SCORE\n000000\nLINES\n00"
+position = Vector3(0.88, 2.2, 0.143)
+text = "SCORE\n000000\nLINES\n00\nGPU\n24°C"
 font_size = 48
 pixel_size = 0.005
 modulate = Color(0.77, 0.83, 0.87, 1)

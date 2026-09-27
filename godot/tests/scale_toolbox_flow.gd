@@ -65,6 +65,7 @@ func run() -> void:
 	bench.first_person_input(escape)
 	await create_timer(0.65).timeout
 	expect(not bench.tool_menu_open and player.captured, "Escape did not close tool menu and resume play")
+	expect(not bench.hud.tool_close_button.disabled, "Closing the tool menu left the shared close-up Close button disabled")
 	player.body.position = Vector3(-3, -4.35, 6.2)
 	player.update_camera()
 	aim(bench, bench.gpu.global_position)

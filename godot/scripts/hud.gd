@@ -19,6 +19,8 @@ signal highlight_dust_requested
 signal test_requested
 signal debug_clean_requested
 signal debug_disassemble_requested
+signal debug_dry_paste_requested
+signal debug_repaste_requested
 
 var inspect_button: Button
 var flip_button: Button
@@ -43,6 +45,8 @@ var remaining_label: Label
 var highlight_dust_button: Button
 var debug_clean_button: Button
 var debug_disassemble_button: Button
+var debug_dry_paste_button: Button
+var debug_repaste_button: Button
 var test_button: Button
 var service_controls: HFlowContainer
 var assembly_controls: HFlowContainer
@@ -125,7 +129,7 @@ func _ready() -> void:
 	cleaning_panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	cleaning_panel.offset_left = 18
 	cleaning_panel.offset_right = 520
-	cleaning_panel.offset_top = -200
+	cleaning_panel.offset_top = -250
 	cleaning_panel.offset_bottom = -18
 	add_child(cleaning_panel)
 	var cleaning_margin := MarginContainer.new()
@@ -154,6 +158,13 @@ func _ready() -> void:
 	debug_disassemble_button = make_button("Debug: Disassemble GPU", debug_controls)
 	debug_disassemble_button.visible = OS.is_debug_build()
 	debug_disassemble_button.pressed.connect(func(): debug_disassemble_requested.emit())
+	# Paste quality stays hidden from normal play; the thermal camera is the diagnosis.
+	debug_dry_paste_button = make_button("Debug: Dry paste", debug_controls)
+	debug_dry_paste_button.visible = OS.is_debug_build()
+	debug_dry_paste_button.pressed.connect(func(): debug_dry_paste_requested.emit())
+	debug_repaste_button = make_button("Debug: Fresh paste", debug_controls)
+	debug_repaste_button.visible = OS.is_debug_build()
+	debug_repaste_button.pressed.connect(func(): debug_repaste_requested.emit())
 	status_label = Label.new()
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status_label.text = "Loading workbench..."
@@ -213,11 +224,11 @@ func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Nod
 	var prompt := ""
 	match action:
 		"screw", "screw_hole": prompt = "E: pick up GPU  |  Click: focus" if tools.equipped_tool != "" else "Screwdriver required"
-		"gpu": prompt = "E: pick up GPU  |  Click: focus" if tools.equipped_tool in ["screwdriver", "dev-blower"] else "E: pick up / remove GPU"
+		"gpu": prompt = "E: pick up GPU  |  Click: focus" if tools.equipped_tool in ["screwdriver", "dev-blower"] or tools.equipped_tool in tools.PASTE_TOOLS else "E: pick up / remove GPU"
 		"test_board": prompt = "E: connect / remove GPU"
 		"monitor_power": prompt = "E: monitor power"
 		"toolbox": prompt = "E / Click: unroll tool bag"
-		"screwdriver", "dev-blower", "thermal-camera": prompt = "E: pick up " + action.replace("-", " ")
+		"screwdriver", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe": prompt = "E: pick up " + action.replace("-", " ")
 		"cable": prompt = "E: connect / disconnect fan cable"
 		"assembly": prompt = "E: inspect GPU / lift loosened assembly"
 		"desk":
@@ -255,7 +266,7 @@ func refresh(held: bool, moving: bool, tools: Node, service: Node, cleaning: Nod
 	dev_blower_button.visible = OS.is_debug_build() and tools.equipped_tool == ""
 	dev_blower_button.disabled = busy or station.installed
 	return_button.visible = tools.equipped_tool != ""
-	return_button.text = "Return Dev blower" if tools.equipped_tool == "dev-blower" else "Return screwdriver"
+	return_button.text = "Return " + tools.NAMES.get(tools.equipped_tool, "screwdriver")
 	return_button.disabled = busy or station.installed
 	cable_button.text = "Reconnect cable" if not service.cable_connected else "Unplug cable"
 	cable_button.disabled = busy or station.installed or tools.equipped_tool != ""
@@ -285,6 +296,10 @@ func refresh(held: bool, moving: bool, tools: Node, service: Node, cleaning: Nod
 	if turn_progress.visible:
 		turn_progress.value = service.turns[service.active_screw].progress * 100
 	refresh_cleaning(cleaning)
+
+func refresh_paste(paste: Node) -> void:
+	debug_dry_paste_button.disabled = paste.dried
+	debug_repaste_button.disabled = paste.is_fresh() and not paste.dried
 
 func refresh_cleaning(cleaning: Node) -> void:
 	highlight_dust_button.set_pressed_no_signal(cleaning.highlighted)

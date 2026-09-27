@@ -4,9 +4,12 @@ extends RefCounted
 
 var parts: Dictionary = {}
 var removal: Dictionary = {}
+var surfaces: Dictionary = {}
 var errors: Array[String] = []
+## Paste-surface actions and the one tool that performs each.
+const SURFACE_TOOLS := {"scrape": "spudger", "wipe": "ipa-wipe", "apply": "paste-syringe"}
 
-func _init(definitions: Array, exceptions: Array = []) -> void:
+func _init(definitions: Array, exceptions: Array = [], contact_surfaces: Array = []) -> void:
 	for part in definitions:
 		if parts.has(part.id):
 			errors.append("Duplicate service part ID: " + part.id)
@@ -24,6 +27,13 @@ func _init(definitions: Array, exceptions: Array = []) -> void:
 				found = true
 		if not found:
 			errors.append("No fasteners declared for " + exception.assembly)
+	# Thermal-interface surfaces are exposed only while their covering assembly is detached.
+	for surface in contact_surfaces:
+		if surfaces.has(surface.id):
+			errors.append("Duplicate contact surface: " + surface.id)
+		elif parts.get(surface.exposedBy, {}).get("kind", "") != "assembly":
+			errors.append("Contact surface %s is exposed by unknown assembly %s" % [surface.id, surface.exposedBy])
+		surfaces[surface.id] = surface.duplicate(true)
 	for id in removal:
 		for required in removal[id]:
 			if not parts.has(required):
@@ -92,4 +102,21 @@ func check(kind: String, id: String, removed: Array = [], connected: Dictionary 
 				required.append(dependency)
 	if not required.is_empty():
 		return deny("%s requires: %s" % [kind.capitalize(), ", ".join(required)], required)
+	return {"allowed": true, "missing": [], "reason": ""}
+
+func check_surface(kind: String, id: String, removed: Array = [], tool: String = "") -> Dictionary:
+	if not errors.is_empty():
+		return deny("Invalid service definitions: " + "; ".join(errors))
+	if not surfaces.has(id):
+		return deny("Unknown contact surface: " + id)
+	if not SURFACE_TOOLS.has(kind):
+		return deny("Invalid contact-surface action: " + kind)
+	var surface: Dictionary = surfaces[id]
+	if tool != SURFACE_TOOLS[kind]:
+		return deny("Use the %s to %s." % [SURFACE_TOOLS[kind].replace("-", " "), kind])
+	if kind == "apply" and not surface.get("applyPaste", false):
+		return deny("Apply fresh paste to the GPU die, not the %s." % String(surface.get("label", id)))
+	var cover: String = surface.exposedBy
+	if installed(cover, removed, {}):
+		return deny("Remove the %s to reach the %s." % [cover.replace("-", " "), String(surface.get("label", id))], [cover])
 	return {"allowed": true, "missing": [], "reason": ""}

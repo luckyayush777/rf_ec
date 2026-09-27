@@ -17,7 +17,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 - Surface picking, animated whole-GPU lift/set-down, independent inspection rotation/zoom, and flip.
 - Holder jaws open during inspection and close when the GPU returns.
 - Metadata adapter that validates named parts and original parent relationships, records original transforms, and creates service definitions.
-- Animated canvas tool bag pulled toward the front of the bench, clear of the screw tray, with six stitched pockets, retaining straps, and four empty pockets. Clicking it opens a large live 3D view over the blurred room and unrolls the fabric; click a visible tool or its keyboard-accessible label. Switching returns the previous tool, and closing rolls the bag shut. The thermal camera remains on its stand and is also selectable from the footer.
+- Animated canvas tool bag pulled toward the front of the bench, clear of the screw tray, with six stitched pockets, retaining straps, and one empty pocket. Clicking it opens a large live 3D view over the blurred room and unrolls the fabric; click a visible tool or its keyboard-accessible label. Switching returns the previous tool, and closing rolls the bag shut. The thermal camera remains on its stand and is also selectable from the footer.
 - Screwdriver equip/return, automatic toolbox opening, and desk placement/retrieval with footprint and obstacle checks. Inspection can continue with the screwdriver equipped.
 - Fan cable unplug/reconnect with plug animation and wire deformation. Cable handling requires empty hands; cooler screws require the cable unplugged.
 - All eight screws support 1.5-second hold-to-turn removal/refit, independent paused progress, labeled tray slots, and exact original parent/transform restoration. Shallow screw seats remain visible when screws move to the tray; click an empty seat with the screwdriver to seat that screw immediately, then hold to tighten it in place. Released screws retain their progress and follow the GPU.
@@ -45,13 +45,14 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 | Remove tested card | E on the installed card or board; it returns to the holder |
 | Monitor power | E on its physical button; monitor power does not disconnect board power |
 | Select / switch tool | Click the tool bag or press E on it; wait for it to unroll, then click a tool or select its label with arrow keys + Enter. Esc rolls it closed. |
-| Open GPU service window | With screwdriver or blower equipped, click the GPU/backplate, screw or empty seat. E picks up the GPU instead; R while holding it opens focus. The room blurs behind the sharp GPU. RMB drag rotates the view; wheel zooms; Flip part reveals the other side. Click Return tool to put the tool away without closing focus. Esc closes. |
+| Open GPU service window | With screwdriver, blower or a paste tool equipped, click the GPU/backplate, screw or empty seat. E picks up the GPU instead; R while holding it opens focus. The room blurs behind the sharp GPU. RMB drag rotates the view; wheel zooms; Flip part reveals the other side. Click Return tool to put the tool away without closing focus. Esc closes. |
 | Turn/refit screw | In the service window, hold LMB on a screw or empty seat. A refit screw seats immediately; holding turns it, releasing pauses. |
 | Connect fan cable | With empty tool hand, E on plug/socket/wire |
 | Lift assembly | E on fan/heatsink after removing its cable/screw dependencies |
 | Rotate / place / refit assembly | RMB + mouse / E on clear repair tabletop / Q; cooler refits before fan |
 | Clean dust | Equip Dev blower, hold LMB and sweep over exposed surfaces; remove assemblies to reach internal dust |
 | Thermal camera | E on orange camera on the repair desk; hold RMB for its larger viewfinder |
+| Repaste | With the heatsink removed, equip spudger / IPA wipe / paste syringe and click the GPU or detached heatsink. Hold LMB on the framed die or base to scrape, wipe or squeeze. See [Repasting](#repasting). |
 | Place / retrieve a tool | E on clear repair tabletop / E on placed tool |
 | Return equipped tool | Q; thermal camera returns to its desk stand, other tools to the toolbox |
 | Debug clean/disassemble and dust highlight | Tab to release mouse and open the debug cleaning menu |
@@ -81,13 +82,50 @@ This is a gameplay simulation: ambient is 24 degrees C; model memory targets are
 and 94 degrees C fully dusty, approached gradually. Surface readings differ from those
 internal model values. Emissivity is simplified (0.95 for packages, lower for shiny
 GPU metal); real camera calibration, reflections, per-texel heat diffusion and
-hardware-specific safe limits are not simulated. Bad pads, bad contact, electrical
-faults and hardware telemetry are not implemented. FPS/fan sound still use the
-existing cleanliness-driven presentation model.
+hardware-specific safe limits are not simulated. Bad pads and electrical faults are
+not implemented. FPS/fan sound still use the existing cleanliness-driven presentation model.
+
+### Dried die paste
+
+The card also starts with dried thermal paste between the GPU die and heatsink. The
+die sits under the heatsink, so the thermal camera cannot see it; its sensor reading
+appears as **GPU °C** on the powered test monitor. Compare that reading with the
+heatsink on the thermal camera. Dust heats both. Dried paste traps heat in the die,
+so the core runs hot (throttling at 105 degrees C) while the heatsink stays *cooler*
+than healthy. Model targets with clean parts are core 53 / heatsink 38 degrees C with
+fresh paste, and about 80 / 33 with dried paste. VRAM heat is unaffected by paste.
+Debug builds have **Debug: Dry paste** and **Debug: Fresh paste** in the bottom panel.
+
+### Repasting
+
+Remove the heatsink (cable, fan screws, fan, cooler screws). The die is under the
+heatsink, and the old compound is split between the die and the heatsink base.
+Both surfaces need the same two stages:
+
+1. **Spudger** (plastic): click the GPU or the detached heatsink to open focus. The
+   view frames the exposed contact face. Hold and drag to lift the cracked crust.
+   A grey film stays behind.
+2. **IPA wipe**: hold and rub to lift the film. Alcohol only smears crust, so scrape
+   first. At about 95% the face clears with a jingle.
+3. **Paste syringe** (die only): hold to squeeze. The bead grows while you hold;
+   drag to lay a line. Dot, line or X patterns come from how you move. The bar is
+   the amount squeezed; half-full is one full die of paste.
+4. Refit the heatsink. It presses the paste: the bond line over the die fills
+   outward from where you placed paste, and excess squeezes onto the package.
+5. Optionally lift the heatsink again for a **lift test**. The imprint splits between
+   the die and base and the status reports contact, dry patches or squeeze-out.
+   Refitting presses the paste again, and the IPA wipe can remove squeeze-out.
+
+A single central dot of the right amount leaves the corners dry (about 92% contact).
+An X of the same volume reaches them (about 95%). Too little paste leaves most of the
+die dry, and a heatsink seated on a bare die with no paste is worse than the old
+dried compound. Refitting over any paste state is allowed; the monitor's **GPU °C**
+and the thermal camera show the result under load. Paste thickness, mounting pressure
+and screw-tightening order are not modelled yet.
 
 ## Pending gameplay
 
-The regular blower, directional pad scraping, comparison view, job progression, air particles and general interaction highlights are pending. Imported pad remnants are geometry only. Alcohol and replacement supplies have no gameplay yet. The falling-block feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
+The regular blower, paste thickness/mounting pressure, directional pad scraping, comparison view, job progression, air particles and general interaction highlights are pending. Imported pad remnants are geometry only. Replacement pads have no gameplay yet. The falling-block feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
 
 No deployment workflow or export preset is configured.
 
@@ -97,24 +135,25 @@ No deployment workflow or export preset is configured.
 | --- | --- |
 | `scenes/workbench.tscn` | Main composition, asset instances, camera, lighting, environment, and controller nodes. |
 | `scenes/repair_desk.tscn` | Editable desk/mat/holder/tray and prop meshes. |
-| `scenes/toolbox.tscn` | Screwdriver and Dev blower meshes; tool_roll.gd builds the canvas bag, pockets, straps and rolling geometry. |
-| `scenes/test_monitor.tscn`, `scripts/test_monitor.gd` | Editable LCD housing, power button, sound and deterministic falling-block display. |
+| `scenes/toolbox.tscn` | Screwdriver, Dev blower, spudger, IPA wipe and paste syringe meshes; tool_roll.gd builds the canvas bag, pockets, straps and rolling geometry and places tools from its `POCKETS` table. |
+| `scenes/test_monitor.tscn`, `scripts/test_monitor.gd` | Editable LCD housing, power button, sound, deterministic falling-block display and GPU core sensor readout. |
 | `scripts/testing_station.gd` | PCIe fixture interaction, GPU transfer, monitor connection, signal cable, fan animation and cleanliness-driven fan audio. |
 | `scenes/shop_interior.tscn`, `scripts/shop_interior.gd` | Imported workshop shell and props, editor-visible layout conversion and cutaway visibility. |
 | `scripts/workbench.gd` | Startup, controller wiring, input arbitration, desk alignment, placement obstacles and jaw motion. |
 | `scripts/bench_closeup.gd`, `scripts/tool_roll.gd` | Live GPU/tool-bag viewing windows, isolated mesh proxies, mouse picking, orbit/zoom and segmented fabric animation. |
-| `scripts/workbench_tools.gd` | Exclusive screwdriver/Dev blower/thermal-camera locations, roll/tool animations and placement guards. |
+| `scripts/workbench_tools.gd` | Table-driven exclusive tool locations (`TOOLS`), roll/tool animations and placement guards. |
 | `scripts/gpu_cleaning.gd`, `shaders/dust_overlay.gdshader`, `shaders/dust_highlight.gdshader` | Randomized dust masks, aimed cleaning, visible low-density residue, debug highlight, air loop and per-part jingles. |
 | `scripts/held_part_pose.gd` | Shared left-hand framing for carried GPU and detached assemblies. |
 | `scripts/gpu_service.gd` | Cable state/deformation, screw progress, assembly handling/placement, exact refit and screwdriver audio. |
 | `scripts/interaction_picker.gd` | Cached triangle picking, live-transform tracking, depth-tested screw/plug targets, cleaning rays through fan-hub decoration, surface normals and action routing. |
 | `scripts/first_person.gd` | Runtime walking body, collision generation, mouse capture/look and reach. `orbit_camera.gd` supplies only legacy test poses. |
-| `scripts/gpu_thermal.gd` | Dust-dependent heating/cooling, surface temperature/emissivity and VRAM markings. |
+| `scripts/gpu_thermal.gd` | Dust- and paste-dependent heating/cooling, core throttle limit, surface temperature/emissivity and VRAM markings. |
+| `scripts/gpu_paste.gd`, `shaders/paste_layer.gdshader` | Die and heatsink-base paste layers (crust, film, fresh paste per cell), scrape/wipe/squeeze brushes, pressure spread on seating, lift imprint, contact quality and debug dry/fresh. |
 | `scripts/thermal_camera.gd`, `shaders/thermal_surface.gdshader`, `scenes/thermal_camera.tscn` | Pickup instrument, separate depth-tested thermal world, display, spot readout and fixed palette. |
 | `scripts/gpu_inspection.gd` | Whole-GPU inspection state and exact home-transform restoration. |
 | `scripts/hud.gd` | Native UI and signals; closeup provides the tool selection view, and workbench owns switching guards. |
 | `scripts/asset_contract.gd` | Map source part names to imported nodes, validate parents, capture transforms. |
-| `scripts/service_rules.gd` | Pure dependency/tool checks. Invalid graphs fail closed with errors. |
+| `scripts/service_rules.gd` | Pure dependency/tool checks, plus `check_surface` for paste-face reach and tool choice. Invalid graphs fail closed with errors. |
 | `assets/gpu-parts.json` | Generated part metadata and source asset SHA-256 hashes. |
 | `tools/sync_assets.py` | Copies Blender GLBs and extracts part metadata using Python standard library. |
 | `tests/fixtures/service-rules.json` | Checked-in expected service decisions; no generation step or external toolchain. |
@@ -155,17 +194,18 @@ $godotExe = 'C:\Users\user\Desktop\ayush.dev\godot\Godot_v4.7.2-stable_win64_con
 & $godotExe --headless --path godot --script res://tests/tool_inspection_flow.gd
 & $godotExe --headless --path godot --script res://tests/part_focus_flow.gd
 & $godotExe --headless --path godot --script res://tests/staged_disassembly_flow.gd
+& $godotExe --headless --path godot --script res://tests/repaste_flow.gd
 
 # Run the game, or open the editor.
 & $godotExe --path godot
 & $godotExe --editor --path godot
 ```
 
-The first-person flow checks walking/collision, mouse release, proximity and pickup/return. The thermal flow checks physical camera pickup, placement, exclusivity, occlusion, internal cleaning under equal load and cooldown; append `-- --capture` without `--headless` for player/dirty/clean thermal PNGs.
+The first-person flow checks walking/collision, mouse release, proximity and pickup/return. The thermal flow checks physical camera pickup, placement, exclusivity, occlusion, internal cleaning under equal load, the dried-paste core/heatsink gap, the monitor's core readout, debug repaste and cooldown; append `-- --capture` without `--headless` for player/dirty/clean thermal PNGs. The repaste flow checks paste reach rules, tool exclusivity, scrape-then-wipe on both faces, the squeeze rate, seat spread, lift imprint and dot/X/scant/flood coverage, and prints the measured pattern contact and spread time. With `-- --capture` it writes `paste-*.png` for each stage.
 
 Optional legacy rendered acceptance run: append `-- --capture` to the test command and omit `--headless`. It runs the same checks, writes repair/overview/front/back/service-tray, screw-hole and testing-monitor PNGs to ignored `build/`, then exits. Service tests tick hold progress explicitly for reproducibility and run real tool/cable/tray animations. The automated tests do not certify audible sound quality; check that manually.
 
-The next gameplay milestone is pad-residue scraping and the remaining cleaning/job controls.
+The next gameplay milestone is paste thickness/mounting pressure, pad-residue scraping and the remaining cleaning/job controls.
 
 The GPU uses a 0.25 scene scale (about 30 cm wide at the room's five units per
 meter). Inspection, rotation, detached assemblies, tray screws and test-board

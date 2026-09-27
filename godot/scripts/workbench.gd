@@ -3,6 +3,7 @@ extends Node3D
 const Contract = preload("res://scripts/asset_contract.gd")
 const Rules = preload("res://scripts/service_rules.gd")
 const Picker = preload("res://scripts/interaction_picker.gd")
+const Paste = preload("res://scripts/gpu_paste.gd")
 @onready var camera_rig = $CameraRig
 @onready var inspection = $Inspection
 @onready var tools = $Tools
@@ -27,6 +28,7 @@ var hover_elapsed := 0.0
 var tool_menu_open := false
 var tool_selection_busy := false
 var closeup: CanvasLayer
+var paste: Node
 var placement_marker: MeshInstance3D
 var placement_material: StandardMaterial3D
 
@@ -34,7 +36,7 @@ func _ready() -> void:
 	gpu.name = "gpu"
 	asset_contract = Contract.bind_parts(gpu)
 	service_rules = Rules.new(asset_contract.service_parts,
-		[{"assembly": "cooler-assembly", "fastenersRequire": ["fan-plug"]}])
+		[{"assembly": "cooler-assembly", "fastenersRequire": ["fan-plug"]}], Paste.SURFACES)
 	if not asset_contract.errors.is_empty() or not service_rules.errors.is_empty():
 		var message := "Asset setup failed: " + str(asset_contract.errors + service_rules.errors)
 		push_error(message)
@@ -89,6 +91,12 @@ func _ready() -> void:
 	picker = Picker.new()
 	picker.configure(self, gpu, camera_rig.camera, service)
 	cleaning.configure(gpu, picker, tools)
+	paste = Paste.new()
+	paste.name = "Paste"
+	add_child(paste)
+	paste.configure(self)
+	service.assembly_seated.connect(func(id: String): if id == "cooler-assembly": paste.seat())
+	service.assembly_detached.connect(func(id: String): if id == "cooler-assembly": paste.lift())
 	thermal.configure(self)
 	thermal_viewer.configure(self)
 	hud.view_requested.connect(select_view)
@@ -103,6 +111,8 @@ func _ready() -> void:
 	hud.highlight_dust_requested.connect(cleaning.toggle_highlight)
 	hud.debug_clean_requested.connect(debug_clean_gpu)
 	hud.debug_disassemble_requested.connect(debug_disassemble_gpu)
+	hud.debug_dry_paste_requested.connect(paste.debug_dry)
+	hud.debug_repaste_requested.connect(paste.debug_repaste)
 	hud.return_requested.connect(tools.return_tool)
 	hud.cable_requested.connect(service.toggle_cable)
 	hud.assembly_requested.connect(lift_assembly)
@@ -115,12 +125,14 @@ func _ready() -> void:
 	hud.mute_requested.connect(func():
 		service.set_muted(not service.muted)
 		cleaning.set_muted(service.muted)
+		paste.set_muted(service.muted)
 		testing_station.set_muted(service.muted)
 		test_monitor.set_muted(service.muted))
 	inspection.changed.connect(refresh_ui)
 	tools.changed.connect(refresh_ui)
 	service.changed.connect(refresh_ui)
 	cleaning.changed.connect(func(): hud.refresh_cleaning(cleaning))
+	paste.changed.connect(func(): hud.refresh_paste(paste))
 	testing_station.changed.connect(refresh_ui)
 	test_monitor.changed.connect(refresh_ui)
 	tools.notice.connect(hud.set_status)
@@ -128,7 +140,9 @@ func _ready() -> void:
 	cleaning.notice.connect(hud.set_status)
 	testing_station.notice.connect(hud.set_status)
 	test_monitor.notice.connect(hud.set_status)
+	paste.notice.connect(hud.set_status)
 	refresh_ui()
+	hud.refresh_paste(paste)
 	if not camera_rig.legacy_test_mode: hud.enable_first_person()
 	closeup = preload("res://scripts/bench_closeup.gd").new()
 	add_child(closeup)
@@ -218,6 +232,9 @@ func refresh_ui() -> void:
 			"Thermal camera: hold RMB to scan visible surfaces. Q returns it to the stand." if tools.equipped_tool == "thermal-camera" else
 			"E picks up a part with the blower equipped. Click a part to rotate and clean it in focus." if tools.equipped_tool == "dev-blower" else
 			"Click the board or a screw to work in focus. E picks up a part with the screwdriver equipped." if tools.equipped_tool == "screwdriver" else
+			"Click the GPU or the detached heatsink to scrape old paste in focus." if tools.equipped_tool == "spudger" else
+			"Click the scraped die or heatsink base to wipe the film in focus." if tools.equipped_tool == "ipa-wipe" else
+			"Click the clean GPU die, then hold to squeeze fresh paste." if tools.equipped_tool == "paste-syringe" else
 			"RMB + mouse rotates the held part. Aim at a clear table spot and press E to place it; Q refits it." if service.held_part != "" else
 			"GPU in left hand. E places it at the green marker; RMB rotates, F flips, Q returns it to the holder." if inspection.held else
 			"Aim at the GPU or a tool and press E. The orange instrument is the thermal camera.")
@@ -242,6 +259,7 @@ func begin_refit() -> void:
 func cancel_press() -> void:
 	service.end_screw()
 	cleaning.end()
+	if paste != null: paste.end()
 	dragging_button = 0
 	service_press = false
 
@@ -307,9 +325,7 @@ func activate(screen_position: Vector2, pickup_with_tool: bool = false) -> void:
 	match hit.get("action", ""):
 		"monitor_power": test_monitor.toggle_power()
 		"test_board": toggle_test_gpu()
-		"screwdriver": tools.grab()
-		"dev-blower": tools.grab("dev-blower")
-		"thermal-camera": tools.grab("thermal-camera")
+		"screwdriver", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe": tools.grab(hit.action)
 		"toolbox":
 			open_tool_menu()
 		"cable": service.toggle_cable()
@@ -343,10 +359,9 @@ func placement_obstacles(exclude_id: String = "") -> Array:
 		var node: Node3D = asset_contract.objects[id]
 		if not node.visible: continue
 		boxes.append(node.global_transform * Contract.bounds_in(node))
-	if tools.location == "desk":
-		boxes.append(tools.screwdriver.global_transform * Contract.bounds_in(tools.screwdriver))
-	if tools.dev_location == "desk":
-		boxes.append(tools.dev_blower.global_transform * Contract.bounds_in(tools.dev_blower))
+	for id in tools.ROLL_NODES:
+		if tools.tool_location(id) == "desk":
+			boxes.append(tools.tool_node(id).global_transform * Contract.bounds_in(tools.tool_node(id)))
 	if tools.thermal_location != "held":
 		boxes.append(tools.thermal_camera.global_transform * Contract.bounds_in(tools.thermal_camera))
 	return boxes
@@ -358,6 +373,7 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		service.end_screw()
 		cleaning.end()
+		if paste != null: paste.end()
 		if get_viewport().gui_get_hovered_control() != null: cancel_press()
 	if event is InputEventScreenTouch and (event.canceled or (event.pressed and event.index > 0)):
 		cancel_press()
@@ -392,7 +408,7 @@ func _process(delta: float) -> void:
 		var over_ui: bool = get_viewport().gui_get_hovered_control() != null
 		var hit: Dictionary = {} if over_ui else picker.hit_at(get_viewport().get_mouse_position())
 		var action: String = hit.get("action", "")
-		Input.set_default_cursor_shape(Input.CURSOR_POINTING_HAND if action in ["gpu", "cable", "screw", "screw_hole", "assembly", "toolbox", "screwdriver", "dev-blower", "test_board", "monitor_power"] else Input.CURSOR_ARROW)
+		Input.set_default_cursor_shape(Input.CURSOR_POINTING_HAND if action in ["gpu", "cable", "screw", "screw_hole", "assembly", "toolbox", "test_board", "monitor_power"] or action in tools.TOOLS else Input.CURSOR_ARROW)
 
 func update_placement_marker() -> void:
 	if placement_marker == null: return
@@ -479,6 +495,8 @@ func close_tool_menu() -> void:
 	if tools.open: await tools.toggle_box()
 	tool_menu_open = false
 	tool_selection_busy = false
+	# Re-enable Close while the overlay is still visible; the service view reuses it.
+	hud.refresh_tool_menu(tools, service, false)
 	closeup.close()
 
 func focused_held_part() -> Node3D:
@@ -494,7 +512,7 @@ func service_subject(target: Node) -> Node3D:
 	return null
 
 func open_service_view(hit: Dictionary) -> bool:
-	if camera_rig.legacy_test_mode or tools.equipped_tool not in ["screwdriver", "dev-blower"] or testing_station.installed or not ready_for_action(): return false
+	if camera_rig.legacy_test_mode or (tools.equipped_tool not in ["screwdriver", "dev-blower"] and tools.equipped_tool not in tools.PASTE_TOOLS) or testing_station.installed or not ready_for_action(): return false
 	if hit.get("action", "") not in ["gpu", "assembly", "screw", "screw_hole"]: return false
 	var target: Node = hit.get("target")
 	if target == null: return false
@@ -509,7 +527,7 @@ func open_service_view(hit: Dictionary) -> bool:
 
 func select_tool(id: String) -> void:
 	if not tool_menu_open or tool_selection_busy or not ready_for_action(): return
-	if id not in ["", "screwdriver", "dev-blower", "thermal-camera"]: return
+	if id != "" and id not in tools.TOOLS: return
 	tool_selection_busy = true
 	hud.refresh_tool_menu(tools, service, true)
 	if tools.equipped_tool != id:

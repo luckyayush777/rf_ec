@@ -1,6 +1,13 @@
 @tool
 extends Node3D
 ## Segmented canvas physically winds around a roll; pockets follow the fabric.
+## Tool pockets in roll order: open x position, scale and reveal threshold while unrolling.
+const POCKETS := {
+	"Screwdriver": [-2.475, 0.4, 0.78, 0.18],
+	"DevBlower": [-1.575, 0.43, 0.7, 0.33],
+	"Spudger": [-0.675, 0.36, 0.78, 0.48],
+	"IpaWipe": [0.225, 0.38, 0.7, 0.63],
+	"PasteSyringe": [1.125, 0.37, 0.78, 0.78]}
 var strips: Array[Node3D] = []
 var opening := 0.0
 var cloth: StandardMaterial3D
@@ -24,7 +31,7 @@ func box(parent: Node3D, at: Vector3, size: Vector3, mat: Material) -> void:
 
 func _ready() -> void:
 	for child in get_children():
-		if child.name in ["Screwdriver", "DevBlower", "Lid"]:
+		if child.name in POCKETS or child.name == "Lid":
 			if child.name == "Lid":
 				for old in child.get_children():
 					child.remove_child(old)
@@ -56,14 +63,14 @@ func _ready() -> void:
 	for index in [9, 30]:
 		box(strips[index], Vector3(0, -0.07, 0), Vector3(0.13, 0.06, 3.65), trim)
 		box(strips[index], Vector3(0, 0.07, 1.8), Vector3(0.24, 0.12, 0.3), seam)
-	$Screwdriver.position = Vector3(-2.475, 0.4, -0.1)
-	$Screwdriver.rotation.y = PI / 2
-	$Screwdriver.scale = Vector3.ONE * 0.78
-	$DevBlower.position = Vector3(-1.575, 0.43, -0.1)
-	$DevBlower.rotation.y = PI / 2
-	$DevBlower.scale = Vector3.ONE * 0.7
-	$Screwdriver.set_meta("roll_home", $Screwdriver.transform)
-	$DevBlower.set_meta("roll_home", $DevBlower.transform)
+	for tool_name in POCKETS:
+		var tool := get_node_or_null(NodePath(tool_name)) as Node3D
+		if tool == null: continue
+		var pocket: Array = POCKETS[tool_name]
+		tool.position = Vector3(pocket[0], pocket[1], -0.1)
+		tool.rotation = Vector3(0, PI / 2, 0)
+		tool.scale = Vector3.ONE * pocket[2]
+		tool.set_meta("roll_home", tool.transform)
 	set_opening(0.0)
 
 func set_opening(value: float) -> void:
@@ -75,9 +82,10 @@ func set_opening(value: float) -> void:
 		var radius := 0.56 + angle * 0.009
 		strips[i].position = Vector3(-3 * value + minf(length, flat) + sin(angle) * radius, 0.15 + (1 - cos(angle)) * radius, 0)
 		strips[i].rotation.z = angle
-	for entry in [["Screwdriver", 0.18], ["DevBlower", 0.33]]:
-		var tool := get_node_or_null(NodePath(entry[0])) as Node3D
-		if tool != null:
+	for tool_name in POCKETS:
+		var tool := get_node_or_null(NodePath(tool_name)) as Node3D
+		# Equipped or placed tools are reparented away from the roll.
+		if tool != null and tool.has_meta("roll_home"):
 			var open_home: Transform3D = tool.get_meta("roll_home")
 			tool.position.x = open_home.origin.x + 3 * (1 - value)
-			tool.visible = value > entry[1] and (entry[0] != "DevBlower" or OS.is_debug_build())
+			tool.visible = value > POCKETS[tool_name][3] and (tool_name != "DevBlower" or OS.is_debug_build())

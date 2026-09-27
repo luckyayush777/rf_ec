@@ -40,6 +40,8 @@ var powered := false
 var connected := false
 var cleanliness := 0.0
 var simulated_fps := 8
+## The card's own die sensor, as monitoring software would report it.
+var core_c := 0
 var presented_frames := 0
 var frame_time := 0.0
 var fall_fraction := 0.0
@@ -82,6 +84,11 @@ func set_connection(value: bool, clean_fraction: float = 0.0) -> void:
 	reset_simulation()
 	update_face()
 	changed.emit()
+
+func set_core_temperature(value: float) -> void:
+	if roundi(value) == core_c: return
+	core_c = roundi(value)
+	if stats.visible: update_face()
 
 func toggle_power() -> void:
 	powered = not powered
@@ -272,5 +279,5 @@ func update_face() -> void:
 	fps_readout.text = "SIM %02d FPS" % simulated_fps
 	stats.visible = powered and connected
 	next_label.visible = stats.visible
-	stats.text = "SCORE\n%06d\nLINES\n%02d" % [score, lines_cleared]
+	stats.text = "SCORE\n%06d\nLINES\n%02d\nGPU\n%d°C" % [score, lines_cleared, core_c]
 	if not powered or not connected: texture.update(image)

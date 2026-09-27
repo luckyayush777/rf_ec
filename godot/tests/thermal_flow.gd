@@ -55,6 +55,8 @@ func run() -> void:
 	bench.thermal.advance(60)
 	var dirty_memory: float = bench.thermal.memory_c
 	expect(dirty_memory > 85 and dirty_memory <= 94, "Dusty powered VRAM did not heat up")
+	expect(bench.paste.dried and bench.paste.contact_quality() < 0.2, "GPU did not start with dried die paste")
+	expect(bench.thermal.core_c > 100 and bench.thermal.core_c <= bench.thermal.CORE_LIMIT, "Dusty core with dried paste did not throttle at the limit")
 	# Pick up the camera again then inspect exposed rear memory on the mounted card.
 	bench.tools.equip("thermal-camera")
 	await create_timer(0.4).timeout
@@ -102,6 +104,21 @@ func run() -> void:
 	bench.cleaning.debug_clean()
 	bench.thermal.advance(60)
 	expect(absf(bench.thermal.memory_c - 48.0) < 1.0, "Clean powered VRAM did not settle to the healthy baseline")
+	# Dust-free but dried paste: hot die over a cool heatsink is the paste signature.
+	var dried_core: float = bench.thermal.core_c
+	var dried_gap: float = dried_core - bench.thermal.cooler_c
+	expect(dried_core > 75 and dried_gap > 40, "Dried paste did not trap heat in the die (core %.1f, gap %.1f)" % [dried_core, dried_gap])
+	expect(bench.thermal.cooler_c < 38.0, "Dried paste did not leave the heatsink cooler than healthy")
+	bench.test_monitor.toggle_power()
+	expect(bench.test_monitor.stats.visible and ("GPU\n%d°C" % roundi(dried_core)) in bench.test_monitor.stats.text,
+		"Test monitor does not report the hidden die sensor temperature")
+	bench.test_monitor.toggle_power()
+	expect(bench.paste.debug_repaste(), "Debug repaste was refused")
+	bench.thermal.advance(60)
+	expect(absf(bench.thermal.core_c - 53.0) < 1.0 and absf(bench.thermal.cooler_c - 38.0) < 1.0,
+		"Fresh paste did not settle core/heatsink to the healthy baseline")
+	expect(bench.thermal.core_c - bench.thermal.cooler_c < 20 and absf(bench.thermal.memory_c - 48.0) < 1.0,
+		"Repasting left a large die gap or changed VRAM heat")
 	# Move near the physical camera before re-equipping; no inventory teleport pickup.
 	player.body.position = Vector3(6, -4.35, 7)
 	player.update_camera()
@@ -124,5 +141,5 @@ func run() -> void:
 	expect(absf(bench.thermal.memory_c - 24.0) < 0.1, "Unpowered VRAM did not cool to room temperature")
 	bench.queue_free()
 	await process_frame
-	print("PASS: thermal pickup, exclusivity, occlusion, dust-driven heating, internal cleaning and cooldown" if failures.is_empty() else "FAIL: " + str(failures))
+	print("PASS: thermal pickup, exclusivity, occlusion, dust-driven heating, internal cleaning, paste die gap and cooldown" if failures.is_empty() else "FAIL: " + str(failures))
 	quit(0 if failures.is_empty() else 1)

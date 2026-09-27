@@ -217,7 +217,8 @@ func run(tree: SceneTree, bench: Node3D, expect: Callable) -> void:
 	# Whole-tool footprint rejects edges/obstacles and can be retrieved from the desk.
 	expect.call(not tools.place(Vector3(9.5, 0, 5.5), []), "Tool placement crossed the desk edge")
 	expect.call(not tools.place(Vector3.ZERO, [AABB(Vector3(-2, -1, -2), Vector3(4, 3, 4))]), "Tool placement ignored an obstacle")
-	expect.call(tools.place(Vector3(0, 0, 5), bench.placement_obstacles()), "Clear tool placement was rejected")
+	expect.call(not tools.place(Vector3(0, 0, 5), []), "Tool placement overhung the actual tabletop edge")
+	expect.call(tools.place(Vector3(0, 0, 4.5), bench.placement_obstacles()), "Clear tool placement was rejected")
 	await tree.create_timer(0.4).timeout
 	expect.call(tools.location == "desk" and tools.equipped_tool == "", "Placed screwdriver stayed equipped")
 	bench.select_view("top")

@@ -1,7 +1,13 @@
 extends Node
 ## Gameplay thermal model, not a hardware measurement or engineering solver.
-## Dust is the sole fault; heating requires the assembled card on the powered board.
+## Dust restricts airflow and dried paste insulates the die; heating requires the
+## assembled card on the powered board.
 const AMBIENT := 24.0
+## Extra die rise from fully dried paste, and the heat that bypasses the cooler.
+const PASTE_CORE_RISE := 32.0
+const PASTE_COOLER_DROP := 6.0
+## The core throttles rather than climbing without limit.
+const CORE_LIMIT := 105.0
 var memory_c := AMBIENT
 var core_c := AMBIENT
 var cooler_c := AMBIENT
@@ -36,6 +42,9 @@ func dust_load() -> float:
 		0.35 * (1.0 - bench.cleaning.part_progress("fan-assembly")) +
 		0.20 * (1.0 - bench.cleaning.part_progress("board")), 0.0, 1.0)
 
+func paste_load() -> float:
+	return 1.0 - bench.paste.contact_quality()
+
 func _process(delta: float) -> void:
 	if bench == null: return
 	advance(delta)
@@ -43,18 +52,23 @@ func _process(delta: float) -> void:
 func advance(delta: float) -> void:
 	var powered: bool = bench.testing_station.installed and not bench.testing_station.moving
 	var dust := dust_load()
+	var paste := paste_load()
+	# Bad paste traps heat in the die, so the core rises while the heatsink cools slightly.
 	var memory_target := lerpf(48.0, 94.0, dust) if powered else AMBIENT
-	var core_target := lerpf(53.0, 98.0, dust) if powered else AMBIENT
-	var cooler_target := lerpf(38.0, 65.0, dust) if powered else AMBIENT
+	var core_target := minf(lerpf(53.0, 98.0, dust) + PASTE_CORE_RISE * paste, CORE_LIMIT) if powered else AMBIENT
+	var cooler_target := lerpf(38.0, 65.0, dust) - PASTE_COOLER_DROP * paste if powered else AMBIENT
 	var response := 1.0 - exp(-delta / (14.0 if powered else 40.0))
 	memory_c = lerpf(memory_c, memory_target, response)
 	core_c = lerpf(core_c, core_target, response)
 	cooler_c = lerpf(cooler_c, cooler_target, response)
+	# The die is hidden under the heatsink; its sensor reading is shown on the test monitor.
+	bench.test_monitor.set_core_temperature(core_c)
 
 func category(mesh: MeshInstance3D) -> String:
 	var id := String(mesh.name)
 	if id.begins_with("memory-package") or id.begins_with("rear-memory") or id.begins_with("memory-residue"): return "memory"
-	if id == "gpu-die" or id == "gpu-package": return "core"
+	if id == "gpu-die" or id == "gpu-package" or id == "paste-die": return "core"
+	if id == "paste-heatsink": return "cooler"
 	if id.begins_with("heatsink"): return "cooler"
 	if bench.gpu.is_ancestor_of(mesh): return "board"
 	return "ambient"
