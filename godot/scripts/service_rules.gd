@@ -5,11 +5,12 @@ extends RefCounted
 var parts: Dictionary = {}
 var removal: Dictionary = {}
 var surfaces: Dictionary = {}
+var openings: Dictionary = {}
 var errors: Array[String] = []
-## Paste-surface actions and the one tool that performs each.
-const SURFACE_TOOLS := {"scrape": "spudger", "wipe": "ipa-wipe", "apply": "paste-syringe"}
+## Service-surface actions and the one tool that performs each.
+const SURFACE_TOOLS := {"scrape": "spudger", "wipe": "ipa-wipe", "apply": "paste-syringe", "oil": "fan-oiler"}
 
-func _init(definitions: Array, exceptions: Array = [], contact_surfaces: Array = []) -> void:
+func _init(definitions: Array, exceptions: Array = [], contact_surfaces: Array = [], part_openings: Array = []) -> void:
 	for part in definitions:
 		if parts.has(part.id):
 			errors.append("Duplicate service part ID: " + part.id)
@@ -34,6 +35,21 @@ func _init(definitions: Array, exceptions: Array = [], contact_surfaces: Array =
 		elif parts.get(surface.exposedBy, {}).get("kind", "") != "assembly":
 			errors.append("Contact surface %s is exposed by unknown assembly %s" % [surface.id, surface.exposedBy])
 		surfaces[surface.id] = surface.duplicate(true)
+	# Openings inside a detached assembly (a hub sticker, a rotor) open in declared order.
+	for opening in part_openings:
+		if openings.has(opening.id):
+			errors.append("Duplicate opening: " + opening.id)
+		elif parts.get(opening.insideOf, {}).get("kind", "") != "assembly":
+			errors.append("Opening %s is inside unknown assembly %s" % [opening.id, opening.insideOf])
+		openings[opening.id] = opening.duplicate(true)
+	for opening in openings.values():
+		for required in opening.get("requires", []):
+			if not openings.has(required):
+				errors.append("Unknown opening requirement %s for %s" % [required, opening.id])
+	for surface in surfaces.values():
+		for required in surface.get("needsOpen", []):
+			if not openings.has(required):
+				errors.append("Contact surface %s needs unknown opening %s" % [surface.id, required])
 	for id in removal:
 		for required in removal[id]:
 			if not parts.has(required):
@@ -104,7 +120,7 @@ func check(kind: String, id: String, removed: Array = [], connected: Dictionary 
 		return deny("%s requires: %s" % [kind.capitalize(), ", ".join(required)], required)
 	return {"allowed": true, "missing": [], "reason": ""}
 
-func check_surface(kind: String, id: String, removed: Array = [], tool: String = "") -> Dictionary:
+func check_surface(kind: String, id: String, removed: Array = [], tool: String = "", opened: Array = []) -> Dictionary:
 	if not errors.is_empty():
 		return deny("Invalid service definitions: " + "; ".join(errors))
 	if not surfaces.has(id):
@@ -112,11 +128,44 @@ func check_surface(kind: String, id: String, removed: Array = [], tool: String =
 	if not SURFACE_TOOLS.has(kind):
 		return deny("Invalid contact-surface action: " + kind)
 	var surface: Dictionary = surfaces[id]
+	var label := String(surface.get("label", id))
 	if tool != SURFACE_TOOLS[kind]:
 		return deny("Use the %s to %s." % [SURFACE_TOOLS[kind].replace("-", " "), kind])
 	if kind == "apply" and not surface.get("applyPaste", false):
-		return deny("Apply fresh paste to the GPU die, not the %s." % String(surface.get("label", id)))
+		return deny("Apply fresh paste to the GPU die, not the %s." % label)
+	if kind not in surface.get("actions", ["scrape", "wipe", "apply"]):
+		return deny("Only the fan bearing takes oil." if kind == "oil" else String(surface.get("hint", "The %s does not need that." % label)))
 	var cover: String = surface.exposedBy
 	if installed(cover, removed, {}):
-		return deny("Remove the %s to reach the %s." % [cover.replace("-", " "), String(surface.get("label", id))], [cover])
+		return deny("Remove the %s to reach the %s." % [cover.replace("-", " "), label], [cover])
+	for required in surface.get("needsOpen", []):
+		if required not in opened:
+			return deny("Open the %s to reach the %s." % [String(openings[required].get("label", required)), label], [required])
+	return {"allowed": true, "missing": [], "reason": ""}
+
+## Opens or closes a part inside a detached assembly. Closing waits for anything opened after it.
+func check_opening(kind: String, id: String, removed: Array = [], opened: Array = [], tool: String = "") -> Dictionary:
+	if not errors.is_empty():
+		return deny("Invalid service definitions: " + "; ".join(errors))
+	if not openings.has(id):
+		return deny("Unknown opening: " + id)
+	if kind not in ["open", "close"]:
+		return deny("Invalid opening action: " + kind)
+	var opening: Dictionary = openings[id]
+	var label := String(opening.get("label", id))
+	if tool not in opening.get("tools", [""]):
+		return deny("Set the %s down before handling the %s." % [tool.replace("-", " "), label])
+	if installed(opening.insideOf, removed, {}):
+		return deny("Remove the %s to reach the %s." % [String(opening.insideOf).replace("-", " "), label], [opening.insideOf])
+	var required: Array = []
+	if kind == "open":
+		for dependency in opening.get("requires", []):
+			if dependency not in opened: required.append(dependency)
+		if not required.is_empty():
+			return deny("Open the %s first." % String(openings[required[0]].get("label", required[0])), required)
+	else:
+		for other in openings.values():
+			if id in other.get("requires", []) and other.id in opened: required.append(other.id)
+		if not required.is_empty():
+			return deny("Refit the %s first." % String(openings[required[0]].get("label", required[0])), required)
 	return {"allowed": true, "missing": [], "reason": ""}

@@ -83,7 +83,7 @@ func configure(owner_bench: Node3D) -> void:
 	var bar := HFlowContainer.new()
 	column.add_child(bar)
 	for item in [["Flip part", "flip"], ["Return tool", "return"], ["Screwdriver", "screwdriver"], ["Dev blower", "dev-blower"],
-			["Spudger", "spudger"], ["IPA wipe", "ipa-wipe"], ["Paste syringe", "paste-syringe"],
+			["Spudger", "spudger"], ["IPA wipe", "ipa-wipe"], ["Paste syringe", "paste-syringe"], ["Fan oiler", "fan-oiler"],
 			["Thermal camera (stand)", "thermal-camera"], ["Empty hands", ""], ["Close / Esc", "close"]]:
 		var button := Button.new()
 		button.text = item[0]
@@ -113,6 +113,10 @@ func configure(owner_bench: Node3D) -> void:
 		if mode == "service": status.text = message)
 	bench.paste.notice.connect(func(message: String):
 		if mode == "service": status.text = message)
+	bench.bearing.notice.connect(func(message: String):
+		if mode == "service": status.text = message)
+	bench.bearing.opened_changed.connect(func():
+		if mode == "service": frame_view())
 	overlay.hide()
 
 func contains_subject(node: Node) -> bool:
@@ -134,7 +138,6 @@ func show_view(kind: String, selected_part: Node3D = null) -> void:
 	proxies.clear()
 	pick = Picker.new()
 	pick.configure(bench, bench.gpu, camera, bench.service)
-	var branch: Node3D = subject
 	var subject_screws: Array = []
 	if mode == "service":
 		for id in bench.service.screw_seats:
@@ -159,28 +162,7 @@ func show_view(kind: String, selected_part: Node3D = null) -> void:
 	else:
 		pick.targets = pick.targets.filter(func(target): return contains_subject(target.node) or (target.action == "screw" and target.id in subject_screws))
 	subject_targets = pick.targets.duplicate()
-	var bounds: AABB = branch.global_transform * Contract.bounds_in(branch)
-	if mode == "bag":
-		center = branch.to_global(Vector3(0, 0.3, 0))
-		distance = 8.3
-		direction = Vector3(0, 1, 0.22).normalized()
-	else:
-		center = bounds.get_center()
-		distance = maxf(bounds.size.length() * 0.40 / tan(deg_to_rad(camera.fov * 0.5)), 1)
-		direction = (bench.camera_rig.camera.global_position - center).normalized()
-	status.text = ("GPU" if subject == bench.gpu else bench.service.assembly_name(String(subject.name)).to_upper()) + " SERVICE  /  Hold LMB: use tool   •   RMB drag: rotate   •   Wheel: zoom" if mode == "service" else "ENGINEER'S TOOL ROLL  /  Select a tool or its label. The last pocket is empty."
-	var face := paste_face()
-	if face != "":
-		# Paste work frames the exposed contact face, looking straight at it.
-		var face_layer: MeshInstance3D = bench.paste.faces[face].mesh
-		var span: float = (face_layer.mesh as PlaneMesh).size.length() * face_layer.global_basis.get_scale().x
-		center = face_layer.global_position
-		distance = maxf(span * 0.5 / tan(deg_to_rad(camera.fov * 0.5)), 0.2)
-		direction = (face_layer.global_basis.y.normalized() + face_layer.global_basis.z.normalized() * 0.35).normalized()
-		status.text = ("GPU DIE" if face == "die" else "HEATSINK BASE") + "  /  " + {
-			"spudger": "Hold and drag LMB to scrape the old crust",
-			"ipa-wipe": "Hold and rub LMB to lift the film and stray paste",
-			"paste-syringe": "Hold LMB to squeeze paste; drag to lay a line" if face == "die" else "Check the imprint. Fresh paste goes on the die"}[bench.tools.equipped_tool] + "   •   RMB drag: rotate   •   Wheel: zoom"
+	frame_view()
 	for button in bench.hud.tool_close_button.get_parent().get_children():
 		var id: String = button.get_meta("id")
 		button.visible = id == "close" or (id in ["flip", "return"] if mode == "service" else id not in ["flip", "return"])
@@ -193,6 +175,62 @@ func show_view(kind: String, selected_part: Node3D = null) -> void:
 	if mode == "bag":
 		bench.hud.refresh_tool_menu(bench.tools, bench.service, false)
 		bench.hud.tool_buttons["screwdriver"].grab_focus()
+
+## Frames the subject, or the exposed work surface for the equipped hand tool.
+func frame_view() -> void:
+	zoom = 1.0
+	var bounds: AABB = subject.global_transform * Contract.bounds_in(subject)
+	if mode == "bag":
+		center = subject.to_global(Vector3(0, 0.3, 0))
+		distance = 8.3
+		direction = Vector3(0, 1, 0.22).normalized()
+	else:
+		center = bounds.get_center()
+		distance = maxf(bounds.size.length() * 0.40 / tan(deg_to_rad(camera.fov * 0.5)), 1)
+		direction = (bench.camera_rig.camera.global_position - center).normalized()
+	status.text = ("GPU" if subject == bench.gpu else bench.service.assembly_name(String(subject.name)).to_upper()) + " SERVICE  /  Hold LMB: use tool   •   T: tools   •   RMB drag: rotate   •   Wheel: zoom" if mode == "service" else "ENGINEER'S TOOL ROLL  /  Select a tool or its label   •   T or Esc: close"
+	var face := paste_face()
+	if face != "":
+		# Paste work frames the exposed contact face, looking straight at it.
+		var face_layer: MeshInstance3D = bench.paste.faces[face].mesh
+		var span: float = (face_layer.mesh as PlaneMesh).size.length() * face_layer.global_basis.get_scale().x
+		center = face_layer.global_position
+		distance = maxf(span * 0.5 / tan(deg_to_rad(camera.fov * 0.5)), 0.2)
+		direction = (face_layer.global_basis.y.normalized() + face_layer.global_basis.z.normalized() * 0.35).normalized()
+		status.text = ("GPU DIE" if face == "die" else "HEATSINK BASE") + "  /  " + {
+			"spudger": "Hold and drag LMB to scrape the old crust",
+			"ipa-wipe": "Hold and rub LMB to lift the film and stray paste",
+			"paste-syringe": "Hold LMB to squeeze paste; drag to lay a line" if face == "die" else "Check the imprint. Fresh paste goes on the die"}[bench.tools.equipped_tool] + "   •   RMB drag: rotate   •   Wheel: zoom"
+	var part := bearing_face()
+	if part != "":
+		# With the rotor out, frame the shaft from the side or look down into the bearing.
+		var fan_basis: Basis = bench.bearing.fan.global_basis
+		var fan_scale: float = fan_basis.get_scale().x
+		if part == "shaft":
+			center = bench.bearing.shaft.global_position
+			distance = maxf(bench.bearing.SHAFT_LENGTH * 2.4 * fan_scale / tan(deg_to_rad(camera.fov * 0.5)), 0.05)
+			direction = (fan_basis.z.normalized() + fan_basis.y.normalized() * 0.25).normalized()
+			status.text = "FAN SHAFT  /  Hold and drag LMB along the shaft to wipe off the gunk"
+		else:
+			# Keep the rotor resting beside the housing in view so it can be clicked back in.
+			var sleeve: Vector3 = bench.bearing.sleeve.global_position
+			var hub: Vector3 = bench.bearing.rotor.global_position
+			center = sleeve.lerp(hub, 0.4)
+			distance = maxf(sleeve.distance_to(hub) * 0.9 / tan(deg_to_rad(camera.fov * 0.5)), 0.05)
+			direction = (fan_basis.y.normalized() + fan_basis.z.normalized() * 0.45).normalized()
+			status.text = "FAN BEARING  /  Hold LMB on the bearing for a drop of oil. Click the rotor to refit it"
+		status.text += "   •   RMB drag: rotate   •   Wheel: zoom"
+	elif mode == "service" and subject == bench.bearing.fan and "fan-assembly" in bench.service.removed:
+		status.text = "FAN SERVICE  /  " + ("Click the rotor to refit it" if "fan-rotor" in bench.bearing.opened else
+			"Click the hub to pull the rotor out" if "hub-label" in bench.bearing.opened else
+			"Click the hub sticker to peel it off") + "   •   RMB drag: rotate   •   Wheel: zoom"
+	update_camera()
+
+## The bearing part this service view should frame for the equipped tool, once the rotor is out.
+func bearing_face() -> String:
+	if mode != "service" or not bench.bearing.WORK.has(bench.tools.equipped_tool): return ""
+	if not contains_subject(bench.bearing.fan) or "fan-rotor" not in bench.bearing.opened: return ""
+	return "shaft" if bench.tools.equipped_tool == "ipa-wipe" else "bearing"
 
 ## The contact face this service view should frame for the equipped paste tool, if exposed.
 func paste_face() -> String:
@@ -230,12 +268,17 @@ func view_input(event: InputEvent) -> void:
 			if not event.pressed: bench.cancel_press()
 			elif bench.ready_for_action():
 				var hit: Dictionary = pick.hit_at(event.position)
-				if mode == "service" and bench.tools.equipped_tool == "dev-blower":
+				var opening: String = bench.bearing.click_target(hit.get("mesh")) if mode == "service" else ""
+				if opening != "" and bench.tools.equipped_tool in bench.bearing.HANDLING_TOOLS:
+					bench.bearing.operate(opening)
+				elif mode == "service" and bench.tools.equipped_tool == "dev-blower":
 					bench.cleaning.begin()
-				elif mode == "service" and bench.tools.equipped_tool in bench.tools.PASTE_TOOLS:
+				elif mode == "service" and bench.tools.equipped_tool in bench.tools.SURFACE_TOOLS:
 					bench.paste.begin()
-					var face: String = bench.paste.face_of(hit.get("mesh"))
-					if face == "": status.text = "Aim at the bare die or the heatsink base. Remove the heatsink first if it is still mounted."
+					bench.bearing.begin()
+					if bench.paste.face_of(hit.get("mesh")) == "" and bench.bearing.surface_of(hit.get("mesh")) == "":
+						status.text = ("Pull the rotor out, then work the shaft or the bearing." if contains_subject(bench.bearing.fan) and "fan-assembly" in bench.service.removed else
+							"Aim at the bare die or the heatsink base. Remove the heatsink first if it is still mounted.")
 				elif mode == "service" and hit.get("action") in ["screw", "screw_hole"]:
 					selected_screw = hit.target.get_meta("part_id")
 					bench.service.begin_screw(selected_screw)
@@ -263,10 +306,16 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.physical_keycode in [KEY_ESCAPE, KEY_TAB]:
 		request_close()
 		get_viewport().set_input_as_handled()
+	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_T:
+		# T swaps tools without leaving the job: the bag opens, then this close-up returns.
+		if mode == "service": bench.open_tool_menu(true)
+		else: request_close()
+		get_viewport().set_input_as_handled()
 	if event is InputEventMouseButton and not event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			bench.service.end_screw()
 			bench.paste.end()
+			bench.bearing.end()
 		if event.button_index == MOUSE_BUTTON_RIGHT: rotating = false
 
 func request_close() -> void:
@@ -294,7 +343,16 @@ func paste_under_pointer(delta: float) -> void:
 	if hit.is_empty() or not contains_subject(hit.mesh): return
 	bench.paste.work_at(hit, delta)
 
+func bearing_under_pointer(delta: float) -> void:
+	if mode != "service" or not bench.bearing.working or not bench.ready_for_action(): return
+	if not Rect2(Vector2.ZERO, surface.size).has_point(cleaning_pointer): return
+	var hit: Dictionary = pick.surface_hit_at(cleaning_pointer)
+	if hit.is_empty() or not contains_subject(hit.mesh): return
+	bench.bearing.work_at(hit, delta)
+
 func paste_progress() -> float:
+	var part := bearing_face()
+	if part != "": return bench.bearing.progress(part)
 	var face := paste_face()
 	if face == "": return 0.0
 	if bench.tools.equipped_tool == "paste-syringe":
@@ -332,6 +390,7 @@ func _process(delta: float) -> void:
 	cleaning_pointer = surface.get_local_mouse_position()
 	clean_under_pointer(delta)
 	paste_under_pointer(delta)
+	bearing_under_pointer(delta)
 	var id: String = bench.service.active_screw
 	if id != "": selected_screw = id
-	progress.value = subject_cleaning_progress() * 100 if bench.tools.equipped_tool == "dev-blower" else paste_progress() * 100 if bench.tools.equipped_tool in bench.tools.PASTE_TOOLS else bench.service.turns[selected_screw].progress * 100 if bench.service.turns.has(selected_screw) else 0
+	progress.value = subject_cleaning_progress() * 100 if bench.tools.equipped_tool == "dev-blower" else paste_progress() * 100 if bench.tools.equipped_tool in bench.tools.SURFACE_TOOLS else bench.service.turns[selected_screw].progress * 100 if bench.service.turns.has(selected_screw) else 0

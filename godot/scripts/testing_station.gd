@@ -1,5 +1,6 @@
 extends Node
 ## Moves the assembled GPU between the repair holder and the PCIe test fixture.
+const AudioMix = preload("res://scripts/audio_mix.gd")
 
 signal changed
 signal notice(text: String)
@@ -11,6 +12,8 @@ var inspection: Node
 var service: Node
 var tools: Node
 var cleaning: Node
+## Set by workbench.gd; a dry fan bearing grinds while the fan spins.
+var bearing: Node
 var home := Transform3D.IDENTITY
 var installed := false
 var moving := false
@@ -18,6 +21,7 @@ var motion: Tween
 var attach_audio: AudioStreamPlayer
 var quiet_audio: AudioStreamPlayer
 var loud_audio: AudioStreamPlayer
+var grind_audio: AudioStreamPlayer
 var muted := false
 var rotor: Node3D
 var rotor_home := Transform3D.IDENTITY
@@ -29,6 +33,8 @@ var fan_demand := 0.0
 # Visual turns/second are deliberately below real RPM to limit frame aliasing.
 const CLEAN_FAN_SPEED := 2.0
 const DIRTY_FAN_SPEED := 7.0
+## A supplied recording replaces the synthesized placeholder grind.
+const GRIND_RECORDING := "res://assets/sounds/fan_grind.wav"
 
 func configure(card: Node3D, test_board: Node3D, display: Node3D, inspect: Node,
 		gpu_service: Node, workbench_tools: Node, gpu_cleaning: Node) -> void:
@@ -44,18 +50,26 @@ func configure(card: Node3D, test_board: Node3D, display: Node3D, inspect: Node,
 	attach_audio = AudioStreamPlayer.new()
 	attach_audio.name = "GPUAttachSound"
 	attach_audio.stream = preload("res://assets/sounds/gpu_sounds/gpu_attach_short.wav")
+	attach_audio.bus = AudioMix.GPU_ATTACH
 	board.add_child(attach_audio)
 	rotor = gpu.find_child("fan-rotor", true, false)
 	rotor_home = rotor.transform
 	fan_label = gpu.find_child("fan-brand-label", true, false)
 	label_home = fan_label.transform
-	quiet_audio = make_fan_audio("QuietFan", preload("res://assets/sounds/ambient_gpu.wav"))
-	loud_audio = make_fan_audio("LoudFan", preload("res://assets/sounds/loud_gpu.wav"))
+	quiet_audio = make_fan_audio("QuietFan", preload("res://assets/sounds/ambient_gpu.wav"), AudioMix.FAN_QUIET)
+	loud_audio = make_fan_audio("LoudFan", preload("res://assets/sounds/loud_gpu.wav"), AudioMix.FAN_LOUD)
+	grind_audio = AudioStreamPlayer.new()
+	grind_audio.name = "BearingGrind"
+	grind_audio.stream = load(GRIND_RECORDING) if ResourceLoader.exists(GRIND_RECORDING) else make_grind_stream()
+	grind_audio.volume_db = -80.0
+	grind_audio.bus = AudioMix.FAN_GRIND
+	add_child(grind_audio)
 	build_display_cable()
 
-func make_fan_audio(node_name: String, source: AudioStreamWAV) -> AudioStreamPlayer:
+func make_fan_audio(node_name: String, source: AudioStreamWAV, bus: StringName) -> AudioStreamPlayer:
 	var player := AudioStreamPlayer.new()
 	player.name = node_name
+	player.bus = bus
 	var stream := source.duplicate() as AudioStreamWAV
 	# Loop the sustained middle of each recording, excluding its start/end.
 	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
@@ -73,17 +87,52 @@ func _process(delta: float) -> void:
 	fan_demand = lerpf(fan_demand, target_demand, 1.0 - exp(-delta * 3.0))
 	var target_speed := lerpf(CLEAN_FAN_SPEED, DIRTY_FAN_SPEED, fan_demand) if running else 0.0
 	fan_speed = move_toward(fan_speed, target_speed, delta * 10.0)
+	update_fan_audio(running)
+	# A stopped fan belongs to the bench: restore the authored pose once, then leave the
+	# rotor and sticker free for service (gpu_bearing.gd pulls and peels them).
+	if not running and fan_speed == 0.0:
+		if fan_angle != 0.0:
+			fan_angle = 0.0
+			rotor.transform = rotor_home
+			fan_label.transform = label_home
+		return
 	fan_angle = fposmod(fan_angle + fan_speed * TAU * delta, TAU)
 	# glTF converts Blender's rotor Z axis to Godot Y. Preserve imported bases.
 	var spin := Transform3D(Basis(Vector3.UP, fan_angle), Vector3.ZERO)
 	rotor.transform = rotor_home * spin
 	# The authored hub label is a sibling of the rotor; orbit it about that pivot.
 	fan_label.transform = rotor_home * spin * rotor_home.affine_inverse() * label_home
-	if not running and fan_speed == 0.0:
-		fan_angle = 0.0
-		rotor.transform = rotor_home
-		fan_label.transform = label_home
-	update_fan_audio(running)
+
+## Placeholder: gritty scraping pulses once per rotor turn over a rough low drone. Loops seamlessly.
+func make_grind_stream() -> AudioStreamWAV:
+	var rate := 22050
+	var length := rate * 2
+	var data := PackedByteArray()
+	data.resize(length * 2)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 710
+	var fast := 0.0
+	var slow := 0.0
+	var tick := 0.0
+	for n in range(length):
+		var t := float(n) / rate
+		var scrape := pow(0.5 + 0.5 * sin(TAU * 14.0 * t), 6.0)
+		var noise := rng.randf_range(-1.0, 1.0)
+		# Difference of two one-pole low-passes: a crude band-pass for grit.
+		fast += (noise - fast) * 0.35
+		slow += (noise - slow) * 0.06
+		tick = 1.0 if rng.randf() < 0.0012 else tick * 0.985
+		var drone := sin(TAU * 95.0 * t + 2.0 * sin(TAU * 7.0 * t)) * (0.4 + 0.6 * scrape)
+		var sample := (fast - slow) * (0.35 + 0.9 * scrape) + 0.22 * drone + 0.35 * tick * noise
+		data.encode_s16(n * 2, clampi(roundi(sample * 0.6 * 32767.0), -32768, 32767))
+	var stream := AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = rate
+	stream.stereo = false
+	stream.data = data
+	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	stream.loop_end = length
+	return stream
 
 func update_fan_audio(running: bool) -> void:
 	for player in [quiet_audio, loud_audio]:
@@ -93,6 +142,10 @@ func update_fan_audio(running: bool) -> void:
 	# Preserve the recordings' character; add the stronger layer as dust rises.
 	quiet_audio.volume_db = -80.0 if muted else linear_to_db(maxf(0.0001, spin_gain * lerpf(0.35, 0.15, fan_demand)))
 	loud_audio.volume_db = -80.0 if muted else linear_to_db(maxf(0.0001, spin_gain * fan_demand))
+	var grinding: bool = running and bearing != null and bearing.dry
+	if grinding and not grind_audio.playing: grind_audio.play()
+	elif not grinding and fan_speed == 0.0: grind_audio.stop()
+	grind_audio.volume_db = -80.0 if muted or bearing == null or not bearing.dry else linear_to_db(maxf(0.0001, spin_gain * 0.6))
 
 func build_display_cable() -> void:
 	var cable := Node3D.new()
@@ -157,11 +210,11 @@ func attach() -> bool:
 	motion.finished.connect(func():
 		installed = true
 		moving = false
-		monitor.set_connection(true, cleaning.progress)
+		monitor.set_connection(true)
 		if attach_audio.stream != null:
 			attach_audio.play()
 		changed.emit()
-		notice.emit("GPU seated in the test board. %s" % ("Tetris test running." if monitor.powered else "Press the monitor power button.")))
+		notice.emit("GPU seated in the test board. %s" % ("Racing test running." if monitor.powered else "Press the monitor power button.")))
 	return true
 
 func detach() -> bool:
@@ -182,7 +235,7 @@ func detach() -> bool:
 	return true
 
 func _exit_tree() -> void:
-	for player in [quiet_audio, loud_audio]:
+	for player in [quiet_audio, loud_audio, grind_audio]:
 		if player != null:
 			player.stop()
 			player.stream = null

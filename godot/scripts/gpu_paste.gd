@@ -22,6 +22,7 @@ const CLEAN_THRESHOLD := 0.05
 const DISPLAY_THICKNESS := 3.0
 const SQUEEZE_RATE := 110.0
 const SHADER = preload("res://shaders/paste_layer.gdshader")
+const AudioMix = preload("res://scripts/audio_mix.gd")
 const WORK := {"spudger": "scrape", "ipa-wipe": "wipe", "paste-syringe": "apply"}
 const SURFACES := [
 	{"id": "die", "exposedBy": "cooler-assembly", "applyPaste": true, "label": "GPU die"},
@@ -74,6 +75,7 @@ func configure(world: Node3D) -> void:
 	jingle = AudioStreamPlayer.new()
 	jingle.stream = preload("res://assets/sounds/clean_jingle.wav")
 	jingle.volume_db = -4.0
+	jingle.bus = AudioMix.JINGLE
 	add_child(jingle)
 	reset_dried()
 

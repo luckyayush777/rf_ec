@@ -10,14 +10,14 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 - Imported workshop interior with a brick back wall, painted side wall, tiled floor, background instrument bench, oscilloscope, labelled parts bins, soldering station, stool and trolley. The runtime is enclosed for first-person play; the editor keeps a cutaway overview. The props are scenery. See [room authoring](../models/shop-interior.md).
 - Native, editable repair-desk scene with mat, holder jaws, tray, canvas tool roll, simplified lamp/spare-parts props, and floor.
 - Imported second testing desk, aligned beside the repair desk using tabletop bounds.
-- Native LCD test monitor with a physical power button, status LED and a visible signal cable to the testing board. The assembled GPU seats in the board and returns to its repair holder; the monitor runs a deterministic Tetris-style falling-block demo at a simulated rate tied to cleaning progress (8 FPS dirty, up to 60 FPS clean). Attachment and power-on sounds are included.
+- Native LCD test monitor with a physical power button, status LED and a visible signal cable to the testing board. The assembled GPU seats in the board and returns to its repair holder; the monitor runs a deterministic pseudo-3D racing demo whose simulated rate follows the card's core clock. The clock holds 1905 MHz below 70 degrees C and drops in 15 MHz bins to 600 MHz at the 105 degrees C limit (60 FPS at full clock, down to 8 FPS fully throttled); a throttling card also stutters with uneven frame pacing and hitches. Hot VRAM does not slow the feed; it shows memory errors as sparkling pixels, garbage blocks and torn rows. The monitor lists the lap time, core **MHZ** and **GPU °C**. Attachment and power-on sounds are included.
 - The test-board GPU fan spins with its hub label while the housing stays fixed. Dustier cards run faster and blend in `loud_gpu.wav`; clean cards settle to `ambient_gpu.wav`. Speed and sound ease toward the current cleanliness, including live debug cleaning. Removing the card stops the loops and spins the rotor down to its authored pose. Monitor power controls only the display; the seated card keeps running. These are simulated cooling responses, not measured RPM or temperature.
 - First-person-only play: WASD walking, captured mouse-look, capsule collision against the room/desks, a centred interaction prompt and distance-limited picking. Tab/Escape releases the mouse; focus loss pauses active holds. Orbit poses remain only for existing automated service fixtures.
 - Handheld thermal camera on the repair desk, with a live low-resolution display and RMB viewfinder. Both display the aimed surface temperature in degrees C, its name, and a spot crosshair. The fixed 20-100 degrees C palette shows visible surface heat at 9 Hz, with a spot readout and an approximation warning for reflective metal. Separate memory/core/cooler temperatures warm under test-board power and cool gradually when disconnected. Internal fan/heatsink dust is the main fault. Existing front/rear memory packages have native U1-U10 / VRAM markings.
 - Surface picking, animated whole-GPU lift/set-down, independent inspection rotation/zoom, and flip.
 - Holder jaws open during inspection and close when the GPU returns.
 - Metadata adapter that validates named parts and original parent relationships, records original transforms, and creates service definitions.
-- Animated canvas tool bag pulled toward the front of the bench, clear of the screw tray, with six stitched pockets, retaining straps, and one empty pocket. Clicking it opens a large live 3D view over the blurred room and unrolls the fabric; click a visible tool or its keyboard-accessible label. Switching returns the previous tool, and closing rolls the bag shut. The thermal camera remains on its stand and is also selectable from the footer.
+- Animated canvas tool bag pulled toward the front of the bench, clear of the screw tray, with six stitched pockets and retaining straps; the fan oiler fills the last pocket. Clicking it opens a large live 3D view over the blurred room and unrolls the fabric; click a visible tool or its keyboard-accessible label. Switching returns the previous tool, and closing rolls the bag shut. The thermal camera remains on its stand and is also selectable from the footer.
 - Screwdriver equip/return, automatic toolbox opening, and desk placement/retrieval with footprint and obstacle checks. Inspection can continue with the screwdriver equipped.
 - Fan cable unplug/reconnect with plug animation and wire deformation. Cable handling requires empty hands; cooler screws require the cable unplugged.
 - All eight screws support 1.5-second hold-to-turn removal/refit, independent paused progress, labeled tray slots, and exact original parent/transform restoration. Shallow screw seats remain visible when screws move to the tray; click an empty seat with the screwdriver to seat that screw immediately, then hold to tighten it in place. Released screws retain their progress and follow the GPU.
@@ -26,10 +26,12 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 - Focus works on the full card or a selected detached fan/heatsink. E picks up a detached part even with a tool equipped; R opens its focus view; E on the mat places the part while keeping your tool. Tools can be picked up or returned while holding the part. New metadata-defined assemblies share this inspection path. Detaching/refitting still requires empty hands. Holding a detached fan does not block screwdriver work on the remaining board; full, partially dismantled, and bare boards remain serviceable on the mat. After returning the tool in focus, click the cable to unplug it or a loosened assembly to lift it.
 - Focus cleaning: hold LMB and sweep over visible dust; RMB drag or Flip part exposes the backplate. Only the selected part and its live dust masks appear in focus; the progress bar tracks that part. A large Return tool area puts the equipped tool away and leaves the card view open.
 - Development-only **Dev blower** in the toolbox. Its nozzle follows the crosshair and must point at a visible part to remove dust. Holding the trigger plays the supplied air recording, with its steady section looped. The Tab menu shows overall and per-part cleanliness. At 98% cleanliness, that part's remaining dust clears and its jingle plays once (unless sound is muted).
-- Debug builds also have **Debug: Clean GPU** and **Debug: Disassemble GPU** in the bottom panel. Clean GPU clears every dust mask and updates a connected test monitor to 60 simulated FPS immediately. Disassemble GPU unplugs the cable, moves all eight screws to their tray slots, and places the fan and heatsink on the repair table; normal refitting still works afterward. Disassembly is available when the GPU is set down and off the test board.
+- Debug builds also have **Debug: Clean GPU** and **Debug: Disassemble GPU** in the bottom panel. Clean GPU clears every dust mask; a connected test monitor recovers as the card cools (dried paste still throttles it). Disassemble GPU unplugs the cable, moves all eight screws into their tray rows, and lays the heatsink and fan out on the mat just left of the card; normal refitting still works afterward. Disassembly is available when the GPU is set down and off the test board.
 - Low-density dust remains visible until its mask is fully erased. In debug builds, the bottom **highlight dust** button toggles a magenta view of remaining dust through parts. If dust remains 30 seconds after equipping the Dev blower, this view turns on automatically. Rotate, flip or remove parts to expose dust before cleaning it.
 - Pointer release, Escape and window focus loss pause active screw turns. Tool/cable/inspection changes are blocked during active service animations.
 - Screwdriver, blower and cleaning jingles share a sound toggle; see [asset credits](ASSET_CREDITS.md).
+- **Repair status overlay** (debug builds, developer aid): switch it on with **Repair status overlay** in the Escape menu's debug panel; the choice is remembered. It lists Dust, Thermal paste, Fan bearing, Assembly and the live Test run readout, each red (broken or untouched), yellow (in progress) or green (done), with hidden truth such as paste contact percentage. It stays visible during play and above focus views.
+- **Sound mix**: press Escape in play to release the mouse and open a panel with a Master slider and one slider per sound (fan quiet/loud loops, bearing grind, blower air, screwdriver, clean jingle, GPU seating, monitor button, sticker peel), from silent to 200%. Changes apply live. Run from the editor, they save into `default_bus_layout.tres`, so they can be committed and are also editable in the editor's bottom **Audio** tab; exported builds save them to user settings.
 - Service-rule evaluator, exercised against 1,024 checked-in expected decisions and used by the live cable/screw controller.
 
 ## Controls
@@ -44,6 +46,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 | Carry GPU to testing | With an assembled GPU and empty tool hand, E on the test board; a held card transfers directly |
 | Remove tested card | E on the installed card or board; it returns to the holder |
 | Monitor power | E on its physical button; monitor power does not disconnect board power |
+| Switch tool (anywhere) | **T**: opens the tool bag from anywhere, including while holding a part or inside a service close-up. Pick a tool (or Empty hands) and you return to where you were; from a close-up it reopens on the same part, framed for the new tool. T or Esc closes the bag. |
 | Select / switch tool | Click the tool bag or press E on it; wait for it to unroll, then click a tool or select its label with arrow keys + Enter. Esc rolls it closed. |
 | Open GPU service window | With screwdriver, blower or a paste tool equipped, click the GPU/backplate, screw or empty seat. E picks up the GPU instead; R while holding it opens focus. The room blurs behind the sharp GPU. RMB drag rotates the view; wheel zooms; Flip part reveals the other side. Click Return tool to put the tool away without closing focus. Esc closes. |
 | Turn/refit screw | In the service window, hold LMB on a screw or empty seat. A refit screw seats immediately; holding turns it, releasing pauses. |
@@ -53,6 +56,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 | Clean dust | Equip Dev blower, hold LMB and sweep over exposed surfaces; remove assemblies to reach internal dust |
 | Thermal camera | E on orange camera on the repair desk; hold RMB for its larger viewfinder |
 | Repaste | With the heatsink removed, equip spudger / IPA wipe / paste syringe and click the GPU or detached heatsink. Hold LMB on the framed die or base to scrape, wipe or squeeze. See [Repasting](#repasting). |
+| Oil the fan bearing | In focus on the detached fan: click the hub sticker, then the hub to pull the rotor. Hold LMB along the shaft with the IPA wipe, then on the bearing with the fan oiler. Click the rotor to refit it. See [Fan bearing](#fan-bearing). |
 | Place / retrieve a tool | E on clear repair tabletop / E on placed tool |
 | Return equipped tool | Q; thermal camera returns to its desk stand, other tools to the toolbox |
 | Debug clean/disassemble and dust highlight | Tab to release mouse and open the debug cleaning menu |
@@ -65,7 +69,7 @@ pickup objects. There is no jumping or free physics throwing.
 
 ## Thermal investigation loop
 
-Seat the dirty, assembled GPU in the test board and give it about 30-60 seconds to
+Seat the dirty, assembled GPU in the test board and give it about 6 seconds to
 warm. Take the orange thermal camera and walk around to the exposed rear VRAM
 packages. Hold RMB and note their surface readings and the fixed colour scale.
 Front memory covered by the cooler is occluded, just as it is in the ordinary view.
@@ -83,7 +87,9 @@ and 94 degrees C fully dusty, approached gradually. Surface readings differ from
 internal model values. Emissivity is simplified (0.95 for packages, lower for shiny
 GPU metal); real camera calibration, reflections, per-texel heat diffusion and
 hardware-specific safe limits are not simulated. Bad pads and electrical faults are
-not implemented. FPS/fan sound still use the existing cleanliness-driven presentation model.
+not implemented. Fan sound still follows cleaning progress. The racing feed follows the model:
+the core clock (and so FPS) drops from 70 degrees C, and VRAM above 80 degrees C shows memory
+errors that are fully visible by 92 degrees C.
 
 ### Dried die paste
 
@@ -93,7 +99,9 @@ appears as **GPU °C** on the powered test monitor. Compare that reading with th
 heatsink on the thermal camera. Dust heats both. Dried paste traps heat in the die,
 so the core runs hot (throttling at 105 degrees C) while the heatsink stays *cooler*
 than healthy. Model targets with clean parts are core 53 / heatsink 38 degrees C with
-fresh paste, and about 80 / 33 with dried paste. VRAM heat is unaffected by paste.
+fresh paste, and about 80 / 33 with dried paste. VRAM heat is unaffected by paste, so
+a paste fault throttles the racing feed (lower MHZ/FPS) without memory errors, while
+dust near the VRAM adds artifacts.
 Debug builds have **Debug: Dry paste** and **Debug: Fresh paste** in the bottom panel.
 
 ### Repasting
@@ -123,9 +131,31 @@ dried compound. Refitting over any paste state is allowed; the monitor's **GPU �
 and the thermal camera show the result under load. Paste thickness, mounting pressure
 and screw-tightening order are not modelled yet.
 
+### Fan bearing
+
+The 710's cheap sleeve-bearing fan starts dry and gummed up, so it grinds whenever it
+spins on the test board (a synthesized placeholder until `assets/sounds/fan_grind.wav`
+is supplied). The fix happens in focus on the detached fan:
+
+1. **Peel the hub sticker**: click it (bare hands, spudger, IPA wipe or fan oiler). It
+   peels slowly over the length of the supplied crackle recording (about 2 s).
+2. **Pull the rotor**: click the hub. The rotor lifts out and rests face down beside the
+   housing with its shaft up; the bearing boss and its three struts are exposed.
+3. **IPA wipe** on the shaft: hold and drag along it. The wipe wraps round the thin
+   shaft, so a stroke cleans every side; it clears with a jingle at about 95%.
+4. **Fan oiler** (last tool-roll pocket) on the bearing: hold for drops, the first
+   shortly after pressing and then one every 0.4 s. One or two drops is enough.
+5. **Refit the rotor**: click it. The sticker presses back on with it. A clean, oiled
+   bearing spins quietly; a skipped step leaves it grinding, and the notice says which.
+
+The fan cannot be mounted while its rotor is out. A fan mounted with only its sticker
+peeled gets the sticker pressed back on. Debug builds have **Debug: Dry bearing** and
+**Debug: Oil bearing**. Worn (wobbly) bearings, over-oiling and fan replacement are
+not modelled yet, and the bearing does not affect temperatures.
+
 ## Pending gameplay
 
-The regular blower, paste thickness/mounting pressure, directional pad scraping, comparison view, job progression, air particles and general interaction highlights are pending. Imported pad remnants are geometry only. Replacement pads have no gameplay yet. The falling-block feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
+The regular blower, paste thickness/mounting pressure, directional pad scraping, comparison view, job progression, air particles and general interaction highlights are pending. Imported pad remnants are geometry only. Replacement pads have no gameplay yet. The racing feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
 
 No deployment workflow or export preset is configured.
 
@@ -135,9 +165,10 @@ No deployment workflow or export preset is configured.
 | --- | --- |
 | `scenes/workbench.tscn` | Main composition, asset instances, camera, lighting, environment, and controller nodes. |
 | `scenes/repair_desk.tscn` | Editable desk/mat/holder/tray and prop meshes. |
-| `scenes/toolbox.tscn` | Screwdriver, Dev blower, spudger, IPA wipe and paste syringe meshes; tool_roll.gd builds the canvas bag, pockets, straps and rolling geometry and places tools from its `POCKETS` table. |
-| `scenes/test_monitor.tscn`, `scripts/test_monitor.gd` | Editable LCD housing, power button, sound, deterministic falling-block display and GPU core sensor readout. |
-| `scripts/testing_station.gd` | PCIe fixture interaction, GPU transfer, monitor connection, signal cable, fan animation and cleanliness-driven fan audio. |
+| `scenes/toolbox.tscn` | Screwdriver, Dev blower, spudger, IPA wipe, paste syringe and fan oiler meshes; tool_roll.gd builds the canvas bag, pockets, straps and rolling geometry and places tools from its `POCKETS` table. |
+| `scenes/test_monitor.tscn`, `scripts/test_monitor.gd` | Editable LCD housing, power button, sound, deterministic pseudo-3D racing display driven by core clock, VRAM error artifacts and GPU core sensor/clock readout. |
+| `scripts/testing_station.gd` | PCIe fixture interaction, GPU transfer, monitor connection, signal cable, fan animation, cleanliness-driven fan audio and dry-bearing grind. |
+| `scripts/gpu_bearing.gd`, `shaders/shaft_gunk.gdshader` | Fan sleeve bearing: runtime bearing boss, struts and shaft, hub-sticker peel, rotor pull/refit, shaft gunk wipe, oil drops and the dry/serviced state. |
 | `scenes/shop_interior.tscn`, `scripts/shop_interior.gd` | Imported workshop shell and props, editor-visible layout conversion and cutaway visibility. |
 | `scripts/workbench.gd` | Startup, controller wiring, input arbitration, desk alignment, placement obstacles and jaw motion. |
 | `scripts/bench_closeup.gd`, `scripts/tool_roll.gd` | Live GPU/tool-bag viewing windows, isolated mesh proxies, mouse picking, orbit/zoom and segmented fabric animation. |
@@ -147,13 +178,15 @@ No deployment workflow or export preset is configured.
 | `scripts/gpu_service.gd` | Cable state/deformation, screw progress, assembly handling/placement, exact refit and screwdriver audio. |
 | `scripts/interaction_picker.gd` | Cached triangle picking, live-transform tracking, depth-tested screw/plug targets, cleaning rays through fan-hub decoration, surface normals and action routing. |
 | `scripts/first_person.gd` | Runtime walking body, collision generation, mouse capture/look and reach. `orbit_camera.gd` supplies only legacy test poses. |
-| `scripts/gpu_thermal.gd` | Dust- and paste-dependent heating/cooling, core throttle limit, surface temperature/emissivity and VRAM markings. |
+| `scripts/gpu_thermal.gd` | Dust- and paste-dependent heating/cooling (about 6 s powered warm-up), core throttle limit and boost-clock bins, VRAM error rate, surface temperature/emissivity and VRAM markings. |
 | `scripts/gpu_paste.gd`, `shaders/paste_layer.gdshader` | Die and heatsink-base paste layers (crust, film, fresh paste per cell), scrape/wipe/squeeze brushes, pressure spread on seating, lift imprint, contact quality and debug dry/fresh. |
 | `scripts/thermal_camera.gd`, `shaders/thermal_surface.gdshader`, `scenes/thermal_camera.tscn` | Pickup instrument, separate depth-tested thermal world, display, spot readout and fixed palette. |
 | `scripts/gpu_inspection.gd` | Whole-GPU inspection state and exact home-transform restoration. |
-| `scripts/hud.gd` | Native UI and signals; closeup provides the tool selection view, and workbench owns switching guards. |
+| `scripts/repair_status.gd` | Debug-only repair status rows (dust, paste, bearing, assembly, test run) for the Escape-menu overlay. |
+| `scripts/audio_mix.gd`, `default_bus_layout.tres` | Named mixer buses (one per sound plus Master), levels, reset and saving. |
+| `scripts/hud.gd` | Native UI and signals, including the Escape-menu sound mix panel; closeup provides the tool selection view, and workbench owns switching guards. |
 | `scripts/asset_contract.gd` | Map source part names to imported nodes, validate parents, capture transforms. |
-| `scripts/service_rules.gd` | Pure dependency/tool checks, plus `check_surface` for paste-face reach and tool choice. Invalid graphs fail closed with errors. |
+| `scripts/service_rules.gd` | Pure dependency/tool checks, plus `check_surface` for paste-face and bearing reach and tool choice, and `check_opening` for the fan's sticker/rotor order. Invalid graphs fail closed with errors. |
 | `assets/gpu-parts.json` | Generated part metadata and source asset SHA-256 hashes. |
 | `tools/sync_assets.py` | Copies Blender GLBs and extracts part metadata using Python standard library. |
 | `tests/fixtures/service-rules.json` | Checked-in expected service decisions; no generation step or external toolchain. |
@@ -195,6 +228,10 @@ $godotExe = 'C:\Users\user\Desktop\ayush.dev\godot\Godot_v4.7.2-stable_win64_con
 & $godotExe --headless --path godot --script res://tests/part_focus_flow.gd
 & $godotExe --headless --path godot --script res://tests/staged_disassembly_flow.gd
 & $godotExe --headless --path godot --script res://tests/repaste_flow.gd
+& $godotExe --headless --path godot --script res://tests/fan_bearing_flow.gd
+& $godotExe --headless --path godot --script res://tests/audio_mix_flow.gd
+& $godotExe --headless --path godot --script res://tests/repair_status_flow.gd
+& $godotExe --headless --path godot --script res://tests/tool_hotkey_flow.gd
 
 # Run the game, or open the editor.
 & $godotExe --path godot

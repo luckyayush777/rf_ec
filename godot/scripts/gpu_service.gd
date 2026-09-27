@@ -1,6 +1,7 @@
 extends Node
 ## Cable, fastener and assembly state. Every entry point checks rules and action guards.
 const Contract = preload("res://scripts/asset_contract.gd")
+const AudioMix = preload("res://scripts/audio_mix.gd")
 signal changed
 signal notice(text: String)
 ## An assembly left, or returned to, its mounted home. Contact faces react to these.
@@ -31,6 +32,15 @@ var wires: Array = []
 var motion: Tween
 var muted := false
 var audio: AudioStreamPlayer
+## Tray slots in RepairDesk space (scenes/repair_desk.tscn): four per row under the FAN and COOLER labels.
+const TRAY_FIRST_SLOT_X := 3.1
+const TRAY_SLOT_SPACING := 0.48
+const TRAY_FAN_ROW_Z := 3.38
+const TRAY_COOLER_ROW_Z := 4.12
+## Space between parts laid out by the debug disassembly.
+const DEBUG_LAYOUT_GAP := 0.3
+## Controller guard for part state the rules do not track (a fan's pulled rotor); returns a reason or "".
+var refit_block: Callable = func(_id: String) -> String: return ""
 var busy: bool:
 	get: return moving or not active_screw.is_empty()
 
@@ -63,6 +73,7 @@ func configure(parts: Dictionary, evaluator: RefCounted, scene: Node3D, view_cam
 	audio = AudioStreamPlayer.new()
 	audio.stream = preload("res://assets/manual-screwdriver.wav")
 	audio.volume_db = -4.0
+	audio.bus = AudioMix.SCREWDRIVER
 	add_child(audio)
 
 func create_screw_seat(id: String) -> void:
@@ -116,18 +127,22 @@ func debug_disassemble() -> bool:
 	for id in fan_screws + cooler_screws:
 		var part: Node3D = contract.objects[id]
 		part.reparent(world, true)
-		var fan: bool = id in fan_screws
-		var index: int = (fan_screws if fan else cooler_screws).find(id)
-		part.global_transform = Transform3D(Basis(Vector3.BACK, PI / 2).scaled(part.global_basis.get_scale()),
-			Vector3(3.1 + index * 0.48, 0.20, 3.38 if fan else 4.12))
+		part.global_transform = tray_slot(id, part)
 		removed.append(id)
-	debug_place_assembly("fan-assembly", Vector3(-7, 0.05, 4))
-	debug_place_assembly("cooler-assembly", Vector3(-2, 0.05, -4))
+	# Lay the parts out on the mat beside the card: heatsink nearest (it refits first), then fan.
+	var mat: MeshInstance3D = world.get_node("RepairDesk/Mat")
+	var mat_top: float = (mat.global_transform * mat.get_aabb()).end.y
+	var card: AABB = contract.objects["gpu"].global_transform * Contract.bounds_in(contract.objects["gpu"])
+	var edge := card.position.x - DEBUG_LAYOUT_GAP
+	for id in ["cooler-assembly", "fan-assembly"]:
+		edge = debug_place_assembly(id, edge, card.get_center().z, mat_top) - DEBUG_LAYOUT_GAP
 	changed.emit()
 	notice.emit("Debug: GPU fully disassembled. Refit the heatsink, then fan, screws and cable.")
 	return true
 
-func debug_place_assembly(id: String, table_point: Vector3) -> void:
+## Places an upright assembly with its right edge at right_edge, centred on z, resting on the
+## surface at top (the same 0.025 clearance as player placement). Returns its left edge.
+func debug_place_assembly(id: String, right_edge: float, z: float, top: float) -> float:
 	var part: Node3D = contract.objects[id]
 	var home: Transform3D = contract.objects["gpu"].global_transform * contract.homes["cooler-assembly"].transform
 	if id == "fan-assembly": home *= contract.homes[id].transform
@@ -135,11 +150,24 @@ func debug_place_assembly(id: String, table_point: Vector3) -> void:
 	part.global_transform = home
 	part.visible = true
 	var bounds: AABB = part.global_transform * Contract.bounds_in(part)
-	var offset := table_point - bounds.get_center()
-	offset.y = table_point.y + 0.025 - bounds.position.y
-	part.global_position += offset
+	part.global_position += Vector3(right_edge - bounds.end.x, top + 0.025 - bounds.position.y, z - bounds.get_center().z)
 	removed.append(id)
 	assembly_detached.emit(id)
+	return right_edge - bounds.size.x
+
+## A removed screw's resting place in the desk tray: fan screws in the FAN row, cooler screws in
+## the COOLER row. Slots are authored in RepairDesk space so they follow the desk.
+func tray_slot(id: String, part: Node3D) -> Transform3D:
+	var fan: bool = id in fan_screws
+	var index: int = (fan_screws if fan else cooler_screws).find(id)
+	var basis := Basis(Vector3.BACK, PI / 2).scaled(part.global_basis.get_scale())
+	var desk: Node3D = world.get_node("RepairDesk")
+	var tray: MeshInstance3D = desk.get_node("Tray")
+	var floor_y: float = (tray.global_transform * tray.get_aabb()).end.y
+	var origin: Vector3 = desk.global_transform * Vector3(TRAY_FIRST_SLOT_X + index * TRAY_SLOT_SPACING, 0, TRAY_FAN_ROW_Z if fan else TRAY_COOLER_ROW_Z)
+	# Rest the lying screw on the tray floor.
+	origin.y = floor_y - (Transform3D(basis, Vector3.ZERO) * Contract.bounds_in(part)).position.y
+	return Transform3D(basis, origin)
 
 func decision(kind: String, id: String) -> Dictionary:
 	return rules.check(kind, id, removed, {"fan-plug": cable_connected}, get_tool.call())
@@ -253,9 +281,7 @@ func complete_screw(id: String) -> void:
 		return
 	removed.append(id)
 	part.reparent(world, true)
-	var fan: bool = id in fan_screws
-	var index: int = (fan_screws if fan else cooler_screws).find(id)
-	var destination := Transform3D(Basis(Vector3.BACK, PI / 2).scaled(part.global_basis.get_scale()), Vector3(3.1 + index * 0.48, 0.20, 3.38 if fan else 4.12))
+	var destination := tray_slot(id, part)
 	var origin := part.global_transform
 	moving = true
 	changed.emit()
@@ -380,6 +406,10 @@ func refit_assembly() -> bool:
 	var check := decision("refit", id)
 	if not check.allowed:
 		notice.emit(check.reason)
+		return false
+	var blocked: String = refit_block.call(id)
+	if blocked != "":
+		notice.emit(blocked)
 		return false
 	var part: Node3D = contract.objects[id]
 	var home: Dictionary = contract.homes[id]

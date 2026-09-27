@@ -8,6 +8,17 @@ const PASTE_CORE_RISE := 32.0
 const PASTE_COOLER_DROP := 6.0
 ## The core throttles rather than climbing without limit.
 const CORE_LIMIT := 105.0
+## Boost bins drop from THROTTLE_START and bottom out at the limit; performance follows the clock.
+const BOOST_CLOCK := 1905
+const THROTTLED_CLOCK := 600
+const CLOCK_BIN := 15
+const THROTTLE_START := 70.0
+## Hot VRAM does not slow the core. It corrupts data, which the test feed shows as artifacts.
+const MEMORY_ERROR_START := 80.0
+const MEMORY_ERROR_FULL := 92.0
+## Powered parts settle within about three time constants, so a test run warms up in ~6 s.
+const WARMUP_TIME_CONSTANT := 2.0
+const COOLDOWN_TIME_CONSTANT := 40.0
 var memory_c := AMBIENT
 var core_c := AMBIENT
 var cooler_c := AMBIENT
@@ -57,12 +68,21 @@ func advance(delta: float) -> void:
 	var memory_target := lerpf(48.0, 94.0, dust) if powered else AMBIENT
 	var core_target := minf(lerpf(53.0, 98.0, dust) + PASTE_CORE_RISE * paste, CORE_LIMIT) if powered else AMBIENT
 	var cooler_target := lerpf(38.0, 65.0, dust) - PASTE_COOLER_DROP * paste if powered else AMBIENT
-	var response := 1.0 - exp(-delta / (14.0 if powered else 40.0))
+	var response := 1.0 - exp(-delta / (WARMUP_TIME_CONSTANT if powered else COOLDOWN_TIME_CONSTANT))
 	memory_c = lerpf(memory_c, memory_target, response)
 	core_c = lerpf(core_c, core_target, response)
 	cooler_c = lerpf(cooler_c, cooler_target, response)
 	# The die is hidden under the heatsink; its sensor reading is shown on the test monitor.
-	bench.test_monitor.set_core_temperature(core_c)
+	bench.test_monitor.set_sensors(core_c, core_clock(), memory_error_rate())
+
+func throttle() -> float:
+	return clampf((core_c - THROTTLE_START) / (CORE_LIMIT - THROTTLE_START), 0.0, 1.0)
+
+func core_clock() -> int:
+	return roundi(lerpf(BOOST_CLOCK, THROTTLED_CLOCK, throttle()) / CLOCK_BIN) * CLOCK_BIN
+
+func memory_error_rate() -> float:
+	return clampf((memory_c - MEMORY_ERROR_START) / (MEMORY_ERROR_FULL - MEMORY_ERROR_START), 0.0, 1.0)
 
 func category(mesh: MeshInstance3D) -> String:
 	var id := String(mesh.name)

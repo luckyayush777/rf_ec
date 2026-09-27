@@ -4,25 +4,28 @@ signal changed
 signal notice(text: String)
 
 const PASTE_TOOLS := ["spudger", "ipa-wipe", "paste-syringe"]
-const TOOLS := ["screwdriver", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe"]
+## Hand tools that work a surface in focus: the paste kit and the fan oiler.
+const SURFACE_TOOLS := PASTE_TOOLS + ["fan-oiler"]
+const TOOLS := ["screwdriver", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler"]
 ## Roll-pocket tools and their node names in scenes/toolbox.tscn.
-const ROLL_NODES := {"screwdriver": "Screwdriver", "dev-blower": "DevBlower", "spudger": "Spudger", "ipa-wipe": "IpaWipe", "paste-syringe": "PasteSyringe"}
+const ROLL_NODES := {"screwdriver": "Screwdriver", "dev-blower": "DevBlower", "spudger": "Spudger", "ipa-wipe": "IpaWipe", "paste-syringe": "PasteSyringe", "fan-oiler": "FanOiler"}
 const EQUIP_NOTICES := {
 	"screwdriver": "Screwdriver equipped. Click the GPU for a close-up, then hold a screw to turn it.",
 	"dev-blower": "Hold and sweep over dusty surfaces to clean them.",
 	"thermal-camera": "Thermal camera equipped. Hold RMB to inspect surface heat.",
 	"spudger": "Plastic spudger equipped. Click the bare die or heatsink base, then hold and drag to scrape off old paste.",
 	"ipa-wipe": "IPA wipe equipped. Hold and rub the scraped surfaces to lift the remaining film.",
-	"paste-syringe": "Paste syringe equipped. Click the bare die, then hold to squeeze; drag to lay a line."}
+	"paste-syringe": "Paste syringe equipped. Click the bare die, then hold to squeeze; drag to lay a line.",
+	"fan-oiler": "Fan oiler equipped. Click the detached fan, pull its rotor, then hold on the bearing for a drop."}
 const NAMES := {"screwdriver": "screwdriver", "dev-blower": "Dev blower", "thermal-camera": "thermal camera",
-	"spudger": "spudger", "ipa-wipe": "IPA wipe", "paste-syringe": "paste syringe"}
+	"spudger": "spudger", "ipa-wipe": "IPA wipe", "paste-syringe": "paste syringe", "fan-oiler": "fan oiler"}
 const RETURN_NOTICES := {
 	"screwdriver": "Screwdriver returned. Hands are free for the fan cable.",
 	"dev-blower": "Dev blower returned.",
 	"thermal-camera": "Thermal camera returned."}
 
 var locations := {"screwdriver": "toolbox", "dev-blower": "toolbox", "thermal-camera": "stand",
-	"spudger": "toolbox", "ipa-wipe": "toolbox", "paste-syringe": "toolbox"}
+	"spudger": "toolbox", "ipa-wipe": "toolbox", "paste-syringe": "toolbox", "fan-oiler": "toolbox"}
 var location: String:
 	get: return locations["screwdriver"]
 	set(value): locations["screwdriver"] = value
@@ -193,5 +196,5 @@ func blower_points_at(point: Vector3) -> bool:
 
 func _process(_delta: float) -> void:
 	var id := equipped_tool
-	if (id == "screwdriver" or id in PASTE_TOOLS) and not busy:
+	if (id == "screwdriver" or id in SURFACE_TOOLS) and not busy:
 		tool_node(id).transform = held_pose(id)

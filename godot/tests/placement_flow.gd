@@ -59,6 +59,29 @@ func run() -> void:
 	await create_timer(0.55).timeout
 	expect(bench.gpu.transform.is_equal_approx(bench.inspection.home), "Q/return no longer restores the GPU holder pose")
 	bench.service.debug_disassemble()
+	# Debug disassembly lays the parts out together on the mat and the screws in the tray.
+	var mat: MeshInstance3D = bench.get_node("RepairDesk/Mat")
+	var mat_box: AABB = mat.global_transform * mat.get_aabb()
+	var card_box: AABB = bench.gpu.global_transform * Contract.bounds_in(bench.gpu)
+	var laid_out: Array[AABB] = []
+	for id in ["cooler-assembly", "fan-assembly"]:
+		var part: Node3D = bench.asset_contract.objects[id]
+		var box: AABB = part.global_transform * Contract.bounds_in(part)
+		expect(box.position.x >= mat_box.position.x and box.end.x <= mat_box.end.x and box.position.z >= mat_box.position.z and box.end.z <= mat_box.end.z,
+			id + " was not laid out on the mat")
+		expect(absf(box.position.y - (mat_box.end.y + 0.025)) < 0.005, id + " does not rest on the mat")
+		expect(not box.intersects(card_box) and box.get_center().distance_to(card_box.get_center()) < 4.0, id + " is not beside the card")
+		for obstacle in bench.placement_obstacles(id) + laid_out:
+			if obstacle.is_equal_approx(card_box): continue
+			expect(not box.intersects(obstacle), id + " overlaps another object")
+		laid_out.append(box)
+	var tray: MeshInstance3D = bench.get_node("RepairDesk/Tray")
+	var tray_box: AABB = tray.global_transform * tray.get_aabb()
+	for id in bench.service.fan_screws + bench.service.cooler_screws:
+		var screw: Node3D = bench.asset_contract.objects[id]
+		var box: AABB = screw.global_transform * Contract.bounds_in(screw)
+		expect(tray_box.has_point(Vector3(box.get_center().x, tray_box.get_center().y, box.get_center().z)) and absf(box.position.y - tray_box.end.y) < 0.005,
+			id + " does not rest in the tray")
 	bench.service.lift_assembly("fan-assembly")
 	await create_timer(0.55).timeout
 	verify_left(bench, bench.asset_contract.objects["fan-assembly"])

@@ -74,7 +74,10 @@ func run(tree: SceneTree, bench: Node3D, expect: Callable) -> void:
 	expect.call(not service.begin_screw("fan-screw-2"), "Concurrent screw started during tray transfer")
 	await service.motion.finished
 	expect.call(screw.get_parent() == bench, "Removed screw did not detach from GPU")
-	expect.call(screw.position.is_equal_approx(Vector3(3.1, 0.2, 3.38)), "Fan screw used wrong tray slot")
+	expect.call(screw.global_transform.is_equal_approx(service.tray_slot("fan-screw-1", screw)), "Fan screw used wrong tray slot")
+	var tray: MeshInstance3D = bench.get_node("RepairDesk/Tray")
+	expect.call(absf((screw.global_transform * preload("res://scripts/asset_contract.gd").bounds_in(screw)).position.y - (tray.global_transform * tray.get_aabb()).end.y) < 0.005,
+		"Removed screw does not rest on the tray floor")
 	var seat: Node3D = service.screw_seats["fan-screw-1"]
 	expect.call(seat.get_parent() == bench.asset_contract.homes["fan-screw-1"].parent and seat.visible,
 		"Fan screw seat did not remain on its mount")

@@ -1,5 +1,6 @@
 extends Node
 ## Independent local-space dust masks stay with each mesh during removal and refit.
+const AudioMix = preload("res://scripts/audio_mix.gd")
 signal changed
 signal notice(text: String)
 
@@ -122,6 +123,7 @@ func configure(card: Node3D, scene_picker: RefCounted, workbench_tools: Node) ->
 	jingle = AudioStreamPlayer.new()
 	jingle.stream = preload("res://assets/sounds/clean_jingle.wav")
 	jingle.volume_db = -4.0
+	jingle.bus = AudioMix.JINGLE
 	add_child(jingle)
 	air = AudioStreamPlayer.new()
 	var air_stream: AudioStreamWAV = preload("res://assets/sounds/compressed_air.wav").duplicate()
@@ -130,6 +132,7 @@ func configure(card: Node3D, scene_picker: RefCounted, workbench_tools: Node) ->
 	air_stream.loop_end = 278400 # 5.8 s: stop before the closing tail.
 	air.stream = air_stream
 	air.volume_db = -8.0
+	air.bus = AudioMix.BLOWER
 	add_child(air)
 	changed.emit()
 

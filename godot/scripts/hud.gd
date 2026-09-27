@@ -1,4 +1,7 @@
 extends CanvasLayer
+const AudioMix = preload("res://scripts/audio_mix.gd")
+const RepairStatus = preload("res://scripts/repair_status.gd")
+const DEBUG_SETTINGS := "user://bench_debug.cfg"
 signal tool_selected(id: String)
 signal tool_menu_closed
 signal view_requested(view: String)
@@ -21,6 +24,8 @@ signal debug_clean_requested
 signal debug_disassemble_requested
 signal debug_dry_paste_requested
 signal debug_repaste_requested
+signal debug_dry_bearing_requested
+signal debug_oil_bearing_requested
 
 var inspect_button: Button
 var flip_button: Button
@@ -47,6 +52,8 @@ var debug_clean_button: Button
 var debug_disassemble_button: Button
 var debug_dry_paste_button: Button
 var debug_repaste_button: Button
+var debug_dry_bearing_button: Button
+var debug_oil_bearing_button: Button
 var test_button: Button
 var service_controls: HFlowContainer
 var assembly_controls: HFlowContainer
@@ -59,6 +66,16 @@ var fps_mode := false
 var tool_overlay: ColorRect
 var tool_buttons: Dictionary = {}
 var tool_close_button: Button
+var audio_panel: PanelContainer
+var audio_sliders: Dictionary = {}
+var audio_values: Dictionary = {}
+var audio_saved_label: Label
+var audio_save_timer: Timer
+var repair_toggle: CheckButton
+var repair_layer: CanvasLayer
+var repair_panel: PanelContainer
+var repair_summary: Label
+var repair_rows: VBoxContainer
 
 func _ready() -> void:
 	var panel := PanelContainer.new()
@@ -165,10 +182,167 @@ func _ready() -> void:
 	debug_repaste_button = make_button("Debug: Fresh paste", debug_controls)
 	debug_repaste_button.visible = OS.is_debug_build()
 	debug_repaste_button.pressed.connect(func(): debug_repaste_requested.emit())
+	debug_dry_bearing_button = make_button("Debug: Dry bearing", debug_controls)
+	debug_dry_bearing_button.visible = OS.is_debug_build()
+	debug_dry_bearing_button.pressed.connect(func(): debug_dry_bearing_requested.emit())
+	debug_oil_bearing_button = make_button("Debug: Oil bearing", debug_controls)
+	debug_oil_bearing_button.visible = OS.is_debug_build()
+	debug_oil_bearing_button.pressed.connect(func(): debug_oil_bearing_requested.emit())
+	repair_toggle = CheckButton.new()
+	repair_toggle.text = "Repair status overlay"
+	repair_toggle.focus_mode = Control.FOCUS_NONE
+	repair_toggle.visible = OS.is_debug_build()
+	debug_controls.add_child(repair_toggle)
 	status_label = Label.new()
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status_label.text = "Loading workbench..."
 	column.add_child(status_label)
+	build_audio_panel()
+	build_repair_panel()
+
+## Escape-menu mixer: one slider per sound channel plus Master. Changes apply live and save shortly after.
+func build_audio_panel() -> void:
+	audio_panel = PanelContainer.new()
+	audio_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	audio_panel.offset_left = -430
+	audio_panel.offset_right = -18
+	audio_panel.offset_top = 18
+	audio_panel.hide()
+	add_child(audio_panel)
+	var margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 12)
+	audio_panel.add_child(margin)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 4)
+	margin.add_child(column)
+	var title := Label.new()
+	title.text = "SOUND MIX"
+	title.add_theme_font_size_override("font_size", 20)
+	column.add_child(title)
+	for channel in AudioMix.CHANNELS:
+		var bus: StringName = channel[0]
+		var row := HBoxContainer.new()
+		column.add_child(row)
+		var name_label := Label.new()
+		name_label.text = channel[1]
+		name_label.custom_minimum_size.x = 170
+		row.add_child(name_label)
+		var slider := HSlider.new()
+		slider.min_value = 0
+		slider.max_value = AudioMix.MAX_LEVEL * 100
+		slider.step = 5
+		slider.custom_minimum_size.x = 150
+		slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		# Mouse only: keyboard focus would swallow Tab/Escape and movement keys.
+		slider.focus_mode = Control.FOCUS_NONE
+		row.add_child(slider)
+		var value_label := Label.new()
+		value_label.custom_minimum_size.x = 56
+		value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		row.add_child(value_label)
+		audio_sliders[bus] = slider
+		audio_values[bus] = value_label
+		slider.value_changed.connect(func(value: float):
+			AudioMix.set_level(bus, value / 100.0)
+			value_label.text = "%d%%" % roundi(value)
+			audio_save_timer.start())
+	var actions := HFlowContainer.new()
+	column.add_child(actions)
+	make_button("Reset all to 100%", actions).pressed.connect(func():
+		AudioMix.reset()
+		refresh_audio_panel()
+		save_audio_mix())
+	audio_saved_label = Label.new()
+	audio_saved_label.add_theme_font_size_override("font_size", 13)
+	audio_saved_label.modulate = Color(1, 1, 1, 0.7)
+	audio_saved_label.text = "Levels save to " + AudioMix.save_location()
+	column.add_child(audio_saved_label)
+	audio_save_timer = Timer.new()
+	audio_save_timer.one_shot = true
+	audio_save_timer.wait_time = 0.4
+	audio_save_timer.timeout.connect(save_audio_mix)
+	add_child(audio_save_timer)
+	refresh_audio_panel()
+
+## Developer overlay: what is wrong with the card and how far each fix has got. Debug builds only;
+## toggled from the Escape menu and remembered between runs. Its own layer keeps it above focus views.
+func build_repair_panel() -> void:
+	repair_layer = CanvasLayer.new()
+	repair_layer.layer = 20
+	add_child(repair_layer)
+	repair_panel = PanelContainer.new()
+	repair_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	repair_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	repair_panel.offset_left = -560
+	repair_panel.offset_right = -18
+	repair_panel.offset_top = 420
+	repair_layer.add_child(repair_panel)
+	var margin := MarginContainer.new()
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for side in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 10)
+	repair_panel.add_child(margin)
+	var column := VBoxContainer.new()
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margin.add_child(column)
+	var title := Label.new()
+	title.text = "REPAIR STATUS  (debug)"
+	title.add_theme_font_size_override("font_size", 16)
+	column.add_child(title)
+	repair_summary = Label.new()
+	repair_summary.add_theme_font_size_override("font_size", 13)
+	column.add_child(repair_summary)
+	repair_rows = VBoxContainer.new()
+	repair_rows.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_child(repair_rows)
+	var settings := ConfigFile.new()
+	var enabled: bool = OS.is_debug_build() and settings.load(DEBUG_SETTINGS) == OK and settings.get_value("overlay", "repair_status", false)
+	repair_toggle.set_pressed_no_signal(enabled)
+	repair_panel.visible = enabled
+	repair_toggle.toggled.connect(func(value: bool):
+		repair_panel.visible = value
+		settings.set_value("overlay", "repair_status", value)
+		settings.save(DEBUG_SETTINGS))
+
+func refresh_repair_status(rows: Array[Dictionary]) -> void:
+	while repair_rows.get_child_count() < rows.size():
+		var line := HBoxContainer.new()
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var swatch := ColorRect.new()
+		swatch.custom_minimum_size = Vector2(14, 14)
+		swatch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		line.add_child(swatch)
+		var name_label := Label.new()
+		name_label.custom_minimum_size.x = 125
+		line.add_child(name_label)
+		var detail := Label.new()
+		detail.add_theme_font_size_override("font_size", 13)
+		detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		detail.custom_minimum_size.x = 380
+		detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		line.add_child(detail)
+		repair_rows.add_child(line)
+	var counts := {RepairStatus.FAULT: 0, RepairStatus.PARTIAL: 0, RepairStatus.DONE: 0}
+	for index in range(rows.size()):
+		var entry: Dictionary = rows[index]
+		var line: HBoxContainer = repair_rows.get_child(index)
+		(line.get_child(0) as ColorRect).color = RepairStatus.color(entry.state)
+		(line.get_child(1) as Label).text = entry.label
+		(line.get_child(2) as Label).text = entry.detail
+		if counts.has(entry.state): counts[entry.state] += 1
+	repair_summary.text = "%d broken · %d in progress · %d done" % [counts[RepairStatus.FAULT], counts[RepairStatus.PARTIAL], counts[RepairStatus.DONE]]
+
+func refresh_audio_panel() -> void:
+	for bus in audio_sliders:
+		var percent := AudioMix.level(bus) * 100.0
+		audio_sliders[bus].set_value_no_signal(percent)
+		audio_values[bus].text = "%d%%" % roundi(percent)
+
+func save_audio_mix() -> void:
+	var error := AudioMix.save()
+	audio_saved_label.text = ("Saved to " + AudioMix.save_location()) if error == OK else "Could not save levels (error %d)" % error
 
 func make_button(text: String, parent: Control) -> Button:
 	var button := Button.new()
@@ -215,6 +389,9 @@ func enable_first_person() -> void:
 func set_menu_open(value: bool) -> void:
 	if not fps_mode: return
 	cleaning_panel.visible = value and (tool_overlay == null or not tool_overlay.visible)
+	var mixer_opening: bool = value and not audio_panel.visible and cleaning_panel.visible
+	audio_panel.visible = cleaning_panel.visible
+	if mixer_opening: refresh_audio_panel()
 	reticle.visible = not value
 
 func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Node, captured: bool) -> void:
@@ -224,11 +401,11 @@ func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Nod
 	var prompt := ""
 	match action:
 		"screw", "screw_hole": prompt = "E: pick up GPU  |  Click: focus" if tools.equipped_tool != "" else "Screwdriver required"
-		"gpu": prompt = "E: pick up GPU  |  Click: focus" if tools.equipped_tool in ["screwdriver", "dev-blower"] or tools.equipped_tool in tools.PASTE_TOOLS else "E: pick up / remove GPU"
+		"gpu": prompt = "E: pick up GPU  |  Click: focus" if tools.equipped_tool in ["screwdriver", "dev-blower"] or tools.equipped_tool in tools.SURFACE_TOOLS else "E: pick up / remove GPU"
 		"test_board": prompt = "E: connect / remove GPU"
 		"monitor_power": prompt = "E: monitor power"
 		"toolbox": prompt = "E / Click: unroll tool bag"
-		"screwdriver", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe": prompt = "E: pick up " + action.replace("-", " ")
+		"screwdriver", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler": prompt = "E: pick up " + action.replace("-", " ")
 		"cable": prompt = "E: connect / disconnect fan cable"
 		"assembly": prompt = "E: inspect GPU / lift loosened assembly"
 		"desk":
@@ -296,6 +473,10 @@ func refresh(held: bool, moving: bool, tools: Node, service: Node, cleaning: Nod
 	if turn_progress.visible:
 		turn_progress.value = service.turns[service.active_screw].progress * 100
 	refresh_cleaning(cleaning)
+
+func refresh_bearing(bearing: Node) -> void:
+	debug_dry_bearing_button.disabled = bearing.dry and bearing.opened.is_empty() and not bearing.shaft_clean
+	debug_oil_bearing_button.disabled = not bearing.dry
 
 func refresh_paste(paste: Node) -> void:
 	debug_dry_paste_button.disabled = paste.dried

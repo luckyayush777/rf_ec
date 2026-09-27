@@ -7,7 +7,8 @@ const POCKETS := {
 	"DevBlower": [-1.575, 0.43, 0.7, 0.33],
 	"Spudger": [-0.675, 0.36, 0.78, 0.48],
 	"IpaWipe": [0.225, 0.38, 0.7, 0.63],
-	"PasteSyringe": [1.125, 0.37, 0.78, 0.78]}
+	"PasteSyringe": [1.125, 0.37, 0.78, 0.78],
+	"FanOiler": [2.025, 0.37, 0.78, 0.93]}
 var strips: Array[Node3D] = []
 var opening := 0.0
 var cloth: StandardMaterial3D

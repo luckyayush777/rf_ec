@@ -117,20 +117,10 @@ modulate = Color(0.7, 0.84, 0.84, 1)
 outline_size = 0
 horizontal_alignment = 0
 
-[node name="NextLabel" type="Label3D" parent="."]
-visible = false
-position = Vector3(-1.72, 2.76, 0.143)
-text = "NEXT"
-font_size = 48
-pixel_size = 0.005
-modulate = Color(0.77, 0.83, 0.87, 1)
-outline_size = 0
-horizontal_alignment = 0
-
 [node name="Stats" type="Label3D" parent="."]
 visible = false
 position = Vector3(0.88, 2.2, 0.143)
-text = "SCORE\n000000\nLINES\n00\nGPU\n24°C"
+text = "LAP 1\n0:00.0\nKM/H\n230\nGPU\n24°C"
 font_size = 48
 pixel_size = 0.005
 modulate = Color(0.77, 0.83, 0.87, 1)

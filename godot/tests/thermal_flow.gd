@@ -57,6 +57,8 @@ func run() -> void:
 	expect(dirty_memory > 85 and dirty_memory <= 94, "Dusty powered VRAM did not heat up")
 	expect(bench.paste.dried and bench.paste.contact_quality() < 0.2, "GPU did not start with dried die paste")
 	expect(bench.thermal.core_c > 100 and bench.thermal.core_c <= bench.thermal.CORE_LIMIT, "Dusty core with dried paste did not throttle at the limit")
+	expect(bench.thermal.core_clock() < 800 and bench.thermal.memory_error_rate() > 0.8,
+		"Throttled core did not drop its clock or hot VRAM did not report errors")
 	# Pick up the camera again then inspect exposed rear memory on the mounted card.
 	bench.tools.equip("thermal-camera")
 	await create_timer(0.4).timeout
@@ -109,6 +111,8 @@ func run() -> void:
 	var dried_gap: float = dried_core - bench.thermal.cooler_c
 	expect(dried_core > 75 and dried_gap > 40, "Dried paste did not trap heat in the die (core %.1f, gap %.1f)" % [dried_core, dried_gap])
 	expect(bench.thermal.cooler_c < 38.0, "Dried paste did not leave the heatsink cooler than healthy")
+	expect(bench.thermal.core_clock() < bench.thermal.BOOST_CLOCK and bench.thermal.memory_error_rate() == 0.0,
+		"Dried paste should throttle the core without VRAM errors")
 	bench.test_monitor.toggle_power()
 	expect(bench.test_monitor.stats.visible and ("GPU\n%d°C" % roundi(dried_core)) in bench.test_monitor.stats.text,
 		"Test monitor does not report the hidden die sensor temperature")
@@ -117,6 +121,7 @@ func run() -> void:
 	bench.thermal.advance(60)
 	expect(absf(bench.thermal.core_c - 53.0) < 1.0 and absf(bench.thermal.cooler_c - 38.0) < 1.0,
 		"Fresh paste did not settle core/heatsink to the healthy baseline")
+	expect(bench.thermal.core_clock() == bench.thermal.BOOST_CLOCK, "Healthy core did not hold its boost clock")
 	expect(bench.thermal.core_c - bench.thermal.cooler_c < 20 and absf(bench.thermal.memory_c - 48.0) < 1.0,
 		"Repasting left a large die gap or changed VRAM heat")
 	# Move near the physical camera before re-equipping; no inventory teleport pickup.

@@ -99,6 +99,7 @@ func run() -> void:
 	var definition := {"id": "aux-cover", "kind": "assembly", "requires": [], "parent": "gpu"}
 	bench.asset_contract.service_parts.append(definition)
 	bench.asset_contract.objects["aux-cover"] = extra
+	bench.asset_contract.homes["aux-cover"] = {"parent": bench, "transform": extra.transform}
 	bench.service_rules.parts["aux-cover"] = definition
 	bench.service_rules.removal["aux-cover"] = []
 	bench.service.removed.append("aux-cover")

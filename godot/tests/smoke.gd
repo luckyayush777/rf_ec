@@ -130,7 +130,11 @@ func run() -> void:
 	expect(bench.picker.hit_at(button_screen).get("action") == "monitor_power", "Monitor power button cannot be picked")
 	bench.activate(board_screen)
 	await create_timer(0.6).timeout
-	expect(station.installed and monitor.connected and monitor.simulated_fps <= 20, "Dirty GPU did not start the slow test")
+	# A short powered warm-up heats the dusty card with dried paste into throttling.
+	bench.thermal.advance(6)
+	expect(station.installed and monitor.connected and monitor.simulated_fps <= 20 and
+		monitor.clock_mhz < bench.thermal.BOOST_CLOCK, "Dirty GPU did not throttle the racing test")
+	expect(monitor.memory_errors > 0.5, "Hot VRAM on a dusty GPU did not produce memory errors")
 	var housing: Node3D = bench.gpu.find_child("fan-housing", true, false)
 	var housing_home := housing.transform
 	for step in range(120): station._process(1.0 / 60.0)
@@ -151,17 +155,25 @@ func run() -> void:
 	expect(not bench.inspection.can_interact.call(), "Installed GPU can still be inspected")
 	bench.activate(button_screen)
 	for step in range(8): monitor._process(0.125)
-	expect(monitor.powered and monitor.presented_frames > 0 and monitor.piece_cells.size() == 4 and monitor.piece_y > -2,
-		"Falling-block test did not advance")
+	expect(monitor.powered and monitor.presented_frames > 0 and monitor.distance > 0.0,
+		"Racing test did not advance")
 	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
 		DirAccess.make_dir_recursive_absolute("res://build")
 		await RenderingServer.frame_post_draw
 		root.get_texture().get_image().save_png("res://build/testing-dirty.png")
-		monitor.image.save_png("res://build/tetris-feed.png")
+		monitor.image.save_png("res://build/racer-feed.png")
+	var hot_errors: float = monitor.memory_errors
+	monitor.memory_errors = 0.0
+	monitor.render_image()
+	var clean_frame: PackedByteArray = monitor.image.get_data()
+	monitor.memory_errors = 1.0
+	monitor.render_image()
+	expect(monitor.image.get_data() != clean_frame, "Memory errors did not corrupt the racing feed")
+	monitor.memory_errors = hot_errors
 	monitor.reset_simulation()
 	for step in range(240): monitor.advance_demo(1.0 / 60.0)
-	expect(monitor.lines_cleared >= 1 and monitor.score >= 100,
-		"Falling-block demonstration did not clear and score a row")
+	expect(monitor.passed >= 1 and absf(monitor.player_x) <= monitor.LANE_OFFSET,
+		"Racing demonstration did not overtake a rival on the road")
 	monitor.reset_simulation()
 	expect(station.detach(), "GPU could not be removed from test board")
 	await create_timer(0.6).timeout
@@ -263,9 +275,12 @@ func run() -> void:
 	expect(is_equal_approx(dust.progress, 1.0) and dust.completed_count == 3 and dust.celebrated,
 		"Cleaning did not complete all three parts once")
 	expect(not dust.highlighted, "Dust highlight remained on after full cleaning")
+	expect(bench.paste.debug_repaste(), "Debug repaste was refused before the clean test")
 	expect(station.attach(), "Clean GPU did not reattach to test board")
 	await create_timer(0.6).timeout
-	expect(monitor.connected and monitor.simulated_fps == 60, "Clean GPU did not start the smooth test")
+	bench.thermal.advance(6)
+	expect(monitor.connected and monitor.simulated_fps == 60 and monitor.clock_mhz == bench.thermal.BOOST_CLOCK and
+		monitor.memory_errors == 0.0, "Clean, repasted GPU did not run the smooth test at full clock")
 	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
 		bench.select_view("testing")
 		await RenderingServer.frame_post_draw
@@ -286,6 +301,7 @@ func run() -> void:
 		"Debug shortcuts are missing from the HUD")
 	expect(debug_bench.testing_station.attach(), "Dirty GPU could not attach before debug cleaning")
 	await create_timer(0.6).timeout
+	debug_bench.thermal.advance(6)
 	expect(debug_bench.test_monitor.simulated_fps <= 20, "Debug fixture did not start dirty")
 	var fan_station = debug_bench.testing_station
 	for step in range(120): fan_station._process(1.0 / 60.0)
@@ -302,8 +318,14 @@ func run() -> void:
 	for surface in debug_bench.cleaning.surfaces:
 		expect(surface.remaining == 0.0 and surface.data.count(0) == surface.data.size(),
 			"Debug clean left visible dust on " + surface.name)
+	debug_bench.thermal.advance(6)
+	# Dust gone: VRAM is healthy, but dried paste alone still throttles the core.
+	expect(debug_bench.test_monitor.simulated_fps > 20 and debug_bench.test_monitor.simulated_fps < 60 and
+		debug_bench.test_monitor.memory_errors == 0.0, "Dried paste did not throttle the clean card on its own")
+	expect(debug_bench.paste.debug_repaste(), "Debug repaste was refused")
+	debug_bench.thermal.advance(6)
 	expect(debug_bench.test_monitor.simulated_fps == 60,
-		"Debug cleaning did not update the connected monitor")
+		"Debug cleaning and repasting did not restore the full-rate test")
 	for step in range(240): fan_station._process(1.0 / 60.0)
 	expect(absf(fan_station.fan_speed - fan_station.CLEAN_FAN_SPEED) < 0.01 and
 		fan_station.loud_audio.volume_db < -60.0 and fan_station.quiet_audio.playing,
