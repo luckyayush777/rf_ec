@@ -94,8 +94,8 @@ func run() -> void:
 		for index in range(surface.coverage.size()):
 			if surface.coverage[index] != 0: covered += 1
 			if surface.data[index] != 0: dusty += 1
-		expect(covered > 0 and absf(float(dusty) / maxf(covered, 1) - 0.4) < 0.04,
-			"Initial dust coverage is not near 40% on " + surface.name)
+		expect(covered > 0 and absf(float(dusty) / maxf(covered, 1) - dust.DUST_COVERAGE) < 0.04,
+			"Initial dust coverage is not near %d%% on %s" % [roundi(dust.DUST_COVERAGE * 100), surface.name])
 	expect(not board_surface.is_empty(), "PCB front dust surface missing")
 	if not board_surface.is_empty():
 		var first_rng := RandomNumberGenerator.new()
@@ -106,7 +106,8 @@ func run() -> void:
 			"Dust pattern did not vary with the random seed")
 		var board_mesh: MeshInstance3D = board_surface.mesh
 		var center: Vector3 = board_mesh.global_transform * board_surface.bounds.get_center()
-		expect(dust.clean_at(board_mesh, center, Vector3.UP, 0.6, 10.0) > 0.0, "Blower did not clean PCB front")
+		# Clean one spot: the card must stay dusty enough for the hot-VRAM check below.
+		expect(dust.clean_at(board_mesh, center, Vector3.UP, 0.6, 0.3) > 0.0, "Blower did not clean PCB front")
 		expect(dust.part_progress("board") > 0.0 and dust.part_progress("fan-assembly") < 0.01 and
 			dust.part_progress("cooler-assembly") < 0.01, "Cleaning PCB changed another part's dust")
 	expect(bench.testing_desk.find_child("floor", true, false) == null, "Second floor was not removed")

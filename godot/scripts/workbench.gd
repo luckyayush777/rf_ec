@@ -99,6 +99,7 @@ func _ready() -> void:
 	picker = Picker.new()
 	picker.configure(self, gpu, camera_rig.camera, service)
 	cleaning.configure(gpu, picker, tools)
+	cleaning.fan_blown.connect(testing_station.blow_fan)
 	paste = Paste.new()
 	paste.name = "Paste"
 	add_child(paste)
@@ -249,7 +250,7 @@ func refresh_ui() -> void:
 		hud.set_status("GPU powered on the test board. Heat builds over time; scan the exposed rear memory packages." if testing_station.installed else
 			"Part in left hand. E on the mat places it and keeps your tool; R opens focus, T the tool bag. RMB rotates and F flips." if inspection.held or service.held_part != "" else
 			"Thermal camera: hold RMB to scan visible surfaces. Q returns it to the stand." if tools.equipped_tool == "thermal-camera" else
-			"E picks up a part with the blower equipped. Click a part to rotate and clean it in focus." if tools.equipped_tool == "dev-blower" else
+			"E picks up a part with the blower equipped. Click a part to rotate and clean it in focus." if tools.blower_equipped() else
 			"Click the board or a screw to work in focus. E picks up a part with the screwdriver equipped." if tools.equipped_tool == "screwdriver" else
 			"Click the GPU or the detached heatsink to scrape old paste in focus." if tools.equipped_tool == "spudger" else
 			"Click the scraped die, heatsink base or detached fan to wipe in focus." if tools.equipped_tool == "ipa-wipe" else
@@ -263,7 +264,7 @@ func refresh_ui() -> void:
 		"Lifting the GPU..." if inspection.moving else
 		"Moving GPU between benches..." if testing_station.moving else
 		"GPU on test board. Press the monitor power button to run the racing test, or remove the card to service it." if testing_station.installed else
-		"Hold and sweep over dusty surfaces with the Dev blower. Return it before servicing parts." if tools.equipped_tool == "dev-blower" else
+		"Hold and sweep over dusty surfaces with the %s. Return it before servicing parts." % tools.NAMES[tools.equipped_tool] if tools.blower_equipped() else
 		"Hold a screw to turn it. Release to pause. Return the screwdriver before handling the cable." if tools.equipped_tool == "screwdriver" else
 		"Drag to rotate the assembly. Click a clear table spot to place it, or use Refit." if service.held_part != "" else
 		"Drag to rotate. Click the fan cable to unplug/reconnect. Escape sets the GPU down." if inspection.held else
@@ -310,7 +311,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			dragged = false
 			service_press = false
 			var hit: Dictionary = picker.hit_at(event.position)
-			if event.button_index == MOUSE_BUTTON_LEFT and tools.equipped_tool == "dev-blower" and not testing_station.installed and hit.get("action", "") not in ["desk", "toolbox", "dev-blower", "test_board", "monitor_power"]:
+			if event.button_index == MOUSE_BUTTON_LEFT and tools.blower_equipped() and not testing_station.installed and hit.get("action", "") not in ["desk", "toolbox", "test_board", "monitor_power"] + tools.BLOWERS:
 				service_press = true
 				cleaning.begin()
 			elif event.button_index == MOUSE_BUTTON_LEFT and hit.get("action", "") in ["screw", "screw_hole"]:
@@ -346,7 +347,7 @@ func activate(screen_position: Vector2, pickup_with_tool: bool = false) -> void:
 	match hit.get("action", ""):
 		"monitor_power": test_monitor.toggle_power()
 		"test_board": toggle_test_gpu()
-		"screwdriver", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler": tools.grab(hit.action)
+		"screwdriver", "air-blower", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler": tools.grab(hit.action)
 		"toolbox":
 			open_tool_menu()
 		"cable": service.toggle_cable()
@@ -411,9 +412,9 @@ func _process(delta: float) -> void:
 		hud.refresh_repair_status(RepairStatus.rows(self))
 	if not camera_rig.legacy_test_mode:
 		camera_rig.walking_enabled = ready_for_action() and service.active_screw == "" and (closeup == null or closeup.mode == "")
-	if cleaning.blowing and (tools.equipped_tool != "dev-blower" or not ready_for_action()):
+	if cleaning.blowing and (not tools.blower_equipped() or not ready_for_action()):
 		cleaning.end()
-	if tools.equipped_tool == "dev-blower" and (closeup == null or closeup.mode == ""):
+	if tools.blower_equipped() and (closeup == null or closeup.mode == ""):
 		var pointer: Vector2 = get_viewport().get_mouse_position() if camera_rig.legacy_test_mode else get_viewport().get_visible_rect().size * 0.5
 		var surface: Dictionary = {} if (camera_rig.legacy_test_mode and get_viewport().gui_get_hovered_control() != null) else picker.surface_hit_at(pointer, true)
 		if not camera_rig.legacy_test_mode and surface.has("point") and camera_rig.camera.global_position.distance_to(surface.point) > camera_rig.REACH: surface = {}
@@ -496,10 +497,10 @@ func first_person_input(event: InputEvent) -> void:
 			if not event.pressed: cancel_press()
 			elif ready_for_action():
 				var hit := interaction_hit(center)
-				if tools.equipped_tool == "dev-blower" and hit.get("action", "") == "toolbox": open_tool_menu()
-				elif tools.equipped_tool == "dev-blower" and (inspection.held or service.held_part != ""): closeup.show_view("service", focused_held_part())
+				if tools.blower_equipped() and hit.get("action", "") == "toolbox": open_tool_menu()
+				elif tools.blower_equipped() and (inspection.held or service.held_part != ""): closeup.show_view("service", focused_held_part())
 				elif open_service_view(hit): pass
-				elif tools.equipped_tool == "dev-blower" and not testing_station.installed: cleaning.begin()
+				elif tools.blower_equipped() and not testing_station.installed: cleaning.begin()
 				elif hit.get("action", "") in ["screw", "screw_hole"]: service.begin_screw(hit.target.get_meta("part_id"))
 				else: activate(center)
 		elif event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
@@ -547,7 +548,7 @@ func service_subject(target: Node) -> Node3D:
 	return null
 
 func open_service_view(hit: Dictionary) -> bool:
-	if camera_rig.legacy_test_mode or (tools.equipped_tool not in ["screwdriver", "dev-blower"] and tools.equipped_tool not in tools.SURFACE_TOOLS) or testing_station.installed or not ready_for_action(): return false
+	if camera_rig.legacy_test_mode or (tools.equipped_tool != "screwdriver" and not tools.blower_equipped() and tools.equipped_tool not in tools.SURFACE_TOOLS) or testing_station.installed or not ready_for_action(): return false
 	if hit.get("action", "") not in ["gpu", "assembly", "screw", "screw_hole"]: return false
 	var target: Node = hit.get("target")
 	if target == null: return false

@@ -33,6 +33,14 @@ var fan_demand := 0.0
 # Visual turns/second are deliberately below real RPM to limit frame aliasing.
 const CLEAN_FAN_SPEED := 2.0
 const DIRTY_FAN_SPEED := 7.0
+## An idle fan in the shop blower's jet freewheels faster than it runs, then coasts down.
+const AIR_FAN_SPEED := 9.0
+const AIR_SPIN_UP := 6.0
+const AIR_COAST := 2.5
+## The jet keeps driving the rotor this long after the last frame it hit it.
+const AIR_HOLD_MSEC := 150
+var air_until := 0
+var air_spun := false
 ## A supplied recording replaces the synthesized placeholder grind.
 const GRIND_RECORDING := "res://assets/sounds/fan_grind.wav"
 
@@ -83,10 +91,14 @@ func make_fan_audio(node_name: String, source: AudioStreamWAV, bus: StringName) 
 func _process(delta: float) -> void:
 	if rotor == null: return
 	var running := installed and not moving
+	var blown := not running and Time.get_ticks_msec() < air_until
+	if running: air_spun = false
+	elif blown: air_spun = true
 	var target_demand := clampf(1.0 - float(cleaning.progress), 0.0, 1.0)
 	fan_demand = lerpf(fan_demand, target_demand, 1.0 - exp(-delta * 3.0))
-	var target_speed := lerpf(CLEAN_FAN_SPEED, DIRTY_FAN_SPEED, fan_demand) if running else 0.0
-	fan_speed = move_toward(fan_speed, target_speed, delta * 10.0)
+	var target_speed := lerpf(CLEAN_FAN_SPEED, DIRTY_FAN_SPEED, fan_demand) if running else AIR_FAN_SPEED if blown else 0.0
+	fan_speed = move_toward(fan_speed, target_speed, delta * (AIR_SPIN_UP if blown else AIR_COAST if air_spun else 10.0))
+	if fan_speed == 0.0: air_spun = false
 	update_fan_audio(running)
 	# A stopped fan belongs to the bench: restore the authored pose once, then leave the
 	# rotor and sticker free for service (gpu_bearing.gd pulls and peels them).
@@ -142,10 +154,17 @@ func update_fan_audio(running: bool) -> void:
 	# Preserve the recordings' character; add the stronger layer as dust rises.
 	quiet_audio.volume_db = -80.0 if muted else linear_to_db(maxf(0.0001, spin_gain * lerpf(0.35, 0.15, fan_demand)))
 	loud_audio.volume_db = -80.0 if muted else linear_to_db(maxf(0.0001, spin_gain * fan_demand))
-	var grinding: bool = running and bearing != null and bearing.dry
+	# A rotor spun by the air blower grinds on a dry bearing too: a bench-side diagnosis.
+	var grinding: bool = (running or air_spun) and bearing != null and bearing.dry
 	if grinding and not grind_audio.playing: grind_audio.play()
 	elif not grinding and fan_speed == 0.0: grind_audio.stop()
 	grind_audio.volume_db = -80.0 if muted or bearing == null or not bearing.dry else linear_to_db(maxf(0.0001, spin_gain * 0.6))
+
+## Called each frame the air blower's jet hits the rotor. A pulled rotor or peeled sticker is
+## left alone, and a powered fan is already driven by its motor.
+func blow_fan() -> void:
+	if installed or moving or (bearing != null and not bearing.opened.is_empty()): return
+	air_until = Time.get_ticks_msec() + AIR_HOLD_MSEC
 
 func build_display_cable() -> void:
 	var cable := Node3D.new()

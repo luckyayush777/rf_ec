@@ -12,11 +12,13 @@ const FAN_LOUD := &"FanLoud"
 const FAN_GRIND := &"FanGrind"
 const MONITOR_POWER := &"MonitorPower"
 const STICKER_PEEL := &"StickerPeel"
+const AIR_BLOWER := &"AirBlower"
 const CHANNELS := [
 	[MASTER, "Master"],
 	[FAN_QUIET, "Fan, quiet loop"],
 	[FAN_LOUD, "Fan, loud loop"],
 	[FAN_GRIND, "Dry bearing grind"],
+	[AIR_BLOWER, "Air blower motor"],
 	[BLOWER, "Dev blower air"],
 	[SCREWDRIVER, "Screwdriver"],
 	[JINGLE, "Clean jingle"],

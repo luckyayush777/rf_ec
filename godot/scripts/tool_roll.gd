@@ -8,7 +8,12 @@ const POCKETS := {
 	"Spudger": [-0.675, 0.36, 0.78, 0.48],
 	"IpaWipe": [0.225, 0.38, 0.7, 0.63],
 	"PasteSyringe": [1.125, 0.37, 0.78, 0.78],
-	"FanOiler": [2.025, 0.37, 0.78, 0.93]}
+	"FanOiler": [2.025, 0.37, 0.78, 0.86],
+	"AirBlower": [2.925, 0.4, 0.62, 0.94]}
+## Canvas strips are 0.15 wide; pockets sit on every sixth strip from the fourth. The roll
+## unrolls rightward from its fixed left edge.
+const STRIPS := 46
+const LEFT_EDGE := 3.0
 var strips: Array[Node3D] = []
 var opening := 0.0
 var cloth: StandardMaterial3D
@@ -43,7 +48,7 @@ func _ready() -> void:
 	cloth = material(Color("#485357"))
 	trim = material(Color("#202a2e"))
 	seam = material(Color("#b19d71"))
-	for i in range(40):
+	for i in range(STRIPS):
 		var strip := Node3D.new()
 		add_child(strip)
 		strips.append(strip)
@@ -51,7 +56,7 @@ func _ready() -> void:
 		for z in [-1.61, 1.61]:
 			box(strip, Vector3(0, 0.034, z), Vector3(0.15, 0.025, 0.07), trim)
 			box(strip, Vector3(0, 0.051, z), Vector3(0.085, 0.009, 0.012), seam)
-	for i in range(6):
+	for i in range(POCKETS.size()):
 		var strip: Node3D = strips[3 + i * 6]
 		box(strip, Vector3(0, 0.11, 0.52), Vector3(0.76, 0.16, 1.45), trim)
 		box(strip, Vector3(0, 0.2, 0.55), Vector3(0.72, 0.045, 1.34), cloth)
@@ -76,17 +81,17 @@ func _ready() -> void:
 
 func set_opening(value: float) -> void:
 	opening = value
-	var flat := value * 6.0
+	var flat := value * STRIPS * 0.15
 	for i in range(strips.size()):
 		var length := (i + 0.5) * 0.15
 		var angle := maxf(0, length - flat) / 0.56
 		var radius := 0.56 + angle * 0.009
-		strips[i].position = Vector3(-3 * value + minf(length, flat) + sin(angle) * radius, 0.15 + (1 - cos(angle)) * radius, 0)
+		strips[i].position = Vector3(-LEFT_EDGE * value + minf(length, flat) + sin(angle) * radius, 0.15 + (1 - cos(angle)) * radius, 0)
 		strips[i].rotation.z = angle
 	for tool_name in POCKETS:
 		var tool := get_node_or_null(NodePath(tool_name)) as Node3D
 		# Equipped or placed tools are reparented away from the roll.
 		if tool != null and tool.has_meta("roll_home"):
 			var open_home: Transform3D = tool.get_meta("roll_home")
-			tool.position.x = open_home.origin.x + 3 * (1 - value)
+			tool.position.x = open_home.origin.x + LEFT_EDGE * (1 - value)
 			tool.visible = value > POCKETS[tool_name][3] and (tool_name != "DevBlower" or OS.is_debug_build())

@@ -25,6 +25,7 @@ var return_area: Button
 var cleaning_pointer := Vector2.ZERO
 var subject: Node3D
 var subject_targets: Array = []
+var puff_view: MultiMeshInstance3D
 
 func configure(owner_bench: Node3D) -> void:
 	bench = owner_bench
@@ -49,6 +50,11 @@ func configure(owner_bench: Node3D) -> void:
 	status.add_theme_constant_override("shadow_offset_y", 2)
 	column.add_child(status)
 	surface = SubViewportContainer.new()
+	# The transparent view renders premultiplied colour; composite it that way so thin dust
+	# clouds over the empty background are not darkened.
+	var composite := CanvasItemMaterial.new()
+	composite.blend_mode = CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA
+	surface.material = composite
 	surface.stretch = true
 	surface.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(surface)
@@ -82,7 +88,13 @@ func configure(owner_bench: Node3D) -> void:
 	column.add_child(progress)
 	var bar := HFlowContainer.new()
 	column.add_child(bar)
-	for item in [["Flip part", "flip"], ["Return tool", "return"], ["Screwdriver", "screwdriver"], ["Dev blower", "dev-blower"],
+	# Lifted dust shows here too: the same MultiMesh, drawn in this view's world.
+	puff_view = MultiMeshInstance3D.new()
+	puff_view.multimesh = bench.cleaning.puffs.multimesh
+	puff_view.custom_aabb = bench.cleaning.puffs.custom_aabb
+	puff_view.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	stage.add_child(puff_view)
+	for item in [["Flip part", "flip"], ["Return tool", "return"], ["Screwdriver", "screwdriver"], ["Air blower", "air-blower"], ["Dev blower", "dev-blower"],
 			["Spudger", "spudger"], ["IPA wipe", "ipa-wipe"], ["Paste syringe", "paste-syringe"], ["Fan oiler", "fan-oiler"],
 			["Thermal camera (stand)", "thermal-camera"], ["Empty hands", ""], ["Close / Esc", "close"]]:
 		var button := Button.new()
@@ -181,7 +193,7 @@ func frame_view() -> void:
 	zoom = 1.0
 	var bounds: AABB = subject.global_transform * Contract.bounds_in(subject)
 	if mode == "bag":
-		center = subject.to_global(Vector3(0, 0.3, 0))
+		center = subject.to_global(Vector3(0.45, 0.3, 0))
 		distance = 8.3
 		direction = Vector3(0, 1, 0.22).normalized()
 	else:
@@ -271,7 +283,7 @@ func view_input(event: InputEvent) -> void:
 				var opening: String = bench.bearing.click_target(hit.get("mesh")) if mode == "service" else ""
 				if opening != "" and bench.tools.equipped_tool in bench.bearing.HANDLING_TOOLS:
 					bench.bearing.operate(opening)
-				elif mode == "service" and bench.tools.equipped_tool == "dev-blower":
+				elif mode == "service" and bench.tools.blower_equipped():
 					bench.cleaning.begin()
 				elif mode == "service" and bench.tools.equipped_tool in bench.tools.SURFACE_TOOLS:
 					bench.paste.begin()
@@ -329,12 +341,13 @@ func return_equipped_tool() -> void:
 	status.text = "Tool returned. Click the cable or a loosened part to handle it; RMB rotates the view."
 
 func clean_under_pointer(delta: float) -> void:
-	if mode != "service" or bench.tools.equipped_tool != "dev-blower" or not bench.ready_for_action(): return
+	if mode != "service" or not bench.tools.blower_equipped() or not bench.ready_for_action(): return
 	if not Rect2(Vector2.ZERO, surface.size).has_point(cleaning_pointer): return
 	var hit: Dictionary = pick.surface_hit_at(cleaning_pointer, true)
 	if hit.is_empty() or not contains_subject(hit.mesh): return
 	bench.tools.aim_blower(bench.camera_rig.camera.unproject_position(hit.point), hit)
-	if bench.cleaning.blowing: bench.cleaning.blow_at(cleaning_pointer, delta, hit)
+	# The jet comes from this view, the way the player sees the nozzle pointed.
+	if bench.cleaning.blowing: bench.cleaning.blow_at(cleaning_pointer, delta, hit, (hit.point - camera.global_position).normalized(), subject)
 
 func paste_under_pointer(delta: float) -> void:
 	if mode != "service" or not bench.paste.working or not bench.ready_for_action(): return
@@ -393,4 +406,5 @@ func _process(delta: float) -> void:
 	bearing_under_pointer(delta)
 	var id: String = bench.service.active_screw
 	if id != "": selected_screw = id
-	progress.value = subject_cleaning_progress() * 100 if bench.tools.equipped_tool == "dev-blower" else paste_progress() * 100 if bench.tools.equipped_tool in bench.tools.SURFACE_TOOLS else bench.service.turns[selected_screw].progress * 100 if bench.service.turns.has(selected_screw) else 0
+	puff_view.visible = bench.cleaning.puffs.visible
+	progress.value = subject_cleaning_progress() * 100 if bench.tools.blower_equipped() else paste_progress() * 100 if bench.tools.equipped_tool in bench.tools.SURFACE_TOOLS else bench.service.turns[selected_screw].progress * 100 if bench.service.turns.has(selected_screw) else 0

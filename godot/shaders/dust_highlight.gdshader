@@ -28,7 +28,7 @@ void fragment() {
 		face = dust_normal.z < 0.0 ? 5.0 : 4.0;
 		q = p.xy;
 	}
-	vec2 uv = (q * 46.0 + vec2(1.0) + vec2(mod(face, 3.0), floor(face / 3.0)) * 48.0) / vec2(144.0, 96.0);
+	vec2 uv = (q * 62.0 + vec2(1.0) + vec2(mod(face, 3.0), floor(face / 3.0)) * 64.0) / vec2(192.0, 128.0);
 	if (texture(dust_map, uv).r < 0.002) discard;
 	float pulse = 0.75 + 0.25 * sin(TIME * 5.0);
 	ALBEDO = vec3(1.0, 0.08, 0.78);

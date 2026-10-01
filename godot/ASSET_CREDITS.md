@@ -15,7 +15,7 @@ Keep this attribution with distributed builds. GPU and testing-desk assets are c
 
 `assets/sounds/gpu_sounds/gpu_attach_short.wav` and `assets/button_press.ogg` were supplied for the testing station. They play when the GPU seats in the test board and when the monitor is turned on.
 
-`assets/sounds/gpu_sounds/sticker_peel_gpu_use.wav` was supplied for the fan-bearing service and plays while the hub sticker peels. The fan's dry-bearing grind is synthesized in code until a recording is supplied.
+`assets/sounds/gpu_sounds/sticker_peel_gpu_use.wav` was supplied for the fan-bearing service and plays while the hub sticker peels. The fan's dry-bearing grind is synthesized in code until a recording is supplied. The air blower's motor is likewise synthesized in `scripts/gpu_cleaning.gd` until `assets/sounds/air_blower.wav` is supplied, and its dust-cloud texture and the dust noise are generated at runtime.
 
 `assets/sounds/ambient_gpu.wav` and `assets/sounds/loud_gpu.wav` were supplied for GPU fan audio. The testing station loops their sustained middle sections and blends them according to remaining dust.
 

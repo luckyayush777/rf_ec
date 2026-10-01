@@ -209,6 +209,10 @@ func click_target(mesh: Object) -> String:
 
 func operate(id: String) -> bool:
 	if moving: return false
+	# testing_station.gd owns the rotor's pose while the air blower's spin coasts down.
+	if bench.testing_station.fan_speed > 0.0:
+		deny("Let the fan stop spinning first.")
+		return false
 	var kind := "close" if id in opened else "open"
 	var check: Dictionary = bench.service_rules.check_opening(kind, id, bench.service.removed, opened, bench.tools.equipped_tool)
 	if not check.allowed:

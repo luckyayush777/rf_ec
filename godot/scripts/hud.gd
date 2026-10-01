@@ -401,11 +401,11 @@ func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Nod
 	var prompt := ""
 	match action:
 		"screw", "screw_hole": prompt = "E: pick up GPU  |  Click: focus" if tools.equipped_tool != "" else "Screwdriver required"
-		"gpu": prompt = "E: pick up GPU  |  Click: focus" if tools.equipped_tool in ["screwdriver", "dev-blower"] or tools.equipped_tool in tools.SURFACE_TOOLS else "E: pick up / remove GPU"
+		"gpu": prompt = "E: pick up GPU  |  Click: focus" if tools.equipped_tool == "screwdriver" or tools.blower_equipped() or tools.equipped_tool in tools.SURFACE_TOOLS else "E: pick up / remove GPU"
 		"test_board": prompt = "E: connect / remove GPU"
 		"monitor_power": prompt = "E: monitor power"
 		"toolbox": prompt = "E / Click: unroll tool bag"
-		"screwdriver", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler": prompt = "E: pick up " + action.replace("-", " ")
+		"screwdriver", "air-blower", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler": prompt = "E: pick up " + action.replace("-", " ")
 		"cable": prompt = "E: connect / disconnect fan cable"
 		"assembly": prompt = "E: inspect GPU / lift loosened assembly"
 		"desk":

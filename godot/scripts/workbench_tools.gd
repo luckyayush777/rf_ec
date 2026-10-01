@@ -6,25 +6,29 @@ signal notice(text: String)
 const PASTE_TOOLS := ["spudger", "ipa-wipe", "paste-syringe"]
 ## Hand tools that work a surface in focus: the paste kit and the fan oiler.
 const SURFACE_TOOLS := PASTE_TOOLS + ["fan-oiler"]
-const TOOLS := ["screwdriver", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler"]
+const TOOLS := ["screwdriver", "air-blower", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler"]
+## The shop air blower is the regular cleaning tool; the debug-only Dev blower clears a wide spot.
+const BLOWERS := ["air-blower", "dev-blower"]
 ## Roll-pocket tools and their node names in scenes/toolbox.tscn.
-const ROLL_NODES := {"screwdriver": "Screwdriver", "dev-blower": "DevBlower", "spudger": "Spudger", "ipa-wipe": "IpaWipe", "paste-syringe": "PasteSyringe", "fan-oiler": "FanOiler"}
+const ROLL_NODES := {"screwdriver": "Screwdriver", "air-blower": "AirBlower", "dev-blower": "DevBlower", "spudger": "Spudger", "ipa-wipe": "IpaWipe", "paste-syringe": "PasteSyringe", "fan-oiler": "FanOiler"}
 const EQUIP_NOTICES := {
 	"screwdriver": "Screwdriver equipped. Click the GPU for a close-up, then hold a screw to turn it.",
+	"air-blower": "Air blower equipped. Click a part for a close-up, then hold and sweep the jet over the dust. Air carries into the fins and spins the fan.",
 	"dev-blower": "Hold and sweep over dusty surfaces to clean them.",
 	"thermal-camera": "Thermal camera equipped. Hold RMB to inspect surface heat.",
 	"spudger": "Plastic spudger equipped. Click the bare die or heatsink base, then hold and drag to scrape off old paste.",
 	"ipa-wipe": "IPA wipe equipped. Hold and rub the scraped surfaces to lift the remaining film.",
 	"paste-syringe": "Paste syringe equipped. Click the bare die, then hold to squeeze; drag to lay a line.",
 	"fan-oiler": "Fan oiler equipped. Click the detached fan, pull its rotor, then hold on the bearing for a drop."}
-const NAMES := {"screwdriver": "screwdriver", "dev-blower": "Dev blower", "thermal-camera": "thermal camera",
+const NAMES := {"screwdriver": "screwdriver", "air-blower": "air blower", "dev-blower": "Dev blower", "thermal-camera": "thermal camera",
 	"spudger": "spudger", "ipa-wipe": "IPA wipe", "paste-syringe": "paste syringe", "fan-oiler": "fan oiler"}
 const RETURN_NOTICES := {
 	"screwdriver": "Screwdriver returned. Hands are free for the fan cable.",
+	"air-blower": "Air blower returned.",
 	"dev-blower": "Dev blower returned.",
 	"thermal-camera": "Thermal camera returned."}
 
-var locations := {"screwdriver": "toolbox", "dev-blower": "toolbox", "thermal-camera": "stand",
+var locations := {"screwdriver": "toolbox", "air-blower": "toolbox", "dev-blower": "toolbox", "thermal-camera": "stand",
 	"spudger": "toolbox", "ipa-wipe": "toolbox", "paste-syringe": "toolbox", "fan-oiler": "toolbox"}
 var location: String:
 	get: return locations["screwdriver"]
@@ -141,7 +145,7 @@ func return_tool() -> void:
 func place(point: Vector3, obstacles: Array) -> bool:
 	var id := equipped_tool
 	if busy or id == "" or not can_use.call(id): return false
-	var large := id == "dev-blower"
+	var large := id in BLOWERS
 	var target := point + Vector3(0, 0.37 if large else 0.205, 0)
 	var footprint := AABB(target + (Vector3(-1.45, -0.35, -0.4) if large else Vector3(-1.35, -0.19, -0.25)),
 		Vector3(2.9, 0.7, 0.8) if large else Vector3(2.7, 0.41, 0.5))
@@ -174,25 +178,32 @@ func held_pose(id: String = "screwdriver") -> Transform3D:
 		return Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * 0.7), Vector3(0.85, -0.55, -1.7))
 	var aspect: float = get_viewport().get_visible_rect().size.aspect()
 	var half_height: float = 2.3 * tan(deg_to_rad(camera.fov / 2.0))
-	var size: float = minf(0.32 if id == "dev-blower" else 0.36, half_height * aspect * 0.58)
-	return Transform3D(Basis.from_euler(Vector3(0.1, -0.2, 2.2 if id == "dev-blower" else 0.9)).scaled(Vector3.ONE * size),
-		Vector3(half_height * aspect * (0.42 if id == "dev-blower" else 0.65),
-			-half_height * (0.42 if id == "dev-blower" else 0.60), -2.3))
+	var blower: bool = id in BLOWERS
+	var size: float = minf(0.32 if blower else 0.36, half_height * aspect * 0.58)
+	return Transform3D(Basis.from_euler(Vector3(0.1, -0.2, 2.2 if blower else 0.9)).scaled(Vector3.ONE * size),
+		Vector3(half_height * aspect * (0.42 if blower else 0.65),
+			-half_height * (0.42 if blower else 0.60), -2.3))
+
+func blower_equipped() -> bool:
+	return equipped_tool in BLOWERS
+
+## The held blower's nozzle axis in world space.
+func blower_axis() -> Vector3:
+	return tool_node(equipped_tool).global_basis.x.normalized()
 
 func aim_blower(screen: Vector2, hit: Dictionary = {}) -> void:
-	if equipped_tool != "dev-blower" or busy: return
-	var pose := held_pose("dev-blower")
+	if not blower_equipped() or busy: return
+	var pose := held_pose(equipped_tool)
 	var target: Vector3 = hit.get("point", camera.project_ray_origin(screen) + camera.project_ray_normal(screen) * 20.0)
 	var direction: Vector3 = (camera.to_local(target) - pose.origin).normalized()
 	pose.basis = Basis(Quaternion(Vector3.RIGHT, direction)).scaled(pose.basis.get_scale())
-	dev_blower.transform = pose
+	tool_node(equipped_tool).transform = pose
 
 func blower_points_at(point: Vector3) -> bool:
-	if equipped_tool != "dev-blower" or busy: return false
-	var origin := dev_blower.global_position
-	var direction := dev_blower.global_basis.x.normalized()
-	var to_point := point - origin
-	return to_point.length() > 0.01 and direction.dot(to_point.normalized()) > 0.985
+	if not blower_equipped() or busy: return false
+	var blower := tool_node(equipped_tool)
+	var to_point := point - blower.global_position
+	return to_point.length() > 0.01 and blower_axis().dot(to_point.normalized()) > 0.985
 
 func _process(_delta: float) -> void:
 	var id := equipped_tool

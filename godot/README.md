@@ -17,21 +17,22 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 - Surface picking, animated whole-GPU lift/set-down, independent inspection rotation/zoom, and flip.
 - Holder jaws open during inspection and close when the GPU returns.
 - Metadata adapter that validates named parts and original parent relationships, records original transforms, and creates service definitions.
-- Animated canvas tool bag pulled toward the front of the bench, clear of the screw tray, with six stitched pockets and retaining straps; the fan oiler fills the last pocket. Clicking it opens a large live 3D view over the blurred room and unrolls the fabric; click a visible tool or its keyboard-accessible label. Switching returns the previous tool, and closing rolls the bag shut. The thermal camera remains on its stand and is also selectable from the footer.
+- Animated canvas tool bag pulled toward the front of the bench, clear of the screw tray, with seven stitched pockets and retaining straps; the air blower fills the last pocket. Clicking it opens a large live 3D view over the blurred room and unrolls the fabric; click a visible tool or its keyboard-accessible label. Switching returns the previous tool, and closing rolls the bag shut. The thermal camera remains on its stand and is also selectable from the footer.
 - Screwdriver equip/return, automatic toolbox opening, and desk placement/retrieval with footprint and obstacle checks. Inspection can continue with the screwdriver equipped.
 - Fan cable unplug/reconnect with plug animation and wire deformation. Cable handling requires empty hands; cooler screws require the cable unplugged.
 - All eight screws support 1.5-second hold-to-turn removal/refit, independent paused progress, labeled tray slots, and exact original parent/transform restoration. Shallow screw seats remain visible when screws move to the tray; click an empty seat with the screwdriver to seat that screw immediately, then hold to tighten it in place. Released screws retain their progress and follow the GPU.
 - Fan and heatsink/cooler assemblies can be lifted after their cable/screw requirements are met, rotated while held, placed on clear repair-table space, picked up again, stored, and refitted to their exact original mounts. The fan travels with the cooler if still attached.
-- Part-owned amber dust masks on the PCB front/back, fan, heatsink, and screw heads. Each new workbench covers about 40% of each cleanable mesh in randomized patches. Fan dust is generated only on exposed upper faces, so it does not appear inside the housing or beneath blades. Cleaning one surface leaves the other parts and sides dirty, including after detachment or refit. Imported mesh winding is corrected so masks align with rendered and picked faces; decorative pieces over the fan hub do not block cleaning its cap.
+- Part-owned dust masks on the PCB front/back, fan, heatsink, and screw heads. Each mask stores thickness: a grey film covers about 85% of each cleanable mesh in clumpy, randomized cloud, and builds into lighter, opaque felt where air and gravity deposit it: fin tops under the fan's blade sweep, fan blades toward the hub, upward faces, and the board just outside the cooler where fin exhaust spills. The lit dust shader adds fibre grain, relief and a soft sheen at grazing angles, and feathers patch edges. Fan dust is generated only on exposed upper faces, so it does not appear inside the housing or beneath blades. Cleaning one surface leaves the other parts and sides dirty, including after detachment or refit. Imported mesh winding is corrected so masks align with rendered and picked faces; decorative pieces over the fan hub do not block cleaning its cap.
 - Focus works on the full card or a selected detached fan/heatsink. E picks up a detached part even with a tool equipped; R opens its focus view; E on the mat places the part while keeping your tool. Tools can be picked up or returned while holding the part. New metadata-defined assemblies share this inspection path. Detaching/refitting still requires empty hands. Holding a detached fan does not block screwdriver work on the remaining board; full, partially dismantled, and bare boards remain serviceable on the mat. After returning the tool in focus, click the cable to unplug it or a loosened assembly to lift it.
 - Focus cleaning: hold LMB and sweep over visible dust; RMB drag or Flip part exposes the backplate. Only the selected part and its live dust masks appear in focus; the progress bar tracks that part. A large Return tool area puts the equipped tool away and leaves the card view open.
+- Shop **air blower** (electric duster) in the tool bag's last pocket. It works in focus: hold LMB and sweep its narrow jet. Thick felt lifts quickly in clumps; the last thin film clings and needs steady air. Air also carries a little way past the aimed surface into faces turned toward it, such as fin gaps or the fins under the fan. Cleaned dust leaves as a soft cloud with falling flakes. Its motor (a synthesized placeholder until `assets/sounds/air_blower.wav` is supplied) winds up on the trigger and coasts down after release. Blowing on an idle fan's rotor freewheels it, then it coasts to a stop; a dry bearing grinds while it spins, and the rotor cannot be serviced until it stops.
 - Development-only **Dev blower** in the toolbox. Its nozzle follows the crosshair and must point at a visible part to remove dust. Holding the trigger plays the supplied air recording, with its steady section looped. The Tab menu shows overall and per-part cleanliness. At 98% cleanliness, that part's remaining dust clears and its jingle plays once (unless sound is muted).
 - Debug builds also have **Debug: Clean GPU** and **Debug: Disassemble GPU** in the bottom panel. Clean GPU clears every dust mask; a connected test monitor recovers as the card cools (dried paste still throttles it). Disassemble GPU unplugs the cable, moves all eight screws into their tray rows, and lays the heatsink and fan out on the mat just left of the card; normal refitting still works afterward. Disassembly is available when the GPU is set down and off the test board.
 - Low-density dust remains visible until its mask is fully erased. In debug builds, the bottom **highlight dust** button toggles a magenta view of remaining dust through parts. If dust remains 30 seconds after equipping the Dev blower, this view turns on automatically. Rotate, flip or remove parts to expose dust before cleaning it.
 - Pointer release, Escape and window focus loss pause active screw turns. Tool/cable/inspection changes are blocked during active service animations.
-- Screwdriver, blower and cleaning jingles share a sound toggle; see [asset credits](ASSET_CREDITS.md).
+- Screwdriver, blowers and cleaning jingles share a sound toggle; see [asset credits](ASSET_CREDITS.md).
 - **Repair status overlay** (debug builds, developer aid): switch it on with **Repair status overlay** in the Escape menu's debug panel; the choice is remembered. It lists Dust, Thermal paste, Fan bearing, Assembly and the live Test run readout, each red (broken or untouched), yellow (in progress) or green (done), with hidden truth such as paste contact percentage. It stays visible during play and above focus views.
-- **Sound mix**: press Escape in play to release the mouse and open a panel with a Master slider and one slider per sound (fan quiet/loud loops, bearing grind, blower air, screwdriver, clean jingle, GPU seating, monitor button, sticker peel), from silent to 200%. Changes apply live. Run from the editor, they save into `default_bus_layout.tres`, so they can be committed and are also editable in the editor's bottom **Audio** tab; exported builds save them to user settings.
+- **Sound mix**: press Escape in play to release the mouse and open a panel with a Master slider and one slider per sound (fan quiet/loud loops, bearing grind, air blower motor, Dev blower air, screwdriver, clean jingle, GPU seating, monitor button, sticker peel), from silent to 200%. Changes apply live. Run from the editor, they save into `default_bus_layout.tres`, so they can be committed and are also editable in the editor's bottom **Audio** tab; exported builds save them to user settings.
 - Service-rule evaluator, exercised against 1,024 checked-in expected decisions and used by the live cable/screw controller.
 
 ## Controls
@@ -48,12 +49,12 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 | Monitor power | E on its physical button; monitor power does not disconnect board power |
 | Switch tool (anywhere) | **T**: opens the tool bag from anywhere, including while holding a part or inside a service close-up. Pick a tool (or Empty hands) and you return to where you were; from a close-up it reopens on the same part, framed for the new tool. T or Esc closes the bag. |
 | Select / switch tool | Click the tool bag or press E on it; wait for it to unroll, then click a tool or select its label with arrow keys + Enter. Esc rolls it closed. |
-| Open GPU service window | With screwdriver, blower or a paste tool equipped, click the GPU/backplate, screw or empty seat. E picks up the GPU instead; R while holding it opens focus. The room blurs behind the sharp GPU. RMB drag rotates the view; wheel zooms; Flip part reveals the other side. Click Return tool to put the tool away without closing focus. Esc closes. |
+| Open GPU service window | With screwdriver, a blower or a paste tool equipped, click the GPU/backplate, screw or empty seat. E picks up the GPU instead; R while holding it opens focus. The room blurs behind the sharp GPU. RMB drag rotates the view; wheel zooms; Flip part reveals the other side. Click Return tool to put the tool away without closing focus. Esc closes. |
 | Turn/refit screw | In the service window, hold LMB on a screw or empty seat. A refit screw seats immediately; holding turns it, releasing pauses. |
 | Connect fan cable | With empty tool hand, E on plug/socket/wire |
 | Lift assembly | E on fan/heatsink after removing its cable/screw dependencies |
 | Rotate / place / refit assembly | RMB + mouse / E on clear repair tabletop / Q; cooler refits before fan |
-| Clean dust | Equip Dev blower, hold LMB and sweep over exposed surfaces; remove assemblies to reach internal dust |
+| Clean dust | Equip the air blower, click a part for focus, hold LMB and sweep the jet over exposed surfaces; remove assemblies to reach internal dust. Debug builds also have the wide-footprint Dev blower. |
 | Thermal camera | E on orange camera on the repair desk; hold RMB for its larger viewfinder |
 | Repaste | With the heatsink removed, equip spudger / IPA wipe / paste syringe and click the GPU or detached heatsink. Hold LMB on the framed die or base to scrape, wipe or squeeze. See [Repasting](#repasting). |
 | Oil the fan bearing | In focus on the detached fan: click the hub sticker, then the hub to pull the rotor. Hold LMB along the shaft with the IPA wipe, then on the bearing with the fan oiler. Click the rotor to refit it. See [Fan bearing](#fan-bearing). |
@@ -155,7 +156,7 @@ not modelled yet, and the bearing does not affect temperatures.
 
 ## Pending gameplay
 
-The regular blower, paste thickness/mounting pressure, directional pad scraping, comparison view, job progression, air particles and general interaction highlights are pending. Imported pad remnants are geometry only. Replacement pads have no gameplay yet. The racing feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
+Paste thickness/mounting pressure, directional pad scraping, comparison view, job progression, volumetric dust (shell layers or detachable felt clumps), fan wear from overspinning and general interaction highlights are pending. Imported pad remnants are geometry only. Replacement pads have no gameplay yet. The racing feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
 
 No deployment workflow or export preset is configured.
 
@@ -165,15 +166,16 @@ No deployment workflow or export preset is configured.
 | --- | --- |
 | `scenes/workbench.tscn` | Main composition, asset instances, camera, lighting, environment, and controller nodes. |
 | `scenes/repair_desk.tscn` | Editable desk/mat/holder/tray and prop meshes. |
-| `scenes/toolbox.tscn` | Screwdriver, Dev blower, spudger, IPA wipe, paste syringe and fan oiler meshes; tool_roll.gd builds the canvas bag, pockets, straps and rolling geometry and places tools from its `POCKETS` table. |
+| `scenes/toolbox.tscn` | Screwdriver, air blower, Dev blower, spudger, IPA wipe, paste syringe and fan oiler meshes; tool_roll.gd builds the canvas bag, pockets, straps and rolling geometry and places tools from its `POCKETS` table. |
 | `scenes/test_monitor.tscn`, `scripts/test_monitor.gd` | Editable LCD housing, power button, sound, deterministic pseudo-3D racing display driven by core clock, VRAM error artifacts and GPU core sensor/clock readout. |
-| `scripts/testing_station.gd` | PCIe fixture interaction, GPU transfer, monitor connection, signal cable, fan animation, cleanliness-driven fan audio and dry-bearing grind. |
+| `scripts/testing_station.gd` | PCIe fixture interaction, GPU transfer, monitor connection, signal cable, fan animation (powered or air-blown), cleanliness-driven fan audio and dry-bearing grind. |
 | `scripts/gpu_bearing.gd`, `shaders/shaft_gunk.gdshader` | Fan sleeve bearing: runtime bearing boss, struts and shaft, hub-sticker peel, rotor pull/refit, shaft gunk wipe, oil drops and the dry/serviced state. |
 | `scenes/shop_interior.tscn`, `scripts/shop_interior.gd` | Imported workshop shell and props, editor-visible layout conversion and cutaway visibility. |
 | `scripts/workbench.gd` | Startup, controller wiring, input arbitration, desk alignment, placement obstacles and jaw motion. |
 | `scripts/bench_closeup.gd`, `scripts/tool_roll.gd` | Live GPU/tool-bag viewing windows, isolated mesh proxies, mouse picking, orbit/zoom and segmented fabric animation. |
 | `scripts/workbench_tools.gd` | Table-driven exclusive tool locations (`TOOLS`), roll/tool animations and placement guards. |
-| `scripts/gpu_cleaning.gd`, `shaders/dust_overlay.gdshader`, `shaders/dust_highlight.gdshader` | Randomized dust masks, aimed cleaning, visible low-density residue, debug highlight, air loop and per-part jingles. |
+| `scripts/gpu_cleaning.gd`, `shaders/dust_overlay.gdshader`, `shaders/dust_highlight.gdshader` | Airflow-weighted dust thickness masks, lit felt shading, Dev blower spot and air blower jet cleaning, visible low-density residue, debug highlight, air loop, motor and per-part jingles. |
+| `scripts/dust_puffs.gd`, `shaders/dust_puff.gdshader` | Pooled dust cloud and flakes lifted by the blowers, one MultiMesh shared with the focus view. |
 | `scripts/held_part_pose.gd` | Shared left-hand framing for carried GPU and detached assemblies. |
 | `scripts/gpu_service.gd` | Cable state/deformation, screw progress, assembly handling/placement, exact refit and screwdriver audio. |
 | `scripts/interaction_picker.gd` | Cached triangle picking, live-transform tracking, depth-tested screw/plug targets, cleaning rays through fan-hub decoration, surface normals and action routing. |
@@ -191,6 +193,7 @@ No deployment workflow or export preset is configured.
 | `tools/sync_assets.py` | Copies Blender GLBs and extracts part metadata using Python standard library. |
 | `tests/fixtures/service-rules.json` | Checked-in expected service decisions; no generation step or external toolchain. |
 | `tests/smoke.gd` | Rule parity, malformed graphs, metadata/hierarchy, picking, camera, inspection, test-board/monitor flow, randomized dust coverage, fan mask orientation/hub cleaning, mounted-fan dust reachability, per-part completion and debug shortcut checks. |
+| `tests/air_blower_flow.gd` | Dust deposition and thickness, air blower from the bag, narrow jet, sweep cleaning, dust cloud, motor wind-up/coast, air-spun fan grind and coast-down. |
 | `tests/service_flow.gd` | Called by smoke: tool lifecycle/busy guards, cable deformation/reset, front/rear/tray picking, pause/resume/cancel, assembly placement/refit/storage, blower aim/audio/cleaning, debug highlight timing/button, and eight screw round trips. |
 
 Godot uses ordinary imported GLB scenes; the sidecar avoids reliance on importer-specific handling of custom extras. The asset adapter preserves part metadata and captures original parents and transforms. Rule acceptance and missing-dependency lists are checked against frozen regression cases; malformed graphs fail closed.
@@ -232,6 +235,7 @@ $godotExe = 'C:\Users\user\Desktop\ayush.dev\godot\Godot_v4.7.2-stable_win64_con
 & $godotExe --headless --path godot --script res://tests/audio_mix_flow.gd
 & $godotExe --headless --path godot --script res://tests/repair_status_flow.gd
 & $godotExe --headless --path godot --script res://tests/tool_hotkey_flow.gd
+& $godotExe --headless --path godot --script res://tests/air_blower_flow.gd
 
 # Run the game, or open the editor.
 & $godotExe --path godot
