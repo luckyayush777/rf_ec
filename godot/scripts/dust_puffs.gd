@@ -7,6 +7,7 @@ const CAPACITY := 160
 const SHADER = preload("res://shaders/dust_puff.gdshader")
 const PUFF_COLOR := Color(0.64, 0.61, 0.56)
 const FLAKE_COLOR := Color(0.5, 0.47, 0.43)
+const CHIP_COLOR := Color(0.47, 0.47, 0.45)
 ## Mask bytes lifted per puff, and thick-felt bytes per flake.
 const BYTES_PER_PUFF := 180.0
 const BYTES_PER_FLAKE := 500.0
@@ -51,7 +52,12 @@ func burst(point: Vector3, normal: Vector3, jet: Vector3, lifted: int, felt: int
 		flake_budget -= 1.0
 		spawn(point, normal, away, true)
 
-func spawn(point: Vector3, normal: Vector3, away: Vector3, flake: bool) -> void:
+## Hard paste glaze breaking off under a blade: small grey chips that hop off and fall.
+func chip(point: Vector3, normal: Vector3, count: int) -> void:
+	for i in range(mini(count, 6)):
+		spawn(point, normal, normal, true, CHIP_COLOR, rng.randf_range(0.004, 0.009))
+
+func spawn(point: Vector3, normal: Vector3, away: Vector3, flake: bool, color := Color(), size := 0.0) -> void:
 	if particles.size() >= CAPACITY: particles.pop_front()
 	var spread := Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0))
 	particles.append({
@@ -59,7 +65,8 @@ func spawn(point: Vector3, normal: Vector3, away: Vector3, flake: bool) -> void:
 		"velocity": (away * 0.6 + normal * 0.5 + spread * 0.35).normalized() * rng.randf_range(0.25, 0.6),
 		"age": 0.0,
 		"life": rng.randf_range(1.1, 1.8) if flake else rng.randf_range(0.7, 1.4),
-		"size": rng.randf_range(0.01, 0.018) if flake else rng.randf_range(0.08, 0.18),
+		"size": size if size > 0.0 else rng.randf_range(0.01, 0.018) if flake else rng.randf_range(0.08, 0.18),
+		"color": color if color != Color() else FLAKE_COLOR if flake else PUFF_COLOR,
 		"flake": flake})
 	visible = true
 
@@ -81,7 +88,7 @@ func _process(delta: float) -> void:
 		var particle: Dictionary = alive[i]
 		var t: float = particle.age / particle.life
 		var size: float = particle.size if particle.flake else lerpf(particle.size * 0.3, particle.size, 1.0 - pow(1.0 - t, 2.0))
-		var color: Color = FLAKE_COLOR if particle.flake else PUFF_COLOR
+		var color: Color = particle.color
 		var at: Vector3 = particle.position
 		var offset := i * 16
 		buffer[offset] = size

@@ -13,6 +13,7 @@ const FAN_GRIND := &"FanGrind"
 const MONITOR_POWER := &"MonitorPower"
 const STICKER_PEEL := &"StickerPeel"
 const AIR_BLOWER := &"AirBlower"
+const RACING_GAME := &"RacingGame"
 const CHANNELS := [
 	[MASTER, "Master"],
 	[FAN_QUIET, "Fan, quiet loop"],
@@ -24,6 +25,7 @@ const CHANNELS := [
 	[JINGLE, "Clean jingle"],
 	[GPU_ATTACH, "GPU seating"],
 	[MONITOR_POWER, "Monitor power button"],
+	[RACING_GAME, "Racing test game"],
 	[STICKER_PEEL, "Sticker peel"]]
 const LAYOUT_PATH := "res://default_bus_layout.tres"
 const USER_PATH := "user://audio_mix.cfg"

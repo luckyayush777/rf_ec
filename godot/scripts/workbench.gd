@@ -104,6 +104,7 @@ func _ready() -> void:
 	paste.name = "Paste"
 	add_child(paste)
 	paste.configure(self)
+	paste.chipped.connect(cleaning.puffs.chip)
 	service.assembly_seated.connect(func(id: String): if id == "cooler-assembly": paste.seat())
 	service.assembly_detached.connect(func(id: String): if id == "cooler-assembly": paste.lift())
 	bearing = Bearing.new()

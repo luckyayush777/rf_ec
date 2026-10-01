@@ -158,6 +158,27 @@ func run() -> void:
 	for step in range(8): monitor._process(0.125)
 	expect(monitor.powered and monitor.presented_frames > 0 and monitor.distance > 0.0,
 		"Racing test did not advance")
+	# The game's sound comes from the monitor and breaks up with the feed.
+	expect(monitor.game_audio.playing and monitor.game_audio.bus == &"RacingGame", "Racing game sound did not start")
+	var feed_errors: float = monitor.memory_errors
+	monitor.reset_simulation()
+	monitor.memory_errors = 0.0
+	monitor.frame_time = 0.0
+	var smooth_audio: PackedVector2Array = monitor.render_audio(4000)
+	expect(monitor.stutter_samples == 0 and monitor.crackles == 0, "Smoothly presented game sound stuttered or crackled")
+	var block: int = monitor.history.size()
+	monitor.frame_time = 0.45
+	var stuck_audio: PackedVector2Array = monitor.render_audio(block * 2)
+	expect(monitor.stutter_samples == block * 2 and stuck_audio[0] == stuck_audio[block] and
+		stuck_audio[block - 1] == smooth_audio[smooth_audio.size() - 1], "A hitched frame did not loop the last audio block")
+	monitor.frame_time = 0.0
+	monitor.memory_errors = 1.0
+	monitor.render_audio(22050)
+	expect(monitor.crackles > 10, "Hot VRAM did not crackle the game sound")
+	monitor.memory_errors = feed_errors
+	monitor.set_muted(true)
+	expect(monitor.game_audio.volume_db == -80.0, "Mute did not silence the racing game")
+	monitor.set_muted(false)
 	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
 		DirAccess.make_dir_recursive_absolute("res://build")
 		await RenderingServer.frame_post_draw

@@ -17,6 +17,20 @@ func layer_rect(view: CanvasLayer, layer: MeshInstance3D) -> Rect2:
 	for corner in [Vector3(-0.5, 0, -0.5), Vector3(0.5, 0, -0.5), Vector3(-0.5, 0, 0.5), Vector3(0.5, 0, 0.5)]:
 		rect = rect.expand(view.camera.unproject_position(layer.to_global(corner * Vector3(size.x, 0, size.y))))
 	return rect
+## Also captures the face from a low angle, where the relief and cut edges show.
+func capture_angled(view: CanvasLayer, name: String) -> void:
+	await capture(name)
+	if "--capture" not in OS.get_cmdline_user_args() or DisplayServer.get_name() == "headless": return
+	var facing: Vector3 = view.direction
+	var side := facing.cross(Vector3.UP if absf(facing.y) < 0.9 else Vector3.RIGHT).normalized()
+	view.direction = (facing * 0.32 + side).normalized()
+	view.zoom = 0.75
+	view.update_camera()
+	await process_frame
+	await capture(name + "-angle")
+	view.direction = facing
+	view.zoom = 1.0
+	view.update_camera()
 func press(view: CanvasLayer, at: Vector2) -> void:
 	var down := InputEventMouseButton.new()
 	down.button_index = MOUSE_BUTTON_LEFT
@@ -24,14 +38,14 @@ func press(view: CanvasLayer, at: Vector2) -> void:
 	down.position = at
 	view.view_input(down)
 ## Real pointer strokes through the close-up picker, in rows across the face.
-func sweep(bench: Node3D, view: CanvasLayer, face: String, passes: int) -> void:
+func sweep(bench: Node3D, view: CanvasLayer, face: String, passes: int, portion := 1.0) -> void:
 	var rect := layer_rect(view, bench.paste.faces[face].mesh)
 	press(view, rect.get_center())
 	for pass_index in range(passes):
 		var y := rect.position.y
 		while y <= rect.end.y:
 			var x := rect.position.x
-			while x <= rect.end.x:
+			while x <= rect.position.x + rect.size.x * portion:
 				view.cleaning_pointer = Vector2(x, y)
 				view.paste_under_pointer(0.05)
 				x += 5.0
@@ -59,6 +73,68 @@ func total(values: PackedFloat32Array) -> float:
 	var sum := 0.0
 	for value in values: sum += value
 	return sum
+## Mean dried stack over die cells within a rim band (0 centre, 1 die edge), skipping bare cells.
+func band_mean(paste: Node, face: Dictionary, low: float, high: float, layer: String = "") -> float:
+	var sum := 0.0
+	var count := 0
+	for k in range(paste.N * paste.N):
+		var i: int = k % paste.N
+		var j: int = k / paste.N
+		if not paste.is_inner(i, j): continue
+		var stack: float = paste.dried_stack(face, k)
+		if stack <= 0.0: continue
+		var rim := maxf(absf((i - paste.MARGIN + 0.5) / paste.INNER * 2.0 - 1.0), absf((j - paste.MARGIN + 0.5) / paste.INNER * 2.0 - 1.0))
+		if rim < low or rim >= high: continue
+		sum += stack if layer == "" else face[layer][k] / stack
+		count += 1
+	return sum / maxf(count, 1)
+## Old compound is uneven and layered, chips from exposed edges and smears its pasty base.
+func check_layers(paste: Node) -> void:
+	var die: Dictionary = paste.faces.die
+	var stacks: Array[float] = []
+	for k in range(paste.N * paste.N):
+		if paste.is_inner(k % paste.N, k / paste.N) and paste.dried_stack(die, k) > 0.0: stacks.append(paste.dried_stack(die, k))
+	var mean: float = stacks.reduce(func(sum, value): return sum + value, 0.0) / stacks.size()
+	var variance: float = stacks.reduce(func(sum, value): return sum + (value - mean) * (value - mean), 0.0) / stacks.size()
+	print("dried die stack: mean %.2f, spread %.2f, min %.2f, max %.2f" % [mean, sqrt(variance), stacks.min(), stacks.max()])
+	expect(sqrt(variance) / mean > 0.3, "Old paste is still a near-uniform layer")
+	expect(band_mean(paste, die, 0.65, 1.0) > 1.3 * band_mean(paste, die, 0.0, 0.4), "Pump-out left no ridge toward the die edges")
+	expect(band_mean(paste, die, 0.0, 0.4, "gum") > band_mean(paste, die, 0.7, 1.0, "gum") + 0.15, "The middle is not pastier than the dried rim")
+	expect(band_mean(paste, die, 0.7, 1.0, "glaze") > band_mean(paste, die, 0.0, 0.4, "glaze"), "The rim did not dry harder than the middle")
+	var sink_stack := 0.0
+	for k in range(paste.N * paste.N): sink_stack += paste.dried_stack(paste.faces.heatsink, k)
+	expect(sink_stack > 0.2 * stacks.reduce(func(sum, value): return sum + value, 0.0), "Lifting tore no old paste onto the heatsink base")
+	var size: int = paste.N * paste.N
+	var zero := PackedFloat32Array()
+	zero.resize(size)
+	var sheet := PackedFloat32Array()
+	sheet.resize(size)
+	sheet.fill(0.3)
+	var middle: int = paste.N / 2
+	var c: int = middle * paste.N + middle
+	var at := Vector2(middle + 0.5, middle + 0.5)
+	# Glaze chips far faster once the blade is under an exposed edge, and protects the crust.
+	for layer in ["crust", "gum", "film", "paste"]: die[layer] = zero.duplicate()
+	die.glaze = sheet.duplicate()
+	die.crust = sheet.duplicate()
+	paste.scrape("die", at, 0.02)
+	var intact: float = 0.3 - die.glaze[c]
+	expect(intact > 0.0 and is_equal_approx(die.crust[c], 0.3), "The blade reached the crust through intact glaze")
+	die.glaze = sheet.duplicate()
+	die.glaze[c + 1] = 0.0
+	paste.scrape("die", at, 0.02)
+	expect(0.3 - die.glaze[c] > 3.0 * intact, "Glaze beside a gap did not chip faster")
+	# Pasty gum is ploughed ahead of a moving blade, not just lifted.
+	die.glaze = zero.duplicate()
+	die.crust = zero.duplicate()
+	die.gum = sheet.duplicate()
+	var row := 14
+	paste.scrape("die", Vector2(10.5, row + 0.5), 0.05, Vector2(1, 0))
+	expect(die.gum[row * paste.N + 13] > 0.3 and is_equal_approx(die.gum[row * paste.N + 7], 0.3), "Gum was not pushed ahead of the blade")
+	var gum_total := 0.0
+	for value in die.gum: gum_total += value
+	expect(gum_total < 0.3 * size and gum_total > 0.3 * size - 0.05 * 13 * 1.8, "Smearing lost or created gum")
+	paste.reset_dried()
 func clear_paste(paste: Node) -> void:
 	for id in paste.faces:
 		var zero := PackedFloat32Array()
@@ -106,6 +182,8 @@ func run() -> void:
 	expect(rules.check_surface("apply", "die", ["cooler-assembly"], "paste-syringe").allowed, "Exposed die refused fresh paste")
 	var broken = preload("res://scripts/service_rules.gd").new(bench.asset_contract.service_parts, [], [{"id": "x", "exposedBy": "missing"}])
 	expect(not broken.check_surface("scrape", "x", ["missing"], "spudger").allowed, "Malformed contact surface did not fail closed")
+	check_layers(paste)
+	expect(paste.dried and paste.contact_quality() < 0.2, "Layer checks did not restore the dried paste")
 	# Tool roll now carries the paste kit; tools stay exclusive.
 	await bench.tools.equip("spudger")
 	expect(bench.tools.equipped_tool == "spudger", "Spudger could not be equipped")
@@ -119,20 +197,38 @@ func run() -> void:
 	# Dried die: the wipe only smears crust; the spudger lifts crust but leaves film.
 	await bench.tools.equip("ipa-wipe")
 	expect(await open_face(bench, bench.gpu, "gpu") and view.paste_face() == "die", "Exposed die was not framed for paste work")
-	await capture("paste-die-dried")
-	var crust_before: float = total(paste.faces.die.crust)
+	await capture_angled(view, "paste-die-dried")
+	var hard_before: float = total(paste.faces.die.glaze) + total(paste.faces.die.crust)
+	var gum_before: float = total(paste.faces.die.gum)
 	sweep(bench, view, "die", 2)
-	expect(is_equal_approx(total(paste.faces.die.crust), crust_before), "IPA wipe removed dried crust")
+	expect(is_equal_approx(total(paste.faces.die.glaze) + total(paste.faces.die.crust), hard_before), "IPA wipe removed dried glaze or crust")
 	expect(notices.any(func(text: String): return "Scrape it off" in text), "Wiping crust gave no scrape hint")
 	await switch_tool(bench, "spudger")
 	expect(await open_face(bench, bench.gpu, "gpu") and view.paste_face() == "die", "Spudger view lost the die")
-	sweep(bench, view, "die", 4)
-	expect(total(paste.faces.die.crust) < 0.02 * crust_before, "Spudger left crust on the die")
+	# A brief scrape on the thickest spot only gets partway down the stack; it takes time.
+	var die_face: Dictionary = paste.faces.die
+	var thickest := 0
+	for k in range(paste.N * paste.N):
+		if paste.dried_stack(die_face, k) > paste.dried_stack(die_face, thickest): thickest = k
+	var stack_before: float = paste.dried_stack(die_face, thickest)
+	var die_mesh: MeshInstance3D = die_face.mesh
+	var die_size: Vector2 = (die_mesh.mesh as PlaneMesh).size
+	var spot := die_mesh.to_global(Vector3(((thickest % paste.N + 0.5) / paste.N - 0.5) * die_size.x, 0.0,
+		((thickest / paste.N + 0.5) / paste.N - 0.5) * die_size.y))
+	squeeze_at(bench, view, view.camera.unproject_position(spot), 0.1)
+	var stack_after: float = paste.dried_stack(die_face, thickest)
+	print("die scrape: thickest cell %.2f -> %.2f after 0.1 s" % [stack_before, stack_after])
+	expect(stack_after < stack_before and stack_after > 0.25 * stack_before, "A brief scrape did not take the stack partway down")
+	sweep(bench, view, "die", 1, 0.5)
+	await capture_angled(view, "paste-die-half-scraped")
+	sweep(bench, view, "die", 6)
+	expect(total(paste.faces.die.glaze) + total(paste.faces.die.crust) < 0.02 * hard_before, "Spudger left glaze or crust on the die")
+	expect(total(paste.faces.die.gum) < 0.35 * gum_before, "Spudger did not plough off the pasty gum")
 	expect(not paste.faces.die.clean and total(paste.faces.die.film) > 50.0, "Scraping alone removed the residue film")
 	await capture("paste-die-scraped")
 	await switch_tool(bench, "ipa-wipe")
 	expect(await open_face(bench, bench.gpu, "gpu"), "Wipe view did not reopen")
-	sweep(bench, view, "die", 4)
+	sweep(bench, view, "die", 6)
 	expect(paste.faces.die.clean and paste.face_progress("die") >= 0.99, "Wiping did not finish the die")
 	expect(notices.any(func(text: String): return "die clean" in text.to_lower()), "Clean die gave no completion notice")
 	await capture("paste-die-clean")
@@ -140,10 +236,10 @@ func run() -> void:
 	await switch_tool(bench, "spudger")
 	expect(await open_face(bench, cooler, "assembly") and view.paste_face() == "heatsink", "Detached heatsink base was not framed")
 	await capture("paste-heatsink-dried")
-	sweep(bench, view, "heatsink", 4)
+	sweep(bench, view, "heatsink", 7)
 	await switch_tool(bench, "ipa-wipe")
 	expect(await open_face(bench, cooler, "assembly"), "Heatsink wipe view did not open")
-	sweep(bench, view, "heatsink", 4)
+	sweep(bench, view, "heatsink", 6)
 	expect(paste.faces.heatsink.clean, "Heatsink base could not be cleaned")
 	# Fresh paste: a held squeeze grows a bead on the die.
 	await switch_tool(bench, "paste-syringe")

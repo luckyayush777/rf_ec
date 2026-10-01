@@ -1,6 +1,9 @@
 extends Node3D
 ## A deterministic road-racing test feed. Its presentation cadence follows the card's core
 ## clock, so a throttling card shows a choppy, stuttering race; hot VRAM corrupts the image.
+## The game's sound comes from the monitor speakers and suffers with it: engine and road
+## parameters change only on presented frames (stepped pitch at low rates), a hitched frame
+## loops the last audio block (the stutter buzz), and memory errors crackle.
 
 signal changed
 signal notice(text: String)
@@ -28,6 +31,15 @@ const HAZE := Color(0.55, 0.64, 0.7)
 const GARBAGE := [Color(1, 0, 1), Color(0, 1, 0.4), Color(1, 1, 1), Color(0.1, 0.9, 1), Color(0, 0, 0)]
 const Thermal := preload("res://scripts/gpu_thermal.gd")
 const AudioMix = preload("res://scripts/audio_mix.gd")
+const AUDIO_RATE := 22050.0
+## Length of the block a hitched game repeats until its next frame.
+const STUTTER_BLOCK := 0.045
+## A frame this many nominal intervals overdue (and at least STALL_MIN late) has hitched.
+const STALL_INTERVALS := 1.7
+const STALL_MIN := 0.09
+## Chance per sample, at full memory errors, of a corrupted (crackling) sample.
+const CRACKLE_RATE := 0.002
+const GAME_TRIM_DB := -6.0
 
 @onready var screen: MeshInstance3D = $Screen
 @onready var button: MeshInstance3D = $PowerButton
@@ -66,10 +78,38 @@ var artifact_rng := RandomNumberGenerator.new()
 var image: Image
 var texture: ImageTexture
 var led_material: StandardMaterial3D
+var game_audio: AudioStreamPlayer
+var audio_playback: AudioStreamGeneratorPlayback
+var muted := false
+## Sound parameters as the game last submitted them, on its latest presented frame.
+var audio_speed := 0.0
+var audio_bend := 0.0
+var whoosh := 0.0
+var engine_phase := 0.0
+var squeal_phase := 0.0
+var road_fast := 0.0
+var road_slow := 0.0
+## Ring of the most recent synthesized samples; a stall replays it from the oldest.
+var history := PackedFloat32Array()
+var history_pos := 0
+var loop_pos := 0
+var stutter_samples := 0
+var crackles := 0
+var audio_rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
 	button.set_meta("action", "monitor_power")
 	power_audio.bus = AudioMix.MONITOR_POWER
+	game_audio = AudioStreamPlayer.new()
+	game_audio.name = "RacingGameSound"
+	var generator := AudioStreamGenerator.new()
+	generator.mix_rate = AUDIO_RATE
+	generator.buffer_length = 0.1
+	game_audio.stream = generator
+	game_audio.volume_db = GAME_TRIM_DB
+	game_audio.bus = AudioMix.RACING_GAME
+	add_child(game_audio)
+	history.resize(roundi(STUTTER_BLOCK * AUDIO_RATE))
 	image = Image.create(IMAGE_WIDTH, IMAGE_HEIGHT, false, Image.FORMAT_RGB8)
 	image.fill(Color(0.075, 0.09, 0.105))
 	texture = ImageTexture.create_from_image(image)
@@ -83,7 +123,9 @@ func _ready() -> void:
 	update_face()
 
 func set_muted(value: bool) -> void:
+	muted = value
 	power_audio.volume_db = -80.0 if value else 0.0
+	game_audio.volume_db = -80.0 if value else GAME_TRIM_DB
 
 func set_connection(value: bool) -> void:
 	connected = value
@@ -124,6 +166,15 @@ func reset_simulation() -> void:
 	player_x = -LANE_OFFSET
 	target_lane = -1
 	background_scroll = 0.0
+	audio_rng.seed = 6502
+	audio_speed = speed
+	audio_bend = 0.0
+	whoosh = 0.0
+	history.fill(0.0)
+	history_pos = 0
+	loop_pos = 0
+	stutter_samples = 0
+	crackles = 0
 	rivals.clear()
 	for start in [[26.0, 1], [120.0, -1], [215.0, 1]]:
 		rivals.append({"s": start[0], "lane": start[1], "pace": 0.8,
@@ -145,7 +196,10 @@ func next_interval() -> float:
 	return interval
 
 func _process(delta: float) -> void:
-	if not powered or not connected: return
+	if powered and connected: present(delta)
+	feed_audio()
+
+func present(delta: float) -> void:
 	frame_time = minf(frame_time + delta, 0.5)
 	if frame_time < frame_interval: return
 	# Each presented frame shows the race as it is now, so slow cadence reads as big jumps.
@@ -154,6 +208,61 @@ func _process(delta: float) -> void:
 	frame_interval = next_interval()
 	render_image()
 	update_face()
+
+## The game is stuck between frames for far longer than its normal cadence.
+func is_stalled() -> bool:
+	return powered and connected and frame_time > maxf(STALL_INTERVALS / float(simulated_fps), STALL_MIN)
+
+## Keeps the monitor speakers' stream filled while the race runs.
+func feed_audio() -> void:
+	if not powered or not connected:
+		if game_audio.playing: game_audio.stop()
+		audio_playback = null
+		return
+	if not game_audio.playing or audio_playback == null:
+		game_audio.play()
+		audio_playback = game_audio.get_stream_playback()
+	if audio_playback == null: return
+	var frames := audio_playback.get_frames_available()
+	if frames > 0: audio_playback.push_buffer(render_audio(frames))
+
+func render_audio(count: int) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	out.resize(count)
+	var stalled := is_stalled()
+	for n in range(count):
+		var sample: float
+		if stalled:
+			# A hitched game replays its last audio block until the next frame: the stutter buzz.
+			sample = history[loop_pos]
+			loop_pos = (loop_pos + 1) % history.size()
+			stutter_samples += 1
+		else:
+			sample = synth_sample()
+			history[history_pos] = sample
+			history_pos = (history_pos + 1) % history.size()
+			loop_pos = history_pos
+		if memory_errors > 0.0 and audio_rng.randf() < memory_errors * CRACKLE_RATE:
+			sample = audio_rng.randf_range(-0.9, 0.9)
+			crackles += 1
+		out[n] = Vector2(sample, sample)
+	return out
+
+## Engine (pitch follows speed), road roar, tyre squeal through tight bends and a whoosh when
+## passing a rival. Every tone runs from the game's last submitted parameters.
+func synth_sample() -> float:
+	var pace := clampf((audio_speed - 30.0) / 40.0, 0.0, 1.0)
+	engine_phase = fposmod(engine_phase + (70.0 + 95.0 * pace) / AUDIO_RATE, 1.0)
+	var engine := 0.3 * (engine_phase * 2.0 - 1.0) + 0.16 * sin(TAU * engine_phase * 2.0)
+	var noise := audio_rng.randf_range(-1.0, 1.0)
+	road_fast += (noise - road_fast) * 0.25
+	road_slow += (noise - road_slow) * 0.02
+	var road := (road_fast - road_slow) * 0.35 * (0.4 + 0.6 * pace)
+	squeal_phase = fposmod(squeal_phase + 1150.0 / AUDIO_RATE, 1.0)
+	var squeal := sin(TAU * squeal_phase) * 0.1 * clampf((audio_bend - 0.007) / 0.005, 0.0, 1.0) * (0.7 + 0.3 * road_fast)
+	whoosh = maxf(0.0, whoosh - 2.0 / AUDIO_RATE)
+	var passing := road_fast * whoosh * whoosh * 0.7
+	return (engine + road + squeal + passing) * 0.6
 
 func advance_demo(interval: float) -> void:
 	presented_frames += 1
@@ -169,6 +278,7 @@ func advance_demo(interval: float) -> void:
 		rival.s += cruise_speed(rival.s) * rival.pace * interval
 		if rival.s - distance < -2.0:
 			passed += 1
+			whoosh = 1.0
 			respawn(rival)
 	# Pass the nearest car ahead on the other lane.
 	var nearest := {}
@@ -177,6 +287,9 @@ func advance_demo(interval: float) -> void:
 		if ahead > PLAYER_DEPTH - 3.0 and ahead < 70.0 and (nearest.is_empty() or rival.s < nearest.s): nearest = rival
 	if not nearest.is_empty() and nearest.lane == target_lane: target_lane = -target_lane
 	player_x = move_toward(player_x, target_lane * LANE_OFFSET, 4.5 * interval)
+	# The game submits new sound parameters only with each presented frame.
+	audio_speed = speed
+	audio_bend = absf(curvature(distance))
 
 func respawn(rival: Dictionary) -> void:
 	var furthest := distance

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BENCH Observations</title>
+<style>
+	:root {
+		--bg: #f6f5f2;
+		--surface: #ffffff;
+		--text: #1f2328;
+		--muted: #5c636b;
+		--border: #dedbd4;
+		--accent: #b5531f;
+	}
+	@media (prefers-color-scheme: dark) {
+		:root {
+			--bg: #16181b;
+			--surface: #1f2226;
+			--text: #e6e4df;
+			--muted: #9aa0a6;
+			--border: #33373c;
+			--accent: #e08a55;
+		}
+	}
+	* { box-sizing: border-box; }
+	body {
+		margin: 0;
+		padding: 32px 16px 64px;
+		background: var(--bg);
+		color: var(--text);
+		font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+	}
+	main { max-width: 720px; margin: 0 auto; }
+	h1 { font-size: 1.6rem; margin: 0 0 4px; }
+	.lede { color: var(--muted); margin: 0 0 32px; }
+	article {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-left: 4px solid var(--accent);
+		border-radius: 8px;
+		padding: 20px 24px;
+		margin-bottom: 20px;
+	}
+	article h2 { font-size: 1.1rem; margin: 0 0 4px; }
+	.meta { color: var(--muted); font-size: 0.85rem; margin: 0 0 12px; }
+	h3 { font-size: 0.95rem; margin: 20px 0 6px; }
+	ul { margin: 0; padding-left: 20px; }
+	li { margin: 4px 0; }
+	code { font-size: 0.9em; }
+</style>
+</head>
+<body>
+<main>
+	<h1>Observations</h1>
+	<p class="lede">Playtesting notes on BENCH: things to think about, not yet decided.</p>
+
+	<article>
+		<h2>Faults are hard to tell apart without the debug overlay</h2>
+		<p class="meta">2026-10-02 · Diagnosis</p>
+		<p>Without the debug repair status overlay telling me which part is broken, it is
+			currently impossible to tell which part is broken. On a real GPU, though, I will
+			mostly have one or two things to fix, not all of them, so it should be fine.
+			Something to think about.</p>
+
+		<h3>Current in-game tells (for reference)</h3>
+		<ul>
+			<li><strong>Dust:</strong> visible on the surfaces; on the test board the fan runs
+				faster and louder, VRAM heats up and the monitor shows memory-error artifacts.</li>
+			<li><strong>Dried paste:</strong> the monitor's core temperature climbs and the clock
+				throttles without artifacts, while the heatsink reads comparatively cool on the
+				thermal camera.</li>
+			<li><strong>Dry fan bearing:</strong> grinds while the fan spins, on the test board or
+				when spun with the air blower.</li>
+		</ul>
+		<p>Every new card currently starts with all three faults, so these tells overlap:
+			dust also heats the core, which blurs the paste signature.</p>
+	</article>
+</main>
+</body>
+</html>

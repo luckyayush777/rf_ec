@@ -10,7 +10,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 - Imported workshop interior with a brick back wall, painted side wall, tiled floor, background instrument bench, oscilloscope, labelled parts bins, soldering station, stool and trolley. The runtime is enclosed for first-person play; the editor keeps a cutaway overview. The props are scenery. See [room authoring](../models/shop-interior.md).
 - Native, editable repair-desk scene with mat, holder jaws, tray, canvas tool roll, simplified lamp/spare-parts props, and floor.
 - Imported second testing desk, aligned beside the repair desk using tabletop bounds.
-- Native LCD test monitor with a physical power button, status LED and a visible signal cable to the testing board. The assembled GPU seats in the board and returns to its repair holder; the monitor runs a deterministic pseudo-3D racing demo whose simulated rate follows the card's core clock. The clock holds 1905 MHz below 70 degrees C and drops in 15 MHz bins to 600 MHz at the 105 degrees C limit (60 FPS at full clock, down to 8 FPS fully throttled); a throttling card also stutters with uneven frame pacing and hitches. Hot VRAM does not slow the feed; it shows memory errors as sparkling pixels, garbage blocks and torn rows. The monitor lists the lap time, core **MHZ** and **GPU °C**. Attachment and power-on sounds are included.
+- Native LCD test monitor with a physical power button, status LED and a visible signal cable to the testing board. The assembled GPU seats in the board and returns to its repair holder; the monitor runs a deterministic pseudo-3D racing demo whose simulated rate follows the card's core clock. The clock holds 1905 MHz below 70 degrees C and drops in 15 MHz bins to 600 MHz at the 105 degrees C limit (60 FPS at full clock, down to 8 FPS fully throttled); a throttling card also stutters with uneven frame pacing and hitches. Hot VRAM does not slow the feed; it shows memory errors as sparkling pixels, garbage blocks and torn rows. The monitor lists the lap time, core **MHZ** and **GPU °C**. The game plays through the monitor speakers: an engine whose pitch follows the car's speed, road roar, tyre squeal in tight bends and a whoosh when passing. Its sound breaks up with the card: at low frame rates the engine pitch moves in steps, a hitched frame loops the last fraction of a second into a stuttering buzz, and hot VRAM adds crackles. Attachment and power-on sounds are included.
 - The test-board GPU fan spins with its hub label while the housing stays fixed. Dustier cards run faster and blend in `loud_gpu.wav`; clean cards settle to `ambient_gpu.wav`. Speed and sound ease toward the current cleanliness, including live debug cleaning. Removing the card stops the loops and spins the rotor down to its authored pose. Monitor power controls only the display; the seated card keeps running. These are simulated cooling responses, not measured RPM or temperature.
 - First-person-only play: WASD walking, captured mouse-look, capsule collision against the room/desks, a centred interaction prompt and distance-limited picking. Tab/Escape releases the mouse; focus loss pauses active holds. Orbit poses remain only for existing automated service fixtures.
 - Handheld thermal camera on the repair desk, with a live low-resolution display and RMB viewfinder. Both display the aimed surface temperature in degrees C, its name, and a spot crosshair. The fixed 20-100 degrees C palette shows visible surface heat at 9 Hz, with a spot readout and an approximation warning for reflective metal. Separate memory/core/cooler temperatures warm under test-board power and cool gradually when disconnected. Internal fan/heatsink dust is the main fault. Existing front/rear memory packages have native U1-U10 / VRAM markings.
@@ -32,7 +32,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 - Pointer release, Escape and window focus loss pause active screw turns. Tool/cable/inspection changes are blocked during active service animations.
 - Screwdriver, blowers and cleaning jingles share a sound toggle; see [asset credits](ASSET_CREDITS.md).
 - **Repair status overlay** (debug builds, developer aid): switch it on with **Repair status overlay** in the Escape menu's debug panel; the choice is remembered. It lists Dust, Thermal paste, Fan bearing, Assembly and the live Test run readout, each red (broken or untouched), yellow (in progress) or green (done), with hidden truth such as paste contact percentage. It stays visible during play and above focus views.
-- **Sound mix**: press Escape in play to release the mouse and open a panel with a Master slider and one slider per sound (fan quiet/loud loops, bearing grind, air blower motor, Dev blower air, screwdriver, clean jingle, GPU seating, monitor button, sticker peel), from silent to 200%. Changes apply live. Run from the editor, they save into `default_bus_layout.tres`, so they can be committed and are also editable in the editor's bottom **Audio** tab; exported builds save them to user settings.
+- **Sound mix**: press Escape in play to release the mouse and open a panel with a Master slider and one slider per sound (fan quiet/loud loops, bearing grind, air blower motor, Dev blower air, screwdriver, clean jingle, GPU seating, monitor button, racing game, sticker peel), from silent to 200%. Changes apply live. Run from the editor, they save into `default_bus_layout.tres`, so they can be committed and are also editable in the editor's bottom **Audio** tab; exported builds save them to user settings.
 - Service-rule evaluator, exercised against 1,024 checked-in expected decisions and used by the live cable/screw controller.
 
 ## Controls
@@ -109,13 +109,29 @@ Debug builds have **Debug: Dry paste** and **Debug: Fresh paste** in the bottom 
 
 Remove the heatsink (cable, fan screws, fan, cooler screws). The die is under the
 heatsink, and the old compound is split between the die and the heatsink base.
+
+The old compound is uneven, like real pumped-out paste. It is thin in the middle,
+ridged toward the die edges and lumpy, with fissures and torn peaks where the
+heatsink pulled it apart; the base carries the matching half. Each spot is a stack
+of layers:
+
+- **Glaze**: a hard, darker skin, thickest on the dried-out rim. It resists the
+  blade until you get under an exposed edge (a gap, fissure or the die edge), then
+  chips away quickly in small grey flakes.
+- **Crust**: the chalky dried body, pared down steadily.
+- **Gum**: a pasty, glossy base, wettest in the middle. The blade lifts some and
+  ploughs the rest ahead of the stroke, so push it off the face rather than back
+  and forth. Held still, it spreads outward.
+- **Film**: the residue under everything.
+
 Both surfaces need the same two stages:
 
 1. **Spudger** (plastic): click the GPU or the detached heatsink to open focus. The
-   view frames the exposed contact face. Hold and drag to lift the cracked crust.
-   A grey film stays behind.
-2. **IPA wipe**: hold and rub to lift the film. Alcohol only smears crust, so scrape
-   first. At about 95% the face clears with a jingle.
+   view frames the exposed contact face. Hold and drag to work down the stack;
+   thick ridges take several strokes. A grey film and a few gum smears stay behind.
+2. **IPA wipe**: hold and rub to lift the film and dissolve leftover gum. Alcohol
+   only smears glaze and crust, so scrape first. At about 95% the face clears with
+   a jingle.
 3. **Paste syringe** (die only): hold to squeeze. The bead grows while you hold;
    drag to lay a line. Dot, line or X patterns come from how you move. The bar is
    the amount squeezed; half-full is one full die of paste.
@@ -181,7 +197,7 @@ No deployment workflow or export preset is configured.
 | `scripts/interaction_picker.gd` | Cached triangle picking, live-transform tracking, depth-tested screw/plug targets, cleaning rays through fan-hub decoration, surface normals and action routing. |
 | `scripts/first_person.gd` | Runtime walking body, collision generation, mouse capture/look and reach. `orbit_camera.gd` supplies only legacy test poses. |
 | `scripts/gpu_thermal.gd` | Dust- and paste-dependent heating/cooling (about 6 s powered warm-up), core throttle limit and boost-clock bins, VRAM error rate, surface temperature/emissivity and VRAM markings. |
-| `scripts/gpu_paste.gd`, `shaders/paste_layer.gdshader` | Die and heatsink-base paste layers (crust, film, fresh paste per cell), scrape/wipe/squeeze brushes, pressure spread on seating, lift imprint, contact quality and debug dry/fresh. |
+| `scripts/gpu_paste.gd`, `shaders/paste_layer.gdshader` | Die and heatsink-base paste layers (uneven glaze/crust/gum stack, film and fresh paste per cell, with height relief), layered scrape with glaze chipping and gum smearing, wipe/squeeze brushes, pressure spread on seating, lift imprint, contact quality and debug dry/fresh. |
 | `scripts/thermal_camera.gd`, `shaders/thermal_surface.gdshader`, `scenes/thermal_camera.tscn` | Pickup instrument, separate depth-tested thermal world, display, spot readout and fixed palette. |
 | `scripts/gpu_inspection.gd` | Whole-GPU inspection state and exact home-transform restoration. |
 | `scripts/repair_status.gd` | Debug-only repair status rows (dust, paste, bearing, assembly, test run) for the Escape-menu overlay. |

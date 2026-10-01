@@ -1,12 +1,18 @@
 extends Node
 ## Thermal paste between the GPU die and the heatsink base.
-## Each contact face owns a runtime grid layer parented to its part, so crust, film and
-## fresh paste travel with the heatsink. Cell (i, j) on the die faces the heatsink cell
+## Each contact face owns a runtime grid layer parented to its part, so old compound, film
+## and fresh paste travel with the heatsink. Cell (i, j) on the die faces the heatsink cell
 ## returned by mirror(); the heatsink layer is flipped to face outward.
+## Old compound is a stack per cell, top to bottom: a hard, brittle glaze; the chalky dried
+## body (crust); a pasty, oily base (gum) that smears under a blade; then the residue film.
+## Its thickness varies like real pumped-out paste: thin in the middle, a ridge toward the
+## die edges, lumps and fissures, and torn peaks where the heatsink pulled it apart.
 ## Contact quality runs from 0 (air gap) to 1 (full fresh bond) and is evaluated when
 ## the heatsink seats, after the paste spreads under pressure.
 signal changed
 signal notice(text: String)
+## Hard glaze broke off under the blade at this world point; the dust puffs throw chips.
+signal chipped(point: Vector3, normal: Vector3, count: int)
 
 const INNER := 20
 const MARGIN := 4
@@ -21,6 +27,20 @@ const CLEAN_THRESHOLD := 0.05
 ## Thickness drawn at full bead height.
 const DISPLAY_THICKNESS := 3.0
 const SQUEEZE_RATE := 110.0
+## Spudger removal per second at full brush strength. Glaze resists until the blade gets
+## under an exposed edge, then chips away CHIP_BOOST times faster.
+const GLAZE_RATE := 1.4
+const CHIP_BOOST := 4.0
+const CRUST_RATE := 3.0
+## Gum is disturbed at GUM_RATE; SMEAR of it is pushed ahead of the blade instead of lifted.
+const GUM_RATE := 1.8
+const SMEAR := 0.45
+## The IPA wipe dissolves exposed gum more slowly than it lifts film.
+const WIPE_GUM_RATE := 1.2
+## Dried thickness drawn at full relief; shared with paste_layer.gdshader's packing.
+const STACK_DISPLAY := 2.0
+## Thin glaze chips per chip particle.
+const GLAZE_PER_CHIP := 0.06
 const SHADER = preload("res://shaders/paste_layer.gdshader")
 const AudioMix = preload("res://scripts/audio_mix.gd")
 const WORK := {"spudger": "scrape", "ipa-wipe": "wipe", "paste-syringe": "apply"}
@@ -42,6 +62,10 @@ var last_denial := ""
 var denial_time := 0.0
 var jingle: AudioStreamPlayer
 var muted := false
+## The previous brush cell of the current stroke, so gum is pushed the way the blade moves.
+var last_cell := Vector2.ZERO
+var last_face := ""
+var chip_budget := 0.0
 
 func configure(world: Node3D) -> void:
 	bench = world
@@ -93,15 +117,23 @@ func make_layer(layer_name: String, size: Vector2, drop: float) -> MeshInstance3
 	material.set_shader_parameter("margin_fraction", float(MARGIN) / N)
 	material.set_shader_parameter("margin_drop", drop)
 	material.set_shader_parameter("bead_height", 0.05)
+	# Exaggerated well beyond a real bond line so ridges and scraped terraces read on screen.
+	material.set_shader_parameter("stack_height", 0.055)
+	material.set_shader_parameter("layer_size", size)
+	material.set_shader_parameter("cells", float(N))
 	layer.material_override = material
 	return layer
 
 func new_face(layer: MeshInstance3D) -> Dictionary:
 	var empty := PackedFloat32Array()
 	empty.resize(N * N)
-	var texture := ImageTexture.create_from_image(Image.create(N, N, false, Image.FORMAT_RGB8))
-	(layer.material_override as ShaderMaterial).set_shader_parameter("paste_map", texture)
-	return {"mesh": layer, "texture": texture, "crust": empty.duplicate(), "film": empty.duplicate(),
+	var texture := ImageTexture.create_from_image(Image.create(N, N, false, Image.FORMAT_RGBA8))
+	var gum_texture := ImageTexture.create_from_image(Image.create(N, N, false, Image.FORMAT_R8))
+	var material := layer.material_override as ShaderMaterial
+	material.set_shader_parameter("paste_map", texture)
+	material.set_shader_parameter("gum_map", gum_texture)
+	return {"mesh": layer, "texture": texture, "gum_texture": gum_texture, "glaze": empty.duplicate(),
+		"crust": empty.duplicate(), "gum": empty.duplicate(), "film": empty.duplicate(),
 		"paste": empty.duplicate(), "initial": 0.0, "clean": false}
 
 func is_inner(i: int, j: int) -> bool:
@@ -123,32 +155,64 @@ func contact_quality() -> float:
 func is_fresh() -> bool:
 	return quality >= 0.99
 
-## Old compound: cracked crust over a film, with some squeezed onto the package and base.
+## Old compound, years in. Heat cycles pumped it outward, leaving the middle thin and a ridge
+## toward the die edges. The air-exposed rim dried hardest (more glaze, less gum) while the
+## middle stayed pasty. Fissures run through it, and lifting the heatsink tore the stack
+## between the two faces, leaving complementary peaks. Some squeezed out onto the package.
 func reset_dried() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 710
+	var lumps := FastNoiseLite.new()
+	lumps.seed = 710
+	lumps.frequency = 0.16
+	lumps.fractal_octaves = 3
+	var tear := FastNoiseLite.new()
+	tear.seed = 711
+	tear.frequency = 0.3
+	var fissures := FastNoiseLite.new()
+	fissures.seed = 712
+	fissures.frequency = 0.09
+	var peaks := FastNoiseLite.new()
+	peaks.frequency = 0.55
 	for id in faces:
 		var face: Dictionary = faces[id]
-		var crust := PackedFloat32Array()
-		var film := PackedFloat32Array()
-		var paste := PackedFloat32Array()
-		crust.resize(N * N)
-		film.resize(N * N)
-		paste.resize(N * N)
+		peaks.seed = 713 if id == "die" else 714
+		var layers := {}
+		for layer in ["glaze", "crust", "gum", "film", "paste"]:
+			var values := PackedFloat32Array()
+			values.resize(N * N)
+			layers[layer] = values
 		for k in range(N * N):
-			var i := k % N
-			var j := k / N
+			# Both faces are generated in die cell coordinates so the torn halves match up.
+			var d := k if id == "die" else mirror(k)
+			var i := d % N
+			var j := d / N
 			if is_inner(i, j):
-				crust[k] = 0.0 if rng.randf() < (0.06 if id == "die" else 0.1) else rng.randf_range(0.65, 1.0)
-				film[k] = rng.randf_range(0.7, 1.0)
+				if rng.randf() < (0.06 if id == "die" else 0.1):
+					layers.film[k] = rng.randf_range(0.7, 1.0)
+					continue
+				var rim := maxf(absf((i - MARGIN + 0.5) / INNER * 2.0 - 1.0), absf((j - MARGIN + 0.5) / INNER * 2.0 - 1.0))
+				var stack := maxf(0.2, 1.0 + 1.7 * exp(-pow((rim - 0.82) / 0.16, 2.0)) + 0.8 * lumps.get_noise_2d(i, j))
+				var share := clampf(0.5 + 0.55 * tear.get_noise_2d(i, j), 0.12, 0.88)
+				stack *= (share if id == "die" else 1.0 - share) * (0.8 + 0.45 * absf(peaks.get_noise_2d(i, j)))
+				var glaze := stack * lerpf(0.06, 0.28, rim)
+				var gum := stack * lerpf(0.5, 0.12, rim)
+				var crust := stack - glaze - gum
+				if absf(fissures.get_noise_2d(i, j)) < 0.06:
+					glaze = 0.0
+					crust *= 0.4
+				layers.glaze[k] = glaze
+				layers.crust[k] = crust
+				layers.gum[k] = gum
+				layers.film[k] = rng.randf_range(0.7, 1.0)
 			else:
 				var edge := maxi(maxi(MARGIN - i, i - (N - MARGIN - 1)), maxi(MARGIN - j, j - (N - MARGIN - 1)))
 				if edge <= 2 and rng.randf() < 0.45:
-					crust[k] = rng.randf_range(0.5, 0.9)
-					film[k] = rng.randf_range(0.4, 0.8)
-		face.crust = crust
-		face.film = film
-		face.paste = paste
+					layers.glaze[k] = rng.randf_range(0.02, 0.1)
+					layers.crust[k] = rng.randf_range(0.4, 0.8)
+					layers.film[k] = rng.randf_range(0.4, 0.8)
+		for layer in layers:
+			face[layer] = layers[layer]
 		face.initial = residue(id)
 		face.clean = false
 		refresh(id)
@@ -162,8 +226,12 @@ func residue(id: String) -> float:
 	var face: Dictionary = faces[id]
 	var total := 0.0
 	for k in range(N * N):
-		total += face.crust[k] + face.film[k]
+		total += face.glaze[k] + face.crust[k] + face.gum[k] + face.film[k]
 	return total
+
+## Old dried compound thickness in a cell, every layer above the film.
+func dried_stack(face: Dictionary, k: int) -> float:
+	return face.glaze[k] + face.crust[k] + face.gum[k]
 
 func face_progress(id: String) -> float:
 	var face: Dictionary = faces[id]
@@ -178,12 +246,18 @@ func paste_volume() -> float:
 func refresh(id: String) -> void:
 	var face: Dictionary = faces[id]
 	var bytes := PackedByteArray()
-	bytes.resize(N * N * 3)
+	var gum_bytes := PackedByteArray()
+	bytes.resize(N * N * 4)
+	gum_bytes.resize(N * N)
+	# RGBA: crust, film, fresh paste, glaze; gum alone. Dried layers share STACK_DISPLAY.
 	for k in range(N * N):
-		bytes[k * 3] = roundi(clampf(face.crust[k], 0.0, 1.0) * 255.0)
-		bytes[k * 3 + 1] = roundi(clampf(face.film[k], 0.0, 1.0) * 255.0)
-		bytes[k * 3 + 2] = roundi(clampf(face.paste[k] / DISPLAY_THICKNESS, 0.0, 1.0) * 255.0)
-	face.texture.update(Image.create_from_data(N, N, false, Image.FORMAT_RGB8, bytes))
+		bytes[k * 4] = roundi(clampf(face.crust[k] / STACK_DISPLAY, 0.0, 1.0) * 255.0)
+		bytes[k * 4 + 1] = roundi(clampf(face.film[k], 0.0, 1.0) * 255.0)
+		bytes[k * 4 + 2] = roundi(clampf(face.paste[k] / DISPLAY_THICKNESS, 0.0, 1.0) * 255.0)
+		bytes[k * 4 + 3] = roundi(clampf(face.glaze[k] / STACK_DISPLAY, 0.0, 1.0) * 255.0)
+		gum_bytes[k] = roundi(clampf(face.gum[k] / STACK_DISPLAY, 0.0, 1.0) * 255.0)
+	face.texture.update(Image.create_from_data(N, N, false, Image.FORMAT_RGBA8, bytes))
+	face.gum_texture.update(Image.create_from_data(N, N, false, Image.FORMAT_R8, gum_bytes))
 
 ## Mean die contact through whatever sits between the die and the base.
 func evaluate() -> float:
@@ -193,7 +267,8 @@ func evaluate() -> float:
 	for k in range(N * N):
 		if not is_inner(k % N, k / N): continue
 		var h := mirror(k)
-		var crust := maxf(die.crust[k], sink.crust[h])
+		# Pasty gum still conducts a little better than dry compound.
+		var crust := clampf(maxf(die.glaze[k] + die.crust[k] + 0.6 * die.gum[k], sink.glaze[h] + sink.crust[h] + 0.6 * sink.gum[h]), 0.0, 1.0)
 		var film := maxf(die.film[k], sink.film[h])
 		var fresh := clampf((die.paste[k] + sink.paste[h]) / (0.5 * BOND), 0.0, 1.0)
 		var old := DRIED_CONTACT if crust > 0.05 else 0.0
@@ -205,6 +280,7 @@ func begin() -> bool:
 	if not WORK.has(tool): return false
 	working = true
 	work_kind = WORK[tool]
+	last_face = ""
 	return true
 
 func end() -> void:
@@ -223,9 +299,17 @@ func work_at(hit: Dictionary, delta: float) -> bool:
 	var local := layer.to_local(hit.point)
 	var size: Vector2 = layer.mesh.size
 	var cell := Vector2((local.x / size.x + 0.5) * N, (local.z / size.y + 0.5) * N)
+	var stroke := cell - last_cell if last_face == id else Vector2.ZERO
+	last_cell = cell
+	last_face = id
 	var changed_any := false
 	match work_kind:
-		"scrape": changed_any = scrape(id, cell, delta)
+		"scrape":
+			var chips_before := chip_budget
+			changed_any = scrape(id, cell, delta, stroke)
+			if chip_budget > chips_before and chip_budget >= 1.0:
+				chipped.emit(hit.point, layer.global_basis.y.normalized(), floori(chip_budget))
+				chip_budget -= floorf(chip_budget)
 		"wipe": changed_any = wipe(id, cell, delta)
 		"apply": changed_any = squeeze(id, cell, delta)
 	if changed_any:
@@ -243,40 +327,83 @@ func brush(cell: Vector2, radius: float) -> Array:
 			if falloff > 0.0: result.append([j * N + i, minf(1.0, falloff * 1.6)])
 	return result
 
-## The plastic spudger lifts crust and any fresh paste but leaves the film behind.
-func scrape(id: String, cell: Vector2, delta: float) -> bool:
+## Grid index of a cell-space point, or -1 off the face.
+func cell_index(point: Vector2) -> int:
+	var i := floori(point.x)
+	var j := floori(point.y)
+	return j * N + i if i >= 0 and i < N and j >= 0 and j < N else -1
+
+## Glaze breaks fastest where the blade can get under it: beside a gap, fissure or edge.
+func glaze_exposed(glaze: PackedFloat32Array, k: int) -> bool:
+	var at := Vector2(k % N + 0.5, k / N + 0.5)
+	for offset in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
+		var other := cell_index(at + offset)
+		if other < 0 or glaze[other] <= 0.0: return true
+	return false
+
+## The plastic spudger works down the stack: it chips the brittle glaze, pares the chalky
+## crust, then ploughs the pasty gum, lifting some and pushing the rest ahead of the blade
+## (outward from the brush when held still). Gum pushed off the face is gone. Fresh paste
+## lifts too; the film stays behind for the IPA wipe.
+func scrape(id: String, cell: Vector2, delta: float, stroke := Vector2.ZERO) -> bool:
 	var face: Dictionary = faces[id]
+	var glaze: PackedFloat32Array = face.glaze
 	var crust: PackedFloat32Array = face.crust
+	var gum: PackedFloat32Array = face.gum
 	var paste: PackedFloat32Array = face.paste
+	var pushed := PackedFloat32Array()
+	pushed.resize(N * N)
+	var ahead := stroke.normalized() if stroke.length() > 0.05 else Vector2.ZERO
 	var removed := 0.0
 	for entry in brush(cell, 2.4):
 		var k: int = entry[0]
-		var before: float = crust[k] + paste[k]
-		crust[k] = maxf(0.0, crust[k] - 3.2 * delta * entry[1])
-		paste[k] = maxf(0.0, paste[k] - 6.0 * delta * entry[1])
-		removed += before - crust[k] - paste[k]
+		var reach: float = entry[1] * delta
+		var before: float = glaze[k] + crust[k] + gum[k] + paste[k]
+		paste[k] = maxf(0.0, paste[k] - 6.0 * reach)
+		if glaze[k] > 0.0:
+			var take := minf(glaze[k], GLAZE_RATE * reach * (CHIP_BOOST if glaze_exposed(glaze, k) else 1.0))
+			glaze[k] -= take
+			chip_budget += take / GLAZE_PER_CHIP
+		elif crust[k] > 0.0:
+			crust[k] = maxf(0.0, crust[k] - CRUST_RATE * reach)
+		elif gum[k] > 0.0:
+			var moved := minf(gum[k], GUM_RATE * reach)
+			gum[k] -= moved
+			var at := Vector2(k % N + 0.5, k / N + 0.5)
+			var push := ahead if ahead != Vector2.ZERO else (at - cell).normalized()
+			var target := cell_index(at + push)
+			if target >= 0 and target != k: pushed[target] += moved * SMEAR
+		removed += before - glaze[k] - crust[k] - gum[k] - paste[k]
+	for k in range(N * N):
+		gum[k] += pushed[k]
+	face.glaze = glaze
 	face.crust = crust
+	face.gum = gum
 	face.paste = paste
 	return removed > 0.0
 
-## Alcohol lifts film and fresh paste, but only smears over crust.
+## Alcohol lifts film and fresh paste and slowly dissolves exposed gum, but only smears over
+## dried glaze or crust.
 func wipe(id: String, cell: Vector2, delta: float) -> bool:
 	var face: Dictionary = faces[id]
 	var film: PackedFloat32Array = face.film
+	var gum: PackedFloat32Array = face.gum
 	var paste: PackedFloat32Array = face.paste
 	var removed := 0.0
 	var blocked := 0
 	var cells := brush(cell, 3.2)
 	for entry in cells:
 		var k: int = entry[0]
-		if face.crust[k] > 0.15:
+		if face.glaze[k] + face.crust[k] > 0.15:
 			blocked += 1
 			continue
-		var before: float = film[k] + paste[k]
+		var before: float = film[k] + gum[k] + paste[k]
 		film[k] = maxf(0.0, film[k] - 2.4 * delta * entry[1])
+		gum[k] = maxf(0.0, gum[k] - WIPE_GUM_RATE * delta * entry[1])
 		paste[k] = maxf(0.0, paste[k] - 5.0 * delta * entry[1])
-		removed += before - film[k] - paste[k]
+		removed += before - film[k] - gum[k] - paste[k]
 	face.film = film
+	face.gum = gum
 	face.paste = paste
 	if blocked * 2 > cells.size():
 		deny("The wipe only smears the crusty old paste. Scrape it off with the spudger first.")
@@ -309,8 +436,8 @@ func finish_if_clean(id: String) -> void:
 	if face.clean or face.initial <= 0.0 or residue(id) > CLEAN_THRESHOLD * face.initial: return
 	var zero := PackedFloat32Array()
 	zero.resize(N * N)
-	face.crust = zero.duplicate()
-	face.film = zero.duplicate()
+	for layer in ["glaze", "crust", "gum", "film"]:
+		face[layer] = zero.duplicate()
 	face.clean = true
 	refresh(id)
 	if not muted: jingle.play()
@@ -416,8 +543,8 @@ func debug_repaste() -> bool:
 		if id == "die":
 			for k in range(N * N):
 				if is_inner(k % N, k / N): paste[k] = BOND
-		face.crust = zero.duplicate()
-		face.film = zero.duplicate()
+		for layer in ["glaze", "crust", "gum", "film"]:
+			face[layer] = zero.duplicate()
 		face.paste = paste
 		face.clean = true
 		refresh(id)
