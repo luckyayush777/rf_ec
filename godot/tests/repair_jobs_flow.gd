@@ -48,6 +48,11 @@ func settle(bench: Node3D) -> void:
 	for step in range(80):
 		await create_timer(0.05).timeout
 		if not bench.jobs.busy and not bench.inspection.moving: return
+func equip_from_bag(bench: Node3D, id: String) -> void:
+	bench.open_tool_menu(true)
+	await create_timer(0.65).timeout
+	await bench.select_tool(id)
+	await create_timer(0.65).timeout
 func run() -> void:
 	# Fault counts: geometric odds with 3 of 3 faults at exactly 10%.
 	var Jobs = preload("res://scripts/repair_jobs.gd")
@@ -77,6 +82,11 @@ func run() -> void:
 	jobs.rng.seed = 77
 	expect(not bench.gpu.visible and jobs.queue.is_empty() and jobs.offers.size() == jobs.OFFER_COUNT, "Product play did not open on an empty bench with offers")
 	expect(jobs.balance == jobs.STARTING_BALANCE, "Starting balance was %d" % jobs.balance)
+	var brands := {}
+	for posted in jobs.offers:
+		brands[posted.brand] = true
+		expect(posted.brand in preload("res://scripts/gpu_style.gd").BRANDS and posted.brand in posted.model, "The job listing lost its brand")
+	expect(brands.size() == 3, "The first job board did not offer all three brands")
 	expect(bench.get_node("ThermalCameraBox").visible and not bench.tools.thermal_camera.visible and "thermal-camera" in bench.tools.locked,
 		"Thermal camera was not boxed")
 	await bench.tools.equip("thermal-camera")
@@ -155,7 +165,14 @@ func run() -> void:
 	var job: Dictionary = jobs.active()
 	expect(bench.gpu.visible and job.state == "bench", "The card was not unboxed")
 	await create_timer(0.4).timeout
-	expect(not bench.delivery_box.visible, "The empty box stayed on the desk")
+	expect(bench.delivery_box.visible and bench.delivery_box.parked, "The opened packaging was not left on the desk")
+	expect(bench.delivery_box.brand == job.brand and bench.gpu_style.brand == job.brand, "The card and packaging did not match the job's brand")
+	var Contract = preload("res://scripts/asset_contract.gd")
+	var packaging: AABB = bench.delivery_box.global_transform * Contract.bounds_in(bench.delivery_box)
+	var mat: MeshInstance3D = bench.get_node("RepairDesk/Mat")
+	expect(not packaging.intersects(mat.global_transform * mat.get_aabb()), "The packaging was left on the repair mat")
+	expect(Contract.fits_table(packaging, bench.get_node("RepairDesk/Tabletop")), "The opened packaging overhung the desk")
+	expect(bench.delivery_box.get_node_or_null("AntiStaticSleeve") != null, "The packaging had no anti-static material")
 	expect(bench.gpu.transform.is_equal_approx(bench.inspection.home), "The unboxed card did not land in its holder")
 	expect(bench.cleaning.celebrated == ("dust" not in job.faults), "Dust did not match the rolled faults %s" % [job.faults])
 	expect(bench.paste.dried == ("paste" in job.faults) and bench.paste.seated, "Paste did not match the rolled faults %s" % [job.faults])
@@ -178,6 +195,25 @@ func run() -> void:
 	if bench.paste.dried: bench.paste.debug_repaste()
 	if bench.bearing.dry: bench.bearing.debug_oil()
 	expect(jobs.problems().is_empty(), "Debug fixes left problems: %s" % [jobs.problems()])
+	# A paused removal is still unfinished service, even before a screw reaches the tray.
+	await equip_from_bag(bench, "screwdriver")
+	var screw_id: String = bench.service.fan_screws[0]
+	expect(bench.service.begin_screw(screw_id), "Could not start partial screw removal")
+	bench.service.advance_turn(0.3)
+	bench.service.end_screw()
+	await bench.tools.return_tool()
+	var balance_before: int = jobs.balance
+	expect(jobs.return_card().is_empty() and jobs.balance == balance_before and jobs.active().id == job.id,
+		"Paused screw removal allowed a customer return")
+	# Finish removing and refitting it through normal service before returning the card.
+	await equip_from_bag(bench, "screwdriver")
+	bench.service.begin_screw(screw_id)
+	bench.service.advance_turn(1.5)
+	await bench.service.motion.finished
+	bench.service.begin_screw(screw_id)
+	bench.service.advance_turn(1.5)
+	await bench.tools.return_tool()
+	expect(bench.service.turns.is_empty() and jobs.return_block() == "", "Completed screw service still blocked return")
 	await stand(bench, Vector3(computer.global_position.x, -4.43, computer.global_position.z - 3.6), computer.screen.global_position)
 	await click_at(bench, centre())
 	await create_timer(0.45).timeout
@@ -202,6 +238,11 @@ func run() -> void:
 	await jobs.unbox()
 	await settle(bench)
 	var second: Dictionary = jobs.active()
+	expect(bench.gpu_style.brand == second.brand and bench.delivery_box.brand == second.brand and bench.delivery_box.parked,
+		"The next job inherited the previous card's appearance or discarded its packaging")
+	expect(bench.service.turns.is_empty(), "The next job inherited screw progress")
+	var screw: Node3D = bench.asset_contract.objects[screw_id]
+	expect(screw.transform.is_equal_approx(bench.asset_contract.homes[screw_id].transform), "The next job inherited a displaced screw")
 	before = jobs.balance
 	var result: Dictionary = jobs.return_card()
 	expect(not result.is_empty() and not result.paid and jobs.balance == before, "An unfixed card was paid")

@@ -91,6 +91,21 @@ func run() -> void:
 		if proxy.source == screw or screw.is_ancestor_of(proxy.source):
 			found = found or proxy.node.visible
 	expect(found, "Screw returned from tray is missing from reopened close-up")
+	bench.service.begin_screw("fan-screw-1")
+	bench.service.advance_turn(1.5)
+	await view.return_equipped_tool()
+	# Unplug/reconnect without reopening focus: both wires must follow the live geometry.
+	for connected in [false, true]:
+		expect(bench.service.toggle_cable(), "Close-up cable toggle failed")
+		await bench.service.motion.finished
+		view.sync_proxies()
+		var wires := 0
+		for proxy in view.proxies:
+			if String(proxy.source.name) in ["fan-positive-wire", "fan-ground-wire"]:
+				wires += 1
+				expect(proxy.node.mesh == proxy.source.mesh, "Close-up cable geometry is stale")
+		expect(wires == 2 and bench.service.cable_connected == connected, "Close-up cable state or wire proxies missing")
+		await capture("service-cable-connected" if connected else "service-cable-unplugged")
 	view.close()
 	bench.queue_free()
 	await process_frame

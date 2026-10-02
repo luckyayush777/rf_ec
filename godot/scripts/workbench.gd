@@ -9,6 +9,7 @@ const AudioMix = preload("res://scripts/audio_mix.gd")
 const RepairStatus = preload("res://scripts/repair_status.gd")
 const RepairJobs = preload("res://scripts/repair_jobs.gd")
 const Connector = preload("res://scripts/gpu_connector.gd")
+const GpuStyle = preload("res://scripts/gpu_style.gd")
 ## Rendered acceptance runs (`-- --capture`) keep the base viewport size so PNGs stay comparable; play opens at the project's 1920x1080 window.
 const CAPTURE_SIZE := Vector2i(1280, 800)
 @onready var camera_rig = $CameraRig
@@ -46,6 +47,7 @@ var closeup: CanvasLayer
 var paste: Node
 var bearing: Node
 var connector: Node
+var gpu_style: Node
 var placement_marker: MeshInstance3D
 var placement_material: StandardMaterial3D
 var status_elapsed := 0.0
@@ -58,6 +60,10 @@ func _ready() -> void:
 	AudioMix.ensure_buses()
 	gpu.name = "gpu"
 	asset_contract = Contract.bind_parts(gpu)
+	gpu_style = GpuStyle.new()
+	gpu_style.name = "GpuStyle"
+	add_child(gpu_style)
+	gpu_style.configure(gpu)
 	service_rules = Rules.new(asset_contract.service_parts,
 		[{"assembly": "cooler-assembly", "fastenersRequire": ["fan-plug"]}], Paste.SURFACES + Bearing.SURFACES, Bearing.OPENINGS)
 	if not asset_contract.errors.is_empty() or not service_rules.errors.is_empty():
@@ -438,6 +444,28 @@ func pick_gpu(screen_position: Vector2) -> void:
 	var hit: Dictionary = picker.hit_at(screen_position)
 	if hit.get("action", "") in ["gpu", "screw", "cable"]: inspection.lift()
 
+func park_delivery_box() -> void:
+	var table := $RepairDesk/Tabletop as MeshInstance3D
+	var mat := $RepairDesk/Mat as MeshInstance3D
+	var mat_bounds := mat.global_transform * mat.get_aabb()
+	var box_bounds := Contract.bounds_in(delivery_box)
+	var obstacles := placement_obstacles("delivery_box")
+	for x in [mat_bounds.end.x - box_bounds.position.x + 0.18, mat_bounds.position.x - box_bounds.end.x - 0.18]:
+		for z_offset in [0.0, -1.4, -2.8, -4.2, -5.6, -7.0, -8.4, 1.0]:
+			var destination := Vector3(x, delivery_box.rest.origin.y, delivery_box.rest.origin.z + z_offset)
+			var footprint := Transform3D(delivery_box.global_basis, destination) * box_bounds
+			if not Contract.fits_table(footprint, table): continue
+			var clear := true
+			for obstacle in obstacles:
+				if footprint.intersects(obstacle):
+					clear = false
+					break
+			if clear:
+				await delivery_box.park_at(destination)
+				return
+	# An occupied desk still retains the packaging until the card is returned.
+	await delivery_box.park_at(delivery_box.global_position)
+
 func placement_obstacles(exclude_id: String = "") -> Array:
 	var boxes: Array = [] if exclude_id == "gpu" else [gpu.global_transform * Contract.bounds_in(gpu)]
 	for node in $RepairDesk.get_children():
@@ -453,6 +481,7 @@ func placement_obstacles(exclude_id: String = "") -> Array:
 		if tools.tool_location(id) == "desk":
 			boxes.append(tools.tool_node(id).global_transform * Contract.bounds_in(tools.tool_node(id)))
 	for carton in [delivery_box, $ThermalCameraBox]:
+		if carton == delivery_box and exclude_id == "delivery_box": continue
 		if carton.visible: boxes.append(carton.global_transform * Contract.bounds_in(carton))
 	if tools.thermal_location != "held":
 		boxes.append(tools.thermal_camera.global_transform * Contract.bounds_in(tools.thermal_camera))

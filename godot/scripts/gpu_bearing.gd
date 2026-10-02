@@ -292,6 +292,7 @@ func close_all() -> void:
 
 ## Refit guard for gpu_service: the fan cannot be mounted with its rotor out.
 func refit_block(id: String) -> String:
+	if id == "fan-assembly" and moving: return "Wait for the fan bearing service to finish before mounting the fan."
 	return "Refit the fan rotor before mounting the fan." if id == "fan-assembly" and "fan-rotor" in opened else ""
 
 func begin() -> bool:

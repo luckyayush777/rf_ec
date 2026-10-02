@@ -135,14 +135,19 @@ func run() -> void:
 	station.update_fan_audio(true)
 	expect(not station.grind_audio.playing, "Oiled bearing still grinds")
 	# A fan mounted with only its sticker peeled gets the sticker pressed back on.
+	expect(bench.service.refit_assembly(), "Heatsink setup refit failed")
+	await bench.service.motion.finished
 	await open_fan(bench, fan)
 	view.direction = (fan.global_basis.y.normalized() + fan.global_basis.z.normalized() * 0.5).normalized()
 	view.update_camera()
 	click(view, screen(view, cap))
-	await create_timer(bearing.peel_time() + 0.15).timeout
 	view.close()
+	expect(bearing.moving, "Peel was not running during the refit attempt")
+	expect(not bench.service.refit_assembly(), "Fan mounted during sticker peeling")
+	await create_timer(bearing.peel_time() + 0.15).timeout
 	expect(bench.service.refit_block.call("fan-assembly") == "", "A peeled sticker alone blocked mounting")
-	bench.service.assembly_seated.emit("fan-assembly")
+	expect(bench.service.refit_assembly(), "Fan could not mount after peeling finished")
+	await bench.service.motion.finished
 	expect(bearing.opened.is_empty() and cap.visible and not bearing.dry, "Mounting did not press the peeled sticker back on")
 	expect(bearing.debug_dry() and bearing.dry and bearing.total_gunk() > 5.0, "Debug dry did not restore the gummed bearing")
 	expect(bearing.debug_oil() and not bearing.dry and bearing.shaft_clean, "Debug oil did not service the bearing")

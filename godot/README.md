@@ -7,7 +7,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 ## Implemented
 
 - **Repair jobs**: play opens on an empty bench. Take a job on the shop computer's internal portal, open the delivery box on the repair desk, diagnose and fix the card, then return it from the portal to get paid. See [Repair jobs](#repair-jobs).
-- Imported GPU, including its original component hierarchy and 12 separate worn-pad residue meshes.
+- Rounded, stylized 710 / 2GB DDR3 GPU with rounded fins and larger capacitors/screw heads, retaining its original component hierarchy and 12 separate worn-pad residue meshes. Delivered cards use one of three consistent brand palettes: **Lotac** (teal, cream and orange), **Vsus** (navy and mint), or **CSI** (charcoal, plum and red). Each brand has matching printed retail packaging; components, specifications and repair behaviour are shared.
 - Imported workshop interior with a brick back wall, painted side wall, tiled floor, background instrument bench, oscilloscope, labelled parts bins, soldering station, stool and trolley. The runtime is enclosed for first-person play; the editor keeps a cutaway overview. The props are scenery. See [room authoring](../models/shop-interior.md).
 - Native, editable repair-desk scene with mat, holder jaws, tray, canvas tool roll, simplified lamp/spare-parts props, and floor.
 - Imported second testing desk, aligned beside the repair desk using tabletop bounds.
@@ -84,9 +84,10 @@ Play opens on an empty bench with **$100**. The loop:
    requests: customer, complaint in their own words, and pay), **My bench** (the
    accepted card, its status and the return button) and **Ledger** (balance and
    returned jobs). **Accept job** puts the request on your bench.
-2. **Unbox it.** A taped carton drops onto the repair desk, between the card holder
-   and the screw tray. One click slits the tape, swings the flaps open and lifts the
-   card into its holder.
+2. **Unbox it.** A branded retail box drops onto the repair desk, between the card holder
+   and the screw tray. One click breaks the seal, opens the hinged lid and lifts the
+   card out of its foam cradle and silver anti-static sleeve into the holder. The open,
+   empty package slides to a clear spot beside the mat and stays until the job is returned.
 3. **Diagnose and repair** with the existing tools. The complaint describes symptoms
    only. Runs hot, roars and shows coloured sparkles: dust. Slows down after warming
    up, with no artifacts: dried paste. Grinding: the fan bearing.
@@ -98,8 +99,13 @@ Play opens on an empty bench with **$100**. The loop:
 
 The bench holds **one card** at a time (`MAX_QUEUE` in `scripts/repair_jobs.gd`). The
 **job-queue display**, on a stand behind the repair desk, shows each slot with its
-customer, pay, status (in the box / on the bench) and complaint, plus the balance and
+customer, branded model, pay, status (in the box / on the bench) and complaint, plus the balance and
 the last result.
+
+Jobs choose brands from a shuffled bag of Lotac, Vsus and CSI, so the board starts with
+one of each. Brand palettes are fixed: another Lotac card always uses the same complete
+scheme. Brand changes recolour the PCB, housing, blades, hub, screw heads, chips,
+capacitors, cable and heatsink; gold contacts and repair residue keep their diagnostic colours.
 
 **How many faults a card has.** With *n* fault types (three for now: dust, dried paste,
 dry bearing), a card has *k* faults with probability
@@ -347,6 +353,7 @@ $godotExe = 'C:\Users\user\Desktop\ayush.dev\godot\Godot_v4.7.2-stable_win64_con
 & $godotExe --headless --path godot --script res://tests/tool_hotkey_flow.gd
 & $godotExe --headless --path godot --script res://tests/air_blower_flow.gd
 & $godotExe --headless --path godot --script res://tests/repair_jobs_flow.gd
+& $godotExe --headless --path godot --script res://tests/gpu_brand_flow.gd
 & $godotExe --headless --path godot --script res://tests/edge_connector_flow.gd
 
 # Run the game, or open the editor.

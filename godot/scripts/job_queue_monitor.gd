@@ -71,6 +71,7 @@ func refresh() -> void:
 		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		head.add_child(name_label)
 		head.add_child(UI.label("$%d" % job.pay, 40, Color("#8ee0a8"), true))
+		inner.add_child(UI.label(job.model, 28, Color("#d5dde4")))
 		inner.add_child(UI.label("IN BOX  ·  OPEN IT ON THE DESK" if job.state == "boxed" else "ON BENCH  ·  DIAGNOSING", 32, accent, true))
 		var complaint := UI.label("\"%s\"" % job.complaint, 24, Color("#d5dde4"))
 		complaint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

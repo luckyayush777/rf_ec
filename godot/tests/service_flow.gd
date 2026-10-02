@@ -262,6 +262,11 @@ func run(tree: SceneTree, bench: Node3D, expect: Callable) -> void:
 		var target_screen: Vector2 = camera.unproject_position(mesh.global_transform * surface.bounds.get_center())
 		var dust_hit: Dictionary = bench.picker.surface_hit_at(target_screen)
 		if bench.cleaning.lookup.has(dust_hit.get("mesh")):
+			# Rounded fins can put their undusted bevel under this ray. Select a
+			# dust-bearing face rather than assuming every side of a cleanable mesh is dusty.
+			var hit_surface: Dictionary = bench.cleaning.lookup[dust_hit.mesh]
+			if hit_surface.remaining <= 0.0 or bench.cleaning.face_for(dust_hit.normal) not in hit_surface.faces:
+				continue
 			clean_screen = target_screen
 			clean_hit = dust_hit
 			clean_target_found = true

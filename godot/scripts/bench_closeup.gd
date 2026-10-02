@@ -408,6 +408,8 @@ func update_camera() -> void:
 func sync_proxies() -> void:
 	var visible_entries: Array = []
 	for proxy in proxies:
+		# Cable deformation replaces the mesh resource while this view stays open.
+		proxy.node.mesh = proxy.source.mesh
 		proxy.node.global_transform = proxy.source.global_transform
 		proxy.node.visible = proxy.source.is_visible_in_tree()
 		# Damage can change a part's look while the view is open (tarnished contacts).

@@ -9,6 +9,7 @@ signal notice(text: String)
 
 const RepairStatus = preload("res://scripts/repair_status.gd")
 const Thermal = preload("res://scripts/gpu_thermal.gd")
+const GpuStyle = preload("res://scripts/gpu_style.gd")
 ## Accepted cards not yet returned. One bench for now, so one card.
 const MAX_QUEUE := 1
 const OFFER_COUNT := 3
@@ -53,6 +54,8 @@ var last_result: Dictionary = {}
 var last_refusal := ""
 var next_id := 1041
 var busy := false
+var brand_bag: Array[String] = []
+var last_brand := ""
 
 ## Product play starts with an empty bench. Fixtures keep the original three-fault card on
 ## the bench as a walk-in job.
@@ -68,6 +71,7 @@ func configure(world: Node3D, delivery_box: Node3D, empty_bench: bool) -> void:
 		walk_in.customer = "Walk-in"
 		walk_in.state = "bench"
 		queue.append(walk_in)
+		bench.gpu_style.apply_brand(walk_in.brand)
 	changed.emit()
 
 ## P(k faults) for k = 1..n.
@@ -100,6 +104,21 @@ func roll_faults() -> Array[String]:
 		if order.find(kind) < count: picked.append(kind)
 	return picked
 
+func next_brand() -> String:
+	if brand_bag.is_empty():
+		brand_bag.assign(GpuStyle.BRANDS)
+		for index in range(brand_bag.size() - 1, 0, -1):
+			var other := rng.randi_range(0, index)
+			var swap := brand_bag[index]
+			brand_bag[index] = brand_bag[other]
+			brand_bag[other] = swap
+		if brand_bag.back() == last_brand:
+			var swap := brand_bag[0]
+			brand_bag[0] = brand_bag[-1]
+			brand_bag[-1] = swap
+	last_brand = brand_bag.pop_back()
+	return last_brand
+
 func make_job(faults: Array = []) -> Dictionary:
 	var kinds: Array[String] = []
 	kinds.assign(faults if not faults.is_empty() else roll_faults())
@@ -109,7 +128,8 @@ func make_job(faults: Array = []) -> Dictionary:
 		pay += FAULTS[kind].pay
 		var lines: Array = FAULTS[kind].symptoms
 		symptoms.append(lines[rng.randi_range(0, lines.size() - 1)])
-	var job := {"id": next_id, "customer": CUSTOMERS[rng.randi_range(0, CUSTOMERS.size() - 1)], "model": MODEL,
+	var brand := next_brand()
+	var job := {"id": next_id, "customer": CUSTOMERS[rng.randi_range(0, CUSTOMERS.size() - 1)], "brand": brand, "model": brand + " " + MODEL,
 		"faults": kinds, "pay": pay, "complaint": " ".join(symptoms) + CLOSERS[rng.randi_range(0, CLOSERS.size() - 1)],
 		"state": "offer"}
 	next_id += 1
@@ -132,7 +152,7 @@ func accept(id: int) -> bool:
 		queue.append(job)
 		offers[index] = make_job()
 		last_refusal = ""
-		box.deliver("BENCHWORKS  INBOUND REPAIR\nJOB #%d  ·  %s\nFRAGILE  ·  ANTI-STATIC" % [job.id, job.model])
+		box.deliver("JOB #%d  /  %s\n710  /  2GB DDR3\nANTI-STATIC PACKED" % [job.id, job.customer], job.brand)
 		notice.emit("Job #%d accepted. %s's card is boxed on the repair desk." % [job.id, job.customer])
 		changed.emit()
 		return true
@@ -145,6 +165,7 @@ func unbox() -> void:
 	busy = true
 	changed.emit()
 	await box.open()
+	bench.gpu_style.apply_brand(job.brand)
 	apply_faults(job.faults)
 	var gpu: Node3D = bench.gpu
 	var home: Transform3D = gpu.get_parent().global_transform * bench.inspection.home
@@ -160,7 +181,7 @@ func unbox() -> void:
 	motion.tween_property(gpu, "global_transform", home, 0.5)
 	await motion.finished
 	gpu.global_transform = home
-	box.take_away()
+	await bench.park_delivery_box()
 	job.state = "bench"
 	busy = false
 	notice.emit("Card unboxed and in the holder. Customer says: \"%s\"" % job.complaint)
@@ -195,6 +216,7 @@ func return_block() -> String:
 	if busy: return "Wait for the card to settle."
 	if bench.testing_station.installed or bench.testing_station.moving: return "Take the card off the test board first."
 	var service: Node = bench.service
+	if service.busy or not service.turns.is_empty(): return "Finish tightening every screw before returning the card."
 	if service.held_part != "" or not service.removed.is_empty() or not service.cable_connected:
 		return "Reassemble the card and reconnect the fan cable first."
 	if bench.inspection.held or bench.inspection.moving: return "Set the card down first."
@@ -216,12 +238,13 @@ func return_card() -> Dictionary:
 	var complaints: Array[String] = []
 	for kind in left: complaints.append((FAULTS[kind] if FAULTS.has(kind) else UNROLLED[kind]).persists)
 	var said := " and ".join(complaints)
-	last_result = {"id": job.id, "customer": job.customer, "paid": paid, "amount": amount, "left": left, "faults": job.faults,
+	last_result = {"id": job.id, "customer": job.customer, "brand": job.brand, "model": job.model, "paid": paid, "amount": amount, "left": left, "faults": job.faults,
 		"feedback": "Works perfectly, thanks!" if paid else said.left(1).to_upper() + said.substr(1) + "."}
 	ledger.push_front(last_result)
 	last_refusal = ""
 	bench.cleaning.end()
 	bench.gpu.visible = false
+	box.take_away()
 	notice.emit("Job #%d returned to %s. %s" % [job.id, job.customer,
 		"Paid $%d." % amount if paid else "They say %s. No payment." % said])
 	changed.emit()
