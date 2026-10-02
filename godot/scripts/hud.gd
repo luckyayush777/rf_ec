@@ -22,6 +22,7 @@ signal highlight_dust_requested
 signal test_requested
 signal debug_clean_requested
 signal debug_disassemble_requested
+signal debug_reassemble_requested
 signal debug_dry_paste_requested
 signal debug_repaste_requested
 signal debug_dry_bearing_requested
@@ -51,6 +52,7 @@ var remaining_label: Label
 var highlight_dust_button: Button
 var debug_clean_button: Button
 var debug_disassemble_button: Button
+var debug_reassemble_button: Button
 var debug_dry_paste_button: Button
 var debug_repaste_button: Button
 var debug_dry_bearing_button: Button
@@ -176,6 +178,9 @@ func _ready() -> void:
 	debug_disassemble_button = make_button("Debug: Disassemble GPU", debug_controls)
 	debug_disassemble_button.visible = OS.is_debug_build()
 	debug_disassemble_button.pressed.connect(func(): debug_disassemble_requested.emit())
+	debug_reassemble_button = make_button("Debug: Reassemble GPU", debug_controls)
+	debug_reassemble_button.visible = OS.is_debug_build()
+	debug_reassemble_button.pressed.connect(func(): debug_reassemble_requested.emit())
 	# Paste quality stays hidden from normal play; the thermal camera is the diagnosis.
 	debug_dry_paste_button = make_button("Debug: Dry paste", debug_controls)
 	debug_dry_paste_button.visible = OS.is_debug_build()
@@ -478,6 +483,7 @@ func refresh(held: bool, moving: bool, tools: Node, service: Node, cleaning: Nod
 	assembly_store_button.visible = service.held_part != ""
 	assembly_store_button.disabled = busy or station.installed
 	debug_disassemble_button.disabled = busy or held or station.installed
+	debug_reassemble_button.disabled = busy or held or station.installed or (service.removed.is_empty() and service.cable_connected and service.turns.is_empty())
 	mute_button.text = "Sound off" if service.muted else "Sound on"
 	var fan_count := 0
 	var cooler_count := 0

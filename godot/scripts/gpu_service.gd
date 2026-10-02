@@ -140,6 +140,34 @@ func debug_disassemble() -> bool:
 	notice.emit("Debug: GPU fully disassembled. Refit the heatsink, then fan, screws and cable.")
 	return true
 
+## Inverse of debug_disassemble from any partial state: heatsink then fan seated (so paste and
+## bearing react as on a normal refit), every screw tightened home and the cable plugged in.
+func debug_reassemble() -> bool:
+	if not OS.is_debug_build() or busy or not can_use.call(): return false
+	for id in ["cooler-assembly", "fan-assembly"]:
+		if id in removed and refit_block.call(id) != "": return false
+	audio.stop()
+	active_screw = ""
+	turns.clear()
+	held_part = ""
+	stored.clear()
+	var seated: Array = []
+	# The cooler first: it is the fan's home parent.
+	for id in ["cooler-assembly", "fan-assembly"]:
+		if id in removed: seated.append(id)
+	for id in ["cooler-assembly", "fan-assembly"] + fan_screws + cooler_screws:
+		var part: Node3D = contract.objects[id]
+		part.reparent(contract.homes[id].parent, true)
+		part.transform = contract.homes[id].transform
+		part.visible = true
+	removed.clear()
+	cable_connected = true
+	apply_cable_pose(0.0)
+	for id in seated: assembly_seated.emit(id)
+	changed.emit()
+	notice.emit("Debug: GPU fully reassembled.")
+	return true
+
 ## Places an upright assembly with its right edge at right_edge, centred on z, resting on the
 ## surface at top (the same 0.025 clearance as player placement). Returns its left edge.
 func debug_place_assembly(id: String, right_edge: float, z: float, top: float) -> float:

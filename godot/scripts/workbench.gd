@@ -159,6 +159,7 @@ func _ready() -> void:
 	hud.highlight_dust_requested.connect(cleaning.toggle_highlight)
 	hud.debug_clean_requested.connect(debug_clean_gpu)
 	hud.debug_disassemble_requested.connect(debug_disassemble_gpu)
+	hud.debug_reassemble_requested.connect(debug_reassemble_gpu)
 	hud.debug_dry_paste_requested.connect(paste.debug_dry)
 	hud.debug_repaste_requested.connect(paste.debug_repaste)
 	hud.debug_dry_bearing_requested.connect(bearing.debug_dry)
@@ -258,6 +259,13 @@ func debug_disassemble_gpu() -> void:
 		if camera_rig.legacy_test_mode: camera_rig.select_view("repair")
 		hud.set_testing_mode(false)
 		refresh_ui()
+
+func debug_reassemble_gpu() -> void:
+	if not OS.is_debug_build() or not gpu.visible or not ready_for_action() or inspection.held or testing_station.installed or bearing.moving: return
+	cleaning.end()
+	# A pulled rotor or peeled sticker goes back first; the fan cannot mount open.
+	if not bearing.opened.is_empty(): bearing.close_all()
+	if service.debug_reassemble(): refresh_ui()
 
 func toggle_inspection() -> void:
 	if service.held_part != "": return

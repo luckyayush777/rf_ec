@@ -378,6 +378,24 @@ func run() -> void:
 	await debug_service.motion.finished
 	expect(debug_service.cable_progress == 1.0 and "fan-assembly" not in debug_service.removed and
 		"cooler-assembly" not in debug_service.removed, "Debug disassembly broke normal assembly refit")
+	# Debug reassembly finishes partial service: screws still in the tray, cable unplugged.
+	expect(not debug_bench.hud.debug_reassemble_button.disabled, "Debug reassembly was disabled on a partly serviced card")
+	debug_bench.hud.debug_reassemble_button.pressed.emit()
+	expect(debug_service.removed.is_empty() and debug_service.cable_connected and debug_service.cable_progress == 0.0 and
+		debug_service.turns.is_empty() and debug_bench.hud.debug_reassemble_button.disabled,
+		"Debug reassembly left incomplete service state")
+	for id in debug_service.fan_screws + debug_service.cooler_screws + ["fan-assembly", "cooler-assembly"]:
+		var home: Dictionary = debug_bench.asset_contract.homes[id]
+		var part: Node3D = debug_bench.asset_contract.objects[id]
+		expect(part.get_parent() == home.parent and part.transform.is_equal_approx(home.transform),
+			"Debug reassembly misplaced " + id)
+	# From the full layout, with the fan rotor pulled: the bearing closes before the fan mounts.
+	debug_bench.hud.debug_disassemble_button.pressed.emit()
+	debug_bench.bearing.opened.append_array(["hub-label", "fan-rotor"])
+	debug_bench.hud.debug_reassemble_button.pressed.emit()
+	expect(debug_service.removed.is_empty() and debug_bench.bearing.opened.is_empty() and debug_bench.paste.seated,
+		"Debug reassembly from the full layout did not seat the cooler, fan and rotor")
+	expect(debug_bench.testing_station.can_attach(), "Debug-reassembled GPU could not attach to the test board")
 	debug_bench.testing_station.attach_audio.stop()
 	debug_bench.testing_station.attach_audio.stream = null
 	debug_bench.queue_free()
