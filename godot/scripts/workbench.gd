@@ -171,6 +171,9 @@ func _ready() -> void:
 	hud.debug_dry_bearing_requested.connect(bearing.debug_dry)
 	hud.debug_oil_bearing_requested.connect(bearing.debug_oil)
 	hud.debug_connector_requested.connect(connector.debug_cycle)
+	hud.debug_repair_speed_changed.connect(set_debug_repair_speed)
+	# Fixtures start at authored rates, independent of the developer's saved play tuning.
+	if get_tree().current_scene == self: hud.load_repair_speeds()
 	hud.return_requested.connect(tools.return_tool)
 	hud.cable_requested.connect(service.toggle_cable)
 	hud.assembly_requested.connect(lift_assembly)
@@ -253,6 +256,15 @@ func toggle_test_gpu() -> void:
 	if testing_station.toggle_gpu():
 		if camera_rig.legacy_test_mode: camera_rig.select_view("repair" if was_installed else "testing")
 		hud.set_testing_mode(not was_installed)
+
+func set_debug_repair_speed(id: String, multiplier: float) -> void:
+	if not OS.is_debug_build(): return
+	match id:
+		"dust": cleaning.debug_clear_speed = multiplier
+		"scrape": paste.debug_scrape_speed = multiplier
+		"wipe":
+			paste.debug_wipe_speed = multiplier
+			bearing.debug_wipe_speed = multiplier
 
 func debug_clean_gpu() -> void:
 	if not OS.is_debug_build() or not gpu.visible: return

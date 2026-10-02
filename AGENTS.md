@@ -1,6 +1,6 @@
 # Codebase navigation for agents
 
-Last map review: 2026-10-02. Paths are relative to the repository root.
+Last map review: 2026-10-03. Paths are relative to the repository root.
 
 ## Start each run
 
@@ -28,6 +28,9 @@ All paths in this table are under `godot/`. Scene node names and controller refe
 | --- | --- |
 | `scenes/workbench.tscn` | Main composition, imported assets, camera, lights and controller nodes |
 | `scenes/repair_desk.tscn`, `scenes/toolbox.tscn` | Editable native desk/holder/tray and tool roll/screwdriver/air blower/Dev blower/spudger/IPA wipe/paste syringe/fan oiler/loupe meshes |
+| `scenes/screwdriver.tscn`, `tools/import_screwdriver.gd` | Rounded screwdriver style sample instanced by the tool bag: beveled orange grip, charcoal inset pads, ivory end cap, satin collar/shaft and Phillips bit. Native mesh scene baked from `assets/screwdriver.glb`; preserves direct Grip/Collar/Shaft/Tip paths, 2.4 length, 0.88 grip and 1.28 shaft lengths. Editable source and export workflow: `models/screwdriver.blend`, `models/screwdriver.md` |
+| `scenes/air_blower.tscn`, `scenes/dev_blower.tscn`, `scenes/spudger.tscn`, `scenes/ipa_wipe.tscn`, `scenes/paste_syringe.tscn`, `scenes/fan_oiler.tscn`, `scenes/loupe.tscn`, `scenes/thermal_camera.tscn`, `scenes/work_tool_shapes.tscn` | Rounded tool kit: charcoal grips, ivory accents, softened housings/collars, syringe finger rest and graduations, folded wipe. Native scenes baked by `tools/import_tool_kit.gd` from `assets/tool-kit.glb`; preserve labels, part centres and the thermal LCD's native QuadMesh/UVs. Work shapes supply the spudger/wipe meshes in `bench_closeup.gd`. Editable source/export: `models/tool-kit.blend`, `scripts/blender/export_tool_kit.py`; guide: `models/tool-kit.md` |
+| `tests/tool_art_flow.gd`, `tests/fixtures/tool-proportions.json` | Pre-restyle tool envelopes, all eight bag tools picked through real mesh queries, equip/return and thermal LCD contract, with tool-roll/camera captures. Do not regenerate the baseline from restyled geometry |
 | `scripts/gpu_connector.gd`, `shaders/loupe_lens.gdshader` | Created by `workbench.gd` as `Connector`: edge-connector `state` (`ok`/`oxidised`/`lifted`/`torn`) drawn on the imported `gold-contact-*` meshes (tarnish material, peeled `LIFTED` contact, hidden `TORN` contact plus stub/scar/trace), `LINK_WIDTH`, random and rock-triggered dropouts with `RETRAIN_TIME`, `step()` feeding `test_monitor.set_link`, `centre`/`span` for loupe framing, `debug_cycle`; the loupe lens overlay shader |
 | `tests/edge_connector_flow.gd` | Link width and FPS cap with a cool full-clock core, oxidised dropouts and retrain, lifted finger steady until rocked through real LMB/mouse input (view does not turn), healthy card unaffected, E removal, torn x4 visuals, loupe pocket, connector framing, click-to-magnify, deep wheel zoom and tarnish in the focus proxies, jobs never rolling it, with rendered captures |
 | `scenes/test_monitor.tscn`, `scripts/test_monitor.gd`, `scripts/testing_station.gd` | PCIe link readout (`RALLY  PCIe xN`, `LINK LOST` blank and silent while down, `LINK_FPS` cap via `set_link`/`has_picture`), seated-card rocking (`begin_wiggle`/`rock`/`rock_angle` on a damped spring about `CONNECTOR_LINE`, `seated_pose`), native LCD/power button, clock-paced pseudo-3D racing display with VRAM error artifacts, synthesized game sound (engine, road, squeal, passing whoosh) that steps with presented frames, loops its last block on hitches and crackles with memory errors, GPU core sensor/clock readout, GPU-to-board transfer, signal cable, dust-driven and air-blown rotor animation and test/fan audio |
@@ -56,9 +59,10 @@ All paths in this table are under `godot/`. Scene node names and controller refe
 | `tests/air_blower_flow.gd` | Deposition weights and film-to-felt thickness, air blower from the bag, narrow jet versus sweep, dust cloud, motor wind-up/coast, air-spun fan grind, spinning-rotor service guard, coast-down and rendered captures |
 | `tests/tool_hotkey_flow.gd` | T opens the bag out of reach, closes it, swaps tools while holding the card and returns to the same close-up, including empty hands; Q returns the tool before the held part, in the close-up and in first person |
 | `tests/repair_status_flow.gd` | Status colours for fresh, partial, repaired and disassembled cards and overlay row rendering, without touching the saved toggle |
+| `tests/repair_speed_flow.gd` | Escape-menu debug speed controls, live dust/paste/shaft removal rates, scrape-first IPA guard, menu bounds, isolated settings persistence and reset; `-- --capture` writes `repair-speeds.png` |
 | `scripts/audio_mix.gd`, `default_bus_layout.tres` | Mixer channel table (`CHANNELS`: Master plus one bus per sound), level get/set, reset and save; `workbench.gd` calls `ensure_buses()` first |
-| `tests/audio_mix_flow.gd` | Every AudioStreamPlayer routed to its own channel, Escape-menu mixer visibility, slider gain, master mute and reset without writing the layout |
-| `scripts/hud.gd` | Native UI, tool selection state with keyboard focus, Escape-menu sound mix panel, debug buttons and signals, computer/box prompts and `set_computer_mode`; `workbench.gd` owns menu capture and guarded tool switching |
+| `tests/audio_mix_flow.gd` | Every AudioStreamPlayer routed to its own channel, five initially collapsed Escape-menu sections, real Sound header clicks, independent sections and scroll overflow, slider gain, master mute and reset without writing the layout; collapsed/menu captures |
+| `scripts/hud.gd` | Native UI, tool selection state with keyboard focus, computer/box prompts and `set_computer_mode`; Escape menu uses `build_menu_section` for initially collapsed Dust & diagnostics, Assembly, Fault setup, Repair speeds and Sound groups, with viewport-bounded scrolling via `fit_menu_height`. Debug repair speed sliders (0.1x-20x) save in `user://bench_repair_speeds.cfg`, wired by `workbench.set_debug_repair_speed` to dust, scraping and both IPA surfaces. Saved tuning loads only in product play, fixtures start at 1x. Controllers gate rate multipliers behind `OS.is_debug_build()`. `workbench.gd` owns menu capture and guarded tool switching |
 | `scripts/asset_contract.gd` | Named-part binding, parent validation, original transforms, service definitions and actual-table footprint containment |
 | `scripts/service_rules.gd` | Pure rule evaluator, including `check_surface` for contact-surface reach and tool choice; malformed graphs or surfaces fail closed |
 | `tools/sync_assets.py` | Copy Blender GLBs from `models/` and generate `assets/gpu-parts.json` with part metadata and hashes |
@@ -127,6 +131,7 @@ $godotExe = 'C:\path\to\Godot_console.exe'
 & $godotExe --headless --path godot --script res://tests/first_person_flow.gd
 & $godotExe --headless --path godot --script res://tests/thermal_flow.gd
 & $godotExe --headless --path godot --script res://tests/scale_toolbox_flow.gd
+& $godotExe --headless --path godot --script res://tests/tool_art_flow.gd
 & $godotExe --headless --path godot --script res://tests/closeup_flow.gd
 & $godotExe --headless --path godot --script res://tests/placement_flow.gd
 & $godotExe --headless --path godot --script res://tests/tool_inspection_flow.gd
@@ -136,6 +141,7 @@ $godotExe = 'C:\path\to\Godot_console.exe'
 & $godotExe --headless --path godot --script res://tests/fan_bearing_flow.gd
 & $godotExe --headless --path godot --script res://tests/audio_mix_flow.gd
 & $godotExe --headless --path godot --script res://tests/repair_status_flow.gd
+& $godotExe --headless --path godot --script res://tests/repair_speed_flow.gd
 & $godotExe --headless --path godot --script res://tests/tool_hotkey_flow.gd
 & $godotExe --headless --path godot --script res://tests/air_blower_flow.gd
 & $godotExe --headless --path godot --script res://tests/repair_jobs_flow.gd

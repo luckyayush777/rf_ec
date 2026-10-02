@@ -50,6 +50,7 @@ const SHADER = preload("res://shaders/shaft_gunk.gdshader")
 const AudioMix = preload("res://scripts/audio_mix.gd")
 
 var bench: Node3D
+var debug_wipe_speed := 1.0
 var fan: Node3D
 var rotor: Node3D
 var rotor_home := Transform3D.IDENTITY
@@ -323,6 +324,7 @@ func work_at(hit: Dictionary, delta: float) -> bool:
 
 ## The wipe wraps around the thin shaft, so a stroke cleans every side of the rows it covers.
 func wipe(local: Vector3, delta: float) -> bool:
+	if OS.is_debug_build(): delta *= debug_wipe_speed
 	if shaft_clean: return false
 	var row := (SHAFT_LENGTH * 0.5 - local.y) / SHAFT_LENGTH * ROWS
 	var removed := 0.0

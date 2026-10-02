@@ -17,6 +17,12 @@ func run() -> void:
 	var bench = load("res://scenes/workbench.tscn").instantiate()
 	root.add_child(bench)
 	await process_frame
+	var tool_bounds: AABB = preload("res://scripts/asset_contract.gd").bounds_in(bench.tools.screwdriver)
+	expect(absf(tool_bounds.size.x - 2.4) < 0.005 and absf(tool_bounds.size.y - 0.402) < 0.006,
+		"Rounded screwdriver changed its original length or grip width: %s" % tool_bounds)
+	expect(absf(bench.tools.screwdriver.get_node("Grip").get_aabb().size.x - 0.88) < 0.005 and
+		absf(bench.tools.screwdriver.get_node("Shaft").get_aabb().size.x - 1.28) < 0.005,
+		"Rounded screwdriver changed the handle-to-shaft ratio")
 	bench.set_process_unhandled_input(false)
 	var player = bench.camera_rig
 	player.set_physics_process(false)
@@ -47,6 +53,7 @@ func run() -> void:
 	else: root.push_input(click)
 	await create_timer(1.0).timeout
 	expect(bench.tools.equipped_tool == "screwdriver" and player.captured and not bench.tool_menu_open, "Menu selection failed to equip screwdriver and resume play")
+	await capture("screwdriver-style-held")
 	bench.open_tool_menu()
 	await create_timer(0.65).timeout
 	bench.hud.tool_buttons["thermal-camera"].pressed.emit()

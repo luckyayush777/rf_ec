@@ -176,11 +176,12 @@ func work_part(parent: Node3D, mesh: Mesh, at: Vector3, material: Material, turn
 	return node
 
 func build_work_tools() -> void:
+	var shapes: Node3D = preload("res://scenes/work_tool_shapes.tscn").instantiate()
 	var plastic := StandardMaterial3D.new()
-	plastic.albedo_color = Color(0.2, 0.32, 0.62)
+	plastic.albedo_color = Color("426485")
 	plastic.roughness = 0.45
 	var grip := StandardMaterial3D.new()
-	grip.albedo_color = Color(0.06, 0.07, 0.08)
+	grip.albedo_color = Color("293b42")
 	grip.roughness = 0.7
 	var gum := StandardMaterial3D.new()
 	gum.albedo_color = Color(0.4, 0.4, 0.38)
@@ -191,13 +192,9 @@ func build_work_tools() -> void:
 	stage.add_child(spudger)
 	blade_tilt = Node3D.new()
 	spudger.add_child(blade_tilt)
-	var blade := BoxMesh.new()
-	blade.size = Vector3(7.0, 0.4, 5.0)
+	var blade: Mesh = shapes.get_node("SpudgerBlade").mesh
 	work_part(blade_tilt, blade, Vector3(-3.5, 0.2, 0), plastic)
-	var handle := CylinderMesh.new()
-	handle.top_radius = 0.9
-	handle.bottom_radius = 1.0
-	handle.height = 11.0
+	var handle: Mesh = shapes.get_node("SpudgerGrip").mesh
 	work_part(blade_tilt, handle, Vector3(-12.5, 0.2, 0), grip, Vector3(0, 0, PI / 2.0))
 	var bead := SphereMesh.new()
 	bead.radius = 0.5
@@ -212,14 +209,13 @@ func build_work_tools() -> void:
 	var pad := Node3D.new()
 	pad.name = "IpaPadAtWork"
 	stage.add_child(pad)
-	var sheet := BoxMesh.new()
-	sheet.size = Vector3(7.0, 0.7, 6.0)
+	var sheet: Mesh = shapes.get_node("WipeSheet").mesh
 	work_part(pad, sheet, Vector3(0, 0.35, 0), pad_material)
-	var fold := BoxMesh.new()
-	fold.size = Vector3(6.4, 0.6, 2.6)
+	var fold: Mesh = shapes.get_node("WipeFold").mesh
 	work_part(pad, fold, Vector3(0, 0.95, -1.4), pad_material, Vector3(0.15, 0, 0))
 	pad.hide()
 	work_tools["ipa-wipe"] = pad
+	shapes.free()
 
 ## Rides the equipped paste tool on the face under the pointer, aimed along the stroke.
 func place_work_tool(delta: float) -> void:

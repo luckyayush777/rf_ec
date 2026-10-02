@@ -74,6 +74,9 @@ const SURFACES := [
 	{"id": "heatsink", "exposedBy": "cooler-assembly", "label": "heatsink base"}]
 
 var bench: Node3D
+## Development tuning only; the brush footprint and service rules stay the same.
+var debug_scrape_speed := 1.0
+var debug_wipe_speed := 1.0
 var faces: Dictionary = {}
 var quality := 0.0
 var dried := true
@@ -444,6 +447,7 @@ func glaze_exposed(glaze: PackedFloat32Array, k: int) -> bool:
 ## (outward from the brush when held still). Gum pushed off the face is gone. Fresh paste
 ## lifts too; the film stays behind for the IPA wipe.
 func scrape(id: String, cell: Vector2, delta: float, stroke := Vector2.ZERO) -> bool:
+	if OS.is_debug_build(): delta *= debug_scrape_speed
 	var face: Dictionary = faces[id]
 	var glaze: PackedFloat32Array = face.glaze
 	var crust: PackedFloat32Array = face.crust
@@ -491,6 +495,7 @@ func scrape(id: String, cell: Vector2, delta: float, stroke := Vector2.ZERO) -> 
 ## Alcohol lifts film and fresh paste and slowly dissolves exposed gum, but only smears over
 ## dried glaze or crust.
 func wipe(id: String, cell: Vector2, delta: float) -> bool:
+	if OS.is_debug_build(): delta *= debug_wipe_speed
 	var face: Dictionary = faces[id]
 	var film: PackedFloat32Array = face.film
 	var gum: PackedFloat32Array = face.gum

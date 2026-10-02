@@ -20,6 +20,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 - Metadata adapter that validates named parts and original parent relationships, records original transforms, and creates service definitions.
 - Animated canvas tool bag pulled toward the front of the bench, clear of the screw tray, with eight stitched pockets and retaining straps; the air blower and then the jeweller's loupe fill the last pockets. Clicking it opens a large live 3D view over the blurred room and unrolls the fabric; click a visible tool or its keyboard-accessible label. Switching returns the previous tool, and closing rolls the bag shut. When unboxed, the thermal camera stays on its stand and is also selectable from the footer; while boxed, its button is hidden.
 - Screwdriver equip/return, automatic toolbox opening, and desk placement/retrieval with footprint and obstacle checks. Inspection can continue with the screwdriver equipped.
+- The tools share rounded shapes, charcoal grips, ivory accents and beveled edges, with individual colours for the blowers, spudger, IPA bottle, paste syringe, fan oiler and thermal camera. Working tips and proportions are retained. The syringe has a finger rest and graduation marks, the wipe has folded edges, and the scraper/wipe shown on the paste face match the kit. See [tool-kit authoring](../models/tool-kit.md) and [screwdriver authoring](../models/screwdriver.md).
 - Fan cable unplug/reconnect with plug animation and wire deformation. Cable handling requires empty hands; cooler screws require the cable unplugged.
 - All eight screws support 1.5-second hold-to-turn removal/refit, independent paused progress, labeled tray slots, and exact original parent/transform restoration. Shallow screw seats remain visible when screws move to the tray; click an empty seat with the screwdriver to seat that screw immediately, then hold to tighten it in place. Released screws retain their progress and follow the GPU.
 - Fan and heatsink/cooler assemblies can be lifted after their cable/screw requirements are met, rotated while held, placed on clear repair-table space, picked up again, stored, and refitted to their exact original mounts. The fan travels with the cooler if still attached.
@@ -28,12 +29,14 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 - Focus cleaning: hold LMB and sweep over visible dust; RMB drag or Flip part exposes the backplate. Only the selected part and its live dust masks appear in focus; the progress bar tracks that part. A large Return tool area puts the equipped tool away and leaves the card view open.
 - Shop **air blower** (electric duster) in the tool bag's last pocket. It works in focus: hold LMB and sweep its narrow jet. Thick felt lifts quickly in clumps; the last thin film clings and needs steady air. Air also carries a little way past the aimed surface into faces turned toward it, such as fin gaps or the fins under the fan. Cleaned dust leaves as a soft cloud with falling flakes. Its motor (a synthesized placeholder until `assets/sounds/air_blower.wav` is supplied) winds up on the trigger and coasts down after release. Blowing on an idle fan's rotor freewheels it, then it coasts to a stop; a dry bearing grinds while it spins, and the rotor cannot be serviced until it stops.
 - Development-only **Dev blower** in the toolbox. Its nozzle follows the crosshair and must point at a visible part to remove dust. Holding the trigger plays the supplied air recording, with its steady section looped. The Tab menu shows overall and per-part cleanliness. At 98% cleanliness, that part's remaining dust clears and its jingle plays once (unless sound is muted).
-- Debug builds also have **Debug: Clean GPU** and **Debug: Disassemble GPU** in the bottom panel. Clean GPU clears every dust mask; a connected test monitor recovers as the card cools (dried paste still throttles it). Disassemble GPU unplugs the cable, moves all eight screws into their tray rows, and lays the heatsink and fan out on the mat just left of the card; normal refitting still works afterward. Disassembly is available when the GPU is set down and off the test board.
+- The Escape menu opens with collapsed sections: **Dust & diagnostics**, **Assembly**, **Fault setup**, **Repair speeds**, and **Sound**. Click a header to expand or collapse its subpanel; expanded groups scroll inside the menu when needed. The four debug sections appear only in debug builds.
+- Debug builds have **Clean GPU** under **Dust & diagnostics** and **Disassemble GPU** / **Reassemble GPU** under **Assembly**. Clean GPU clears every dust mask; a connected test monitor recovers as the card cools (dried paste still throttles it). Disassemble GPU unplugs the cable, moves all eight screws into their tray rows, and lays the heatsink and fan out on the mat just left of the card; normal refitting still works afterward. Disassembly is available when the GPU is set down and off the test board.
 - Low-density dust remains visible until its mask is fully erased. In debug builds, the bottom **highlight dust** button toggles a magenta view of remaining dust through parts. If dust remains 30 seconds after equipping the Dev blower, this view turns on automatically. Rotate, flip or remove parts to expose dust before cleaning it.
 - Pointer release, Escape and window focus loss pause active screw turns. Tool/cable/inspection changes are blocked during active service animations.
 - Screwdriver, blowers and cleaning jingles share a sound toggle; see [asset credits](ASSET_CREDITS.md).
-- **Repair status overlay** (debug builds, developer aid): switch it on with **Repair status overlay** in the Escape menu's debug panel; the choice is remembered. It lists the Job (including the rolled faults the customer only hints at), then Dust, Thermal paste, Fan bearing, Assembly and the live Test run readout, each red (broken or untouched), yellow (in progress) or green (done), with hidden truth such as paste contact percentage. It stays visible during play and above focus views.
-- **Sound mix**: press Escape in play to release the mouse and open a panel with a Master slider and one slider per sound (fan quiet/loud loops, bearing grind, air blower motor, Dev blower air, screwdriver, clean jingle, GPU seating, monitor button, racing game, sticker peel, spudger scrape, IPA wipe, shop PC keys and mouse), from silent to 200%. Changes apply live. Run from the editor, they save into `default_bus_layout.tres`, so they can be committed and are also editable in the editor's bottom **Audio** tab; exported builds save them to user settings.
+- **Repair status overlay** (debug builds, developer aid): expand **Escape → Dust & diagnostics** and switch on **Repair status overlay**; the choice is remembered. It lists the Job (including the rolled faults the customer only hints at), then Dust, Thermal paste, Fan bearing, Assembly and the live Test run readout, each red (broken or untouched), yellow (in progress) or green (done), with hidden truth such as paste contact percentage. It stays visible during play and above focus views.
+- **Repair speeds (debug)**: expand **Escape → Repair speeds** and adjust **Dust clearing**, **IPA wiping**, or **Paste scraping**. Each multiplier ranges from 0.1x to 20x; 1x is the original speed and higher values remove material faster. Changes apply immediately and persist in `user://bench_repair_speeds.cfg`. **Reset repair speeds to 1x** restores the baseline. Dust affects both blowers; IPA affects paste residue and fan-shaft gunk. Brush sizes, scrape-before-wipe rules and paste application stay the same. Release builds always use the original rates. Automated fixtures start at 1x regardless of saved play tuning.
+- **Sound mix**: expand **Escape → Sound** for a Master slider and one slider per sound (fan quiet/loud loops, bearing grind, air blower motor, Dev blower air, screwdriver, clean jingle, GPU seating, monitor button, racing game, sticker peel, spudger scrape, IPA wipe, shop PC keys and mouse), from silent to 200%. Changes apply live. Run from the editor, they save into `default_bus_layout.tres`, so they can be committed and are also editable in the editor's bottom **Audio** tab; exported builds save them to user settings.
 - Service-rule evaluator, exercised against 1,024 checked-in expected decisions and used by the live cable/screw controller.
 
 ## Controls
@@ -162,7 +165,7 @@ than healthy. Model targets with clean parts are core 53 / heatsink 38 degrees C
 fresh paste, and about 80 / 33 with dried paste. VRAM heat is unaffected by paste, so
 a paste fault throttles the racing feed (lower MHZ/FPS) without memory errors, while
 dust near the VRAM adds artifacts.
-Debug builds have **Debug: Dry paste** and **Debug: Fresh paste** in the bottom panel.
+Debug builds have **Dry paste** and **Fresh paste** under **Escape → Fault setup**.
 
 ### Repasting
 
@@ -241,14 +244,14 @@ is supplied). The fix happens in focus on the detached fan:
    bearing spins quietly; a skipped step leaves it grinding, and the notice says which.
 
 The fan cannot be mounted while its rotor is out. A fan mounted with only its sticker
-peeled gets the sticker pressed back on. Debug builds have **Debug: Dry bearing** and
-**Debug: Oil bearing**. Worn (wobbly) bearings, over-oiling and fan replacement are
+peeled gets the sticker pressed back on. Debug builds have **Dry bearing** and
+**Oil bearing** under **Escape → Fault setup**. Worn (wobbly) bearings, over-oiling and fan replacement are
 not modelled yet, and the bearing does not affect temperatures.
 
 ### Edge connector (diagnosis only, debug for now)
 
 The card's PCIe edge connector can be damaged in three ways. There is no repair yet, so
-the job board never rolls it; in debug builds **Debug: Edge connector** cycles clean →
+the job board never rolls it; in debug builds **Escape → Fault setup → Cycle edge connector damage** cycles clean →
 oxidised → lifted finger → torn finger → clean. Each has its own signature:
 
 | Damage | Test monitor | Wiggle test | Under the loupe |
@@ -276,7 +279,9 @@ No deployment workflow or export preset is configured.
 | `scenes/workbench.tscn` | Main composition, asset instances, camera, lighting, environment, and controller nodes. |
 | `scenes/repair_desk.tscn` | Editable desk/mat/holder/tray and prop meshes. |
 | `scripts/gpu_connector.gd`, `shaders/loupe_lens.gdshader` | Edge-connector damage (oxidised, lifted, torn) drawn on the imported gold contacts, PCIe link width, dropouts and retraining, debug cycle; the loupe's lens overlay. |
-| `scenes/toolbox.tscn` | Screwdriver, air blower, Dev blower, spudger, IPA wipe, paste syringe, fan oiler and loupe meshes; tool_roll.gd builds the canvas bag, pockets, straps and rolling geometry and places tools from its `POCKETS` table. |
+| `scenes/toolbox.tscn` | Instances the rounded tool scenes; tool_roll.gd builds the canvas bag, pockets, straps and rolling geometry and places tools from its `POCKETS` table. |
+| `tools/import_tool_kit.gd`, `scenes/work_tool_shapes.tscn` | Bakes the Blender tool set into native scenes, preserving labels and the thermal display UV quad; includes the working scraper/wipe meshes used in close-up. |
+| `scenes/screwdriver.tscn`, `tools/import_screwdriver.gd` | Rounded screwdriver mesh scene and Blender-to-native scene bake. Source: `models/screwdriver.blend`; intermediate: `assets/screwdriver.glb`. |
 | `scenes/test_monitor.tscn`, `scripts/test_monitor.gd` | Editable LCD housing, power button, sound, deterministic pseudo-3D racing display driven by core clock and capped by PCIe link width, link-lost dropouts, VRAM error artifacts and GPU core sensor/clock readout. |
 | `scripts/testing_station.gd` | PCIe fixture interaction, GPU transfer, rocking the seated card (wiggle test), monitor connection, signal cable, fan animation (powered or air-blown), cleanliness-driven fan audio and dry-bearing grind. |
 | `scripts/gpu_bearing.gd`, `shaders/shaft_gunk.gdshader` | Fan sleeve bearing: runtime bearing boss, struts and shaft, hub-sticker peel, rotor pull/refit, shaft gunk wipe, oil drops and the dry/serviced state. |
@@ -302,7 +307,7 @@ No deployment workflow or export preset is configured.
 | `scripts/screen_ui.gd` | Shared helpers for pages drawn on in-world screens. |
 | `scripts/delivery_box.gd` | Procedural carton (flaps, tape, label, foam cradle) for deliveries and the sealed thermal camera box. |
 | `scripts/audio_mix.gd`, `default_bus_layout.tres` | Named mixer buses (one per sound plus Master), levels, reset and saving. |
-| `scripts/hud.gd` | Native UI and signals, including the Escape-menu sound mix panel; closeup provides the tool selection view, and workbench owns switching guards. |
+| `scripts/hud.gd` | Native UI and signals; Escape menu with collapsible diagnostic, assembly, fault, speed and sound subpanels and bounded scrolling. Closeup provides the tool selection view, and workbench owns switching guards. |
 | `scripts/asset_contract.gd` | Map source part names to imported nodes, validate parents, capture transforms. |
 | `scripts/service_rules.gd` | Pure dependency/tool checks, plus `check_surface` for paste-face and bearing reach and tool choice, and `check_opening` for the fan's sticker/rotor order. Invalid graphs fail closed with errors. |
 | `assets/gpu-parts.json` | Generated part metadata and source asset SHA-256 hashes. |
@@ -341,6 +346,7 @@ $godotExe = 'C:\Users\user\Desktop\ayush.dev\godot\Godot_v4.7.2-stable_win64_con
 & $godotExe --headless --path godot --script res://tests/first_person_flow.gd
 & $godotExe --headless --path godot --script res://tests/thermal_flow.gd
 & $godotExe --headless --path godot --script res://tests/scale_toolbox_flow.gd
+& $godotExe --headless --path godot --script res://tests/tool_art_flow.gd
 & $godotExe --headless --path godot --script res://tests/closeup_flow.gd
 & $godotExe --headless --path godot --script res://tests/placement_flow.gd
 & $godotExe --headless --path godot --script res://tests/tool_inspection_flow.gd
@@ -350,6 +356,7 @@ $godotExe = 'C:\Users\user\Desktop\ayush.dev\godot\Godot_v4.7.2-stable_win64_con
 & $godotExe --headless --path godot --script res://tests/fan_bearing_flow.gd
 & $godotExe --headless --path godot --script res://tests/audio_mix_flow.gd
 & $godotExe --headless --path godot --script res://tests/repair_status_flow.gd
+& $godotExe --headless --path godot --script res://tests/repair_speed_flow.gd
 & $godotExe --headless --path godot --script res://tests/tool_hotkey_flow.gd
 & $godotExe --headless --path godot --script res://tests/air_blower_flow.gd
 & $godotExe --headless --path godot --script res://tests/repair_jobs_flow.gd

@@ -55,6 +55,8 @@ var jingle: AudioStreamPlayer
 var air: AudioStreamPlayer
 ## Kept so each new job can lay fresh dust (reset_dust) with the same airflow weighting.
 var dust_rng := RandomNumberGenerator.new()
+## Development tuning only; release builds always use the authored rate.
+var debug_clear_speed := 1.0
 
 var progress: float:
 	get:
@@ -466,6 +468,7 @@ func blast(hit: Dictionary, jet: Vector3, seconds: float, subject: Node3D = null
 ## leaves as a cloud from the cleaned spot.
 func clean_at(mesh: MeshInstance3D, world_point: Vector3, local_normal: Vector3, seconds: float, radius: float, jet := Vector3.ZERO) -> float:
 	if not lookup.has(mesh) or celebrated: return 0.0
+	if OS.is_debug_build(): seconds *= debug_clear_speed
 	var surface: Dictionary = lookup[mesh]
 	var face := face_for(local_normal)
 	var axes: Array = AXES[face]

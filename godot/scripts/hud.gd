@@ -2,6 +2,10 @@ extends CanvasLayer
 const AudioMix = preload("res://scripts/audio_mix.gd")
 const RepairStatus = preload("res://scripts/repair_status.gd")
 const DEBUG_SETTINGS := "user://bench_debug.cfg"
+const REPAIR_SPEED_SETTINGS := "user://bench_repair_speeds.cfg"
+const REPAIR_SPEEDS := [["dust", "Dust clearing"], ["wipe", "IPA wiping"], ["scrape", "Paste scraping"]]
+const MIN_REPAIR_SPEED := 0.1
+const MAX_REPAIR_SPEED := 20.0
 signal tool_selected(id: String)
 signal tool_menu_closed
 signal view_requested(view: String)
@@ -28,6 +32,7 @@ signal debug_repaste_requested
 signal debug_dry_bearing_requested
 signal debug_oil_bearing_requested
 signal debug_connector_requested
+signal debug_repair_speed_changed(id: String, multiplier: float)
 
 var inspect_button: Button
 var flip_button: Button
@@ -79,6 +84,15 @@ var repair_layer: CanvasLayer
 var repair_panel: PanelContainer
 var repair_summary: Label
 var repair_rows: VBoxContainer
+var repair_speed_panel: VBoxContainer
+var repair_speed_sliders: Dictionary = {}
+var repair_speed_values: Dictionary = {}
+var repair_speed_reset: Button
+var repair_speed_settings_path := REPAIR_SPEED_SETTINGS
+var menu_sections: Dictionary = {}
+var menu_section_buttons: Dictionary = {}
+var menu_column: VBoxContainer
+var menu_scroll: ScrollContainer
 
 func _ready() -> void:
 	var panel := PanelContainer.new()
@@ -146,18 +160,36 @@ func _ready() -> void:
 	turn_progress.show_percentage = false
 	column.add_child(turn_progress)
 	cleaning_panel = PanelContainer.new()
-	cleaning_panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	cleaning_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	cleaning_panel.offset_left = 18
-	cleaning_panel.offset_right = 520
-	cleaning_panel.offset_top = -250
-	cleaning_panel.offset_bottom = -18
+	cleaning_panel.offset_right = 550
+	cleaning_panel.offset_top = 64
+	cleaning_panel.offset_bottom = 64
+	var menu_style := StyleBoxFlat.new()
+	menu_style.bg_color = Color("#253139f5")
+	menu_style.set_corner_radius_all(8)
+	cleaning_panel.add_theme_stylebox_override("panel", menu_style)
 	add_child(cleaning_panel)
 	var cleaning_margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
 		cleaning_margin.add_theme_constant_override("margin_" + side, 8)
 	cleaning_panel.add_child(cleaning_margin)
-	var cleaning_column := VBoxContainer.new()
-	cleaning_margin.add_child(cleaning_column)
+	var menu_layout := VBoxContainer.new()
+	menu_layout.add_theme_constant_override("separation", 10)
+	cleaning_margin.add_child(menu_layout)
+	var menu_title := Label.new()
+	menu_title.text = "DEBUG MENU" if OS.is_debug_build() else "MENU"
+	menu_title.add_theme_font_size_override("font_size", 20)
+	menu_layout.add_child(menu_title)
+	menu_scroll = ScrollContainer.new()
+	menu_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	menu_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	menu_layout.add_child(menu_scroll)
+	menu_column = VBoxContainer.new()
+	menu_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	menu_column.add_theme_constant_override("separation", 8)
+	menu_scroll.add_child(menu_column)
+	var cleaning_column := build_menu_section("diagnostics", "Dust & diagnostics", true)
 	clean_label = Label.new()
 	cleaning_column.add_child(clean_label)
 	part_clean_label = Label.new()
@@ -170,58 +202,165 @@ func _ready() -> void:
 	highlight_dust_button.toggle_mode = true
 	highlight_dust_button.visible = OS.is_debug_build()
 	highlight_dust_button.pressed.connect(func(): highlight_dust_requested.emit())
-	var debug_controls := HFlowContainer.new()
-	cleaning_column.add_child(debug_controls)
-	debug_clean_button = make_button("Debug: Clean GPU", debug_controls)
+	debug_clean_button = make_button("Clean GPU", cleaning_column)
 	debug_clean_button.visible = OS.is_debug_build()
 	debug_clean_button.pressed.connect(func(): debug_clean_requested.emit())
-	debug_disassemble_button = make_button("Debug: Disassemble GPU", debug_controls)
+	var assembly_section := build_menu_section("assembly", "Assembly", true)
+	debug_disassemble_button = make_button("Disassemble GPU", assembly_section)
 	debug_disassemble_button.visible = OS.is_debug_build()
 	debug_disassemble_button.pressed.connect(func(): debug_disassemble_requested.emit())
-	debug_reassemble_button = make_button("Debug: Reassemble GPU", debug_controls)
+	debug_reassemble_button = make_button("Reassemble GPU", assembly_section)
 	debug_reassemble_button.visible = OS.is_debug_build()
 	debug_reassemble_button.pressed.connect(func(): debug_reassemble_requested.emit())
 	# Paste quality stays hidden from normal play; the thermal camera is the diagnosis.
-	debug_dry_paste_button = make_button("Debug: Dry paste", debug_controls)
+	var faults_section := build_menu_section("faults", "Fault setup", true)
+	debug_dry_paste_button = make_button("Dry paste", faults_section)
 	debug_dry_paste_button.visible = OS.is_debug_build()
 	debug_dry_paste_button.pressed.connect(func(): debug_dry_paste_requested.emit())
-	debug_repaste_button = make_button("Debug: Fresh paste", debug_controls)
+	debug_repaste_button = make_button("Fresh paste", faults_section)
 	debug_repaste_button.visible = OS.is_debug_build()
 	debug_repaste_button.pressed.connect(func(): debug_repaste_requested.emit())
-	debug_dry_bearing_button = make_button("Debug: Dry bearing", debug_controls)
+	debug_dry_bearing_button = make_button("Dry bearing", faults_section)
 	debug_dry_bearing_button.visible = OS.is_debug_build()
 	debug_dry_bearing_button.pressed.connect(func(): debug_dry_bearing_requested.emit())
-	debug_oil_bearing_button = make_button("Debug: Oil bearing", debug_controls)
+	debug_oil_bearing_button = make_button("Oil bearing", faults_section)
 	debug_oil_bearing_button.visible = OS.is_debug_build()
 	debug_oil_bearing_button.pressed.connect(func(): debug_oil_bearing_requested.emit())
 	# Cycles the edge connector: clean, oxidised, lifted finger, torn finger.
-	var debug_connector_button := make_button("Debug: Edge connector", debug_controls)
+	var debug_connector_button := make_button("Cycle edge connector damage", faults_section)
 	debug_connector_button.visible = OS.is_debug_build()
 	debug_connector_button.pressed.connect(func(): debug_connector_requested.emit())
 	repair_toggle = CheckButton.new()
 	repair_toggle.text = "Repair status overlay"
 	repair_toggle.focus_mode = Control.FOCUS_NONE
 	repair_toggle.visible = OS.is_debug_build()
-	debug_controls.add_child(repair_toggle)
+	cleaning_column.add_child(repair_toggle)
+	build_repair_speed_controls(build_menu_section("speeds", "Repair speeds", true))
 	status_label = Label.new()
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status_label.text = "Loading workbench..."
 	column.add_child(status_label)
 	build_audio_panel()
 	build_repair_panel()
+	menu_column.minimum_size_changed.connect(func(): call_deferred("fit_menu_height"))
+	get_viewport().size_changed.connect(fit_menu_height)
+	call_deferred("fit_menu_height")
+
+func fit_menu_height() -> void:
+	menu_scroll.custom_minimum_size.y = minf(menu_column.get_combined_minimum_size().y, maxf(100.0, get_viewport().get_visible_rect().size.y - 150.0))
+	cleaning_panel.size.y = 0.0
+
+## Each group has its own disclosure button and body. Keep the menu compact on first open;
+## expanded groups scroll together without pushing controls outside the window.
+func build_menu_section(id: String, title: String, debug_only: bool = false) -> VBoxContainer:
+	var section := VBoxContainer.new()
+	section.visible = not debug_only or OS.is_debug_build()
+	menu_column.add_child(section)
+	var button := make_button("> " + title, section)
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.toggle_mode = true
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("#34424b")
+	style.set_corner_radius_all(4)
+	for side in [SIDE_LEFT, SIDE_RIGHT, SIDE_TOP, SIDE_BOTTOM]:
+		style.set_content_margin(side, 10)
+	panel.add_theme_stylebox_override("panel", style)
+	section.add_child(panel)
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", 6)
+	panel.add_child(body)
+	panel.hide()
+	menu_sections[id] = panel
+	menu_section_buttons[id] = button
+	button.toggled.connect(func(expanded: bool):
+		panel.visible = expanded
+		button.text = ("v " if expanded else "> ") + title
+		if id == "sound" and expanded: refresh_audio_panel())
+	return body
+
+## Debug rate multipliers for playtesting. The original tool strengths are still the baseline.
+func build_repair_speed_controls(parent: Control) -> void:
+	repair_speed_panel = VBoxContainer.new()
+	repair_speed_panel.visible = OS.is_debug_build()
+	parent.add_child(repair_speed_panel)
+	var title := Label.new()
+	title.text = "REPAIR SPEEDS (debug)"
+	repair_speed_panel.add_child(title)
+	for entry in REPAIR_SPEEDS:
+		var id: String = entry[0]
+		var row := HBoxContainer.new()
+		repair_speed_panel.add_child(row)
+		var label := Label.new()
+		label.text = entry[1]
+		label.custom_minimum_size.x = 140
+		row.add_child(label)
+		var slider := HSlider.new()
+		slider.min_value = MIN_REPAIR_SPEED
+		slider.max_value = MAX_REPAIR_SPEED
+		slider.step = 0.1
+		slider.value = 1.0
+		slider.focus_mode = Control.FOCUS_NONE
+		slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		slider.custom_minimum_size.x = 180
+		row.add_child(slider)
+		var value_label := Label.new()
+		value_label.text = "1.0x"
+		value_label.custom_minimum_size.x = 58
+		value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		row.add_child(value_label)
+		repair_speed_sliders[id] = slider
+		repair_speed_values[id] = value_label
+		slider.value_changed.connect(func(value: float):
+			if not OS.is_debug_build(): return
+			value_label.text = "%.1fx" % value
+			debug_repair_speed_changed.emit(id, value)
+			save_repair_speeds())
+	var hint := Label.new()
+	hint.text = "1x = current speed. Higher = faster. Saved between runs."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.add_theme_font_size_override("font_size", 13)
+	repair_speed_panel.add_child(hint)
+	repair_speed_reset = make_button("Reset repair speeds to 1x", repair_speed_panel)
+	repair_speed_reset.pressed.connect(func():
+		if not OS.is_debug_build(): return
+		for entry in REPAIR_SPEEDS: set_repair_speed(entry[0], 1.0)
+		save_repair_speeds())
+
+func set_repair_speed(id: String, value: float) -> void:
+	if not OS.is_debug_build() or not repair_speed_sliders.has(id): return
+	if not is_finite(value): value = 1.0
+	value = clampf(value, MIN_REPAIR_SPEED, MAX_REPAIR_SPEED)
+	repair_speed_sliders[id].set_value_no_signal(value)
+	var applied: float = repair_speed_sliders[id].value
+	repair_speed_values[id].text = "%.1fx" % applied
+	debug_repair_speed_changed.emit(id, applied)
+
+func load_repair_speeds() -> void:
+	if not OS.is_debug_build(): return
+	var settings := ConfigFile.new()
+	if settings.load(repair_speed_settings_path) != OK: return
+	for entry in REPAIR_SPEEDS:
+		var value: Variant = settings.get_value("speeds", entry[0], 1.0)
+		set_repair_speed(entry[0], float(value) if value is float or value is int else 1.0)
+
+func save_repair_speeds() -> void:
+	if not OS.is_debug_build(): return
+	var settings := ConfigFile.new()
+	for entry in REPAIR_SPEEDS:
+		settings.set_value("speeds", entry[0], repair_speed_sliders[entry[0]].value)
+	settings.save(repair_speed_settings_path)
 
 ## Escape-menu mixer: one slider per sound channel plus Master. Changes apply live and save shortly after.
 func build_audio_panel() -> void:
+	var sound_section := build_menu_section("sound", "Sound")
 	audio_panel = PanelContainer.new()
-	audio_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	audio_panel.offset_left = -430
-	audio_panel.offset_right = -18
-	audio_panel.offset_top = 18
-	audio_panel.hide()
-	add_child(audio_panel)
+	audio_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	sound_section.add_child(audio_panel)
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 12)
+		margin.add_theme_constant_override("margin_" + side, 0)
 	audio_panel.add_child(margin)
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 4)
@@ -268,6 +407,7 @@ func build_audio_panel() -> void:
 	audio_saved_label.add_theme_font_size_override("font_size", 13)
 	audio_saved_label.modulate = Color(1, 1, 1, 0.7)
 	audio_saved_label.text = "Levels save to " + AudioMix.save_location()
+	audio_saved_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(audio_saved_label)
 	audio_save_timer = Timer.new()
 	audio_save_timer.one_shot = true
@@ -399,9 +539,6 @@ func enable_first_person() -> void:
 func set_menu_open(value: bool) -> void:
 	if not fps_mode: return
 	cleaning_panel.visible = value and (tool_overlay == null or not tool_overlay.visible)
-	var mixer_opening: bool = value and not audio_panel.visible and cleaning_panel.visible
-	audio_panel.visible = cleaning_panel.visible
-	if mixer_opening: refresh_audio_panel()
 	reticle.visible = not value
 
 func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Node, captured: bool, seated: bool = false) -> void:
