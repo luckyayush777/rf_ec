@@ -274,6 +274,9 @@ No deployment workflow or export preset is configured.
 
 ## Where to edit
 
+For request-to-owner navigation, see [the task router](../AGENTS.md#task-router),
+[the detailed ownership map](ARCHITECTURE.md) and [behavior contracts](CONTRACTS.md).
+
 | File | Responsibility |
 | --- | --- |
 | `scenes/workbench.tscn` | Main composition, asset instances, camera, lighting, environment, and controller nodes. |
@@ -332,6 +335,12 @@ Python 3 needs no third-party packages. Audio, including screwdriver and complet
 Godot reimports the copies in `assets/`. The supplied fan recordings `assets/sounds/ambient_gpu.wav` and `assets/sounds/loud_gpu.wav`, plus `assets/sounds/compressed_air.wav`, `assets/sounds/clean_jingle.wav`, `assets/sounds/gpu_sounds/gpu_attach_short.wav` and `assets/button_press.ogg` live directly in Godot and are not overwritten by this sync script. Commit copied assets, generated JSON, `.import` settings and `.gd.uid` files; do not commit `.godot/` caches or `build/` captures. Do not hand-edit generated metadata or copy only one of the GPU/metadata pair. Existing asset/license notes remain in [the repository README](../README.md), [the model workflow](../models/README.md) and [the Godot asset credits](ASSET_CREDITS.md).
 
 ## Command-line checks
+
+For focused groups of existing checks, run `python godot/tools/check.py --list`
+from the repository root, then choose a suite such as `--suite paste` or
+`--suite tools --capture`. Add `--import` after substantial GDScript changes.
+See [local tools and validation](tools/LOCAL_ENVIRONMENT.md) for verified paths,
+overrides and UTF-8 test reports. The individual commands remain below.
 
 From the repository root, point PowerShell at the downloaded executable (adjust its location if needed):
 
