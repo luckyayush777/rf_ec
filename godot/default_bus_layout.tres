@@ -65,5 +65,5 @@ bus/11/name = &"RacingGame"
 bus/11/solo = false
 bus/11/mute = false
 bus/11/bypass_fx = false
-bus/11/volume_db = 0.0
+bus/11/volume_db = -16.478174
 bus/11/send = &"Master"

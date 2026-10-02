@@ -6,6 +6,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 
 ## Implemented
 
+- **Repair jobs**: play opens on an empty bench. Take a job on the shop computer's internal portal, open the delivery box on the repair desk, diagnose and fix the card, then return it from the portal to get paid. See [Repair jobs](#repair-jobs).
 - Imported GPU, including its original component hierarchy and 12 separate worn-pad residue meshes.
 - Imported workshop interior with a brick back wall, painted side wall, tiled floor, background instrument bench, oscilloscope, labelled parts bins, soldering station, stool and trolley. The runtime is enclosed for first-person play; the editor keeps a cutaway overview. The props are scenery. See [room authoring](../models/shop-interior.md).
 - Native, editable repair-desk scene with mat, holder jaws, tray, canvas tool roll, simplified lamp/spare-parts props, and floor.
@@ -13,11 +14,11 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 - Native LCD test monitor with a physical power button, status LED and a visible signal cable to the testing board. The assembled GPU seats in the board and returns to its repair holder; the monitor runs a deterministic pseudo-3D racing demo whose simulated rate follows the card's core clock. The clock holds 1905 MHz below 70 degrees C and drops in 15 MHz bins to 600 MHz at the 105 degrees C limit (60 FPS at full clock, down to 8 FPS fully throttled); a throttling card also stutters with uneven frame pacing and hitches. Hot VRAM does not slow the feed; it shows memory errors as sparkling pixels, garbage blocks and torn rows. The monitor lists the lap time, core **MHZ** and **GPU °C**. The game plays through the monitor speakers: an engine whose pitch follows the car's speed, road roar, tyre squeal in tight bends and a whoosh when passing. Its sound breaks up with the card: at low frame rates the engine pitch moves in steps, a hitched frame loops the last fraction of a second into a stuttering buzz, and hot VRAM adds crackles. Attachment and power-on sounds are included.
 - The test-board GPU fan spins with its hub label while the housing stays fixed. Dustier cards run faster and blend in `loud_gpu.wav`; clean cards settle to `ambient_gpu.wav`. Speed and sound ease toward the current cleanliness, including live debug cleaning. Removing the card stops the loops and spins the rotor down to its authored pose. Monitor power controls only the display; the seated card keeps running. These are simulated cooling responses, not measured RPM or temperature.
 - First-person-only play: WASD walking, captured mouse-look, capsule collision against the room/desks, a centred interaction prompt and distance-limited picking. Tab/Escape releases the mouse; focus loss pauses active holds. Orbit poses remain only for existing automated service fixtures.
-- Handheld thermal camera on the repair desk, with a live low-resolution display and RMB viewfinder. Both display the aimed surface temperature in degrees C, its name, and a spot crosshair. The fixed 20-100 degrees C palette shows visible surface heat at 9 Hz, with a spot readout and an approximation warning for reflective metal. Separate memory/core/cooler temperatures warm under test-board power and cool gradually when disconnected. Internal fan/heatsink dust is the main fault. Existing front/rear memory packages have native U1-U10 / VRAM markings.
+- Handheld thermal camera on the repair desk. In play it is still **sealed in its box** for now, so it cannot be picked up; automated fixtures keep it on its stand. It has a live low-resolution display and RMB viewfinder. Both display the aimed surface temperature in degrees C, its name, and a spot crosshair. The fixed 20-100 degrees C palette shows visible surface heat at 9 Hz, with a spot readout and an approximation warning for reflective metal. Separate memory/core/cooler temperatures warm under test-board power and cool gradually when disconnected. Internal fan/heatsink dust is the main fault. Existing front/rear memory packages have native U1-U10 / VRAM markings.
 - Surface picking, animated whole-GPU lift/set-down, independent inspection rotation/zoom, and flip.
 - Holder jaws open during inspection and close when the GPU returns.
 - Metadata adapter that validates named parts and original parent relationships, records original transforms, and creates service definitions.
-- Animated canvas tool bag pulled toward the front of the bench, clear of the screw tray, with seven stitched pockets and retaining straps; the air blower fills the last pocket. Clicking it opens a large live 3D view over the blurred room and unrolls the fabric; click a visible tool or its keyboard-accessible label. Switching returns the previous tool, and closing rolls the bag shut. The thermal camera remains on its stand and is also selectable from the footer.
+- Animated canvas tool bag pulled toward the front of the bench, clear of the screw tray, with seven stitched pockets and retaining straps; the air blower fills the last pocket. Clicking it opens a large live 3D view over the blurred room and unrolls the fabric; click a visible tool or its keyboard-accessible label. Switching returns the previous tool, and closing rolls the bag shut. When unboxed, the thermal camera stays on its stand and is also selectable from the footer; while boxed, its button is hidden.
 - Screwdriver equip/return, automatic toolbox opening, and desk placement/retrieval with footprint and obstacle checks. Inspection can continue with the screwdriver equipped.
 - Fan cable unplug/reconnect with plug animation and wire deformation. Cable handling requires empty hands; cooler screws require the cable unplugged.
 - All eight screws support 1.5-second hold-to-turn removal/refit, independent paused progress, labeled tray slots, and exact original parent/transform restoration. Shallow screw seats remain visible when screws move to the tray; click an empty seat with the screwdriver to seat that screw immediately, then hold to tighten it in place. Released screws retain their progress and follow the GPU.
@@ -31,7 +32,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 - Low-density dust remains visible until its mask is fully erased. In debug builds, the bottom **highlight dust** button toggles a magenta view of remaining dust through parts. If dust remains 30 seconds after equipping the Dev blower, this view turns on automatically. Rotate, flip or remove parts to expose dust before cleaning it.
 - Pointer release, Escape and window focus loss pause active screw turns. Tool/cable/inspection changes are blocked during active service animations.
 - Screwdriver, blowers and cleaning jingles share a sound toggle; see [asset credits](ASSET_CREDITS.md).
-- **Repair status overlay** (debug builds, developer aid): switch it on with **Repair status overlay** in the Escape menu's debug panel; the choice is remembered. It lists Dust, Thermal paste, Fan bearing, Assembly and the live Test run readout, each red (broken or untouched), yellow (in progress) or green (done), with hidden truth such as paste contact percentage. It stays visible during play and above focus views.
+- **Repair status overlay** (debug builds, developer aid): switch it on with **Repair status overlay** in the Escape menu's debug panel; the choice is remembered. It lists the Job (including the rolled faults the customer only hints at), then Dust, Thermal paste, Fan bearing, Assembly and the live Test run readout, each red (broken or untouched), yellow (in progress) or green (done), with hidden truth such as paste contact percentage. It stays visible during play and above focus views.
 - **Sound mix**: press Escape in play to release the mouse and open a panel with a Master slider and one slider per sound (fan quiet/loud loops, bearing grind, air blower motor, Dev blower air, screwdriver, clean jingle, GPU seating, monitor button, racing game, sticker peel), from silent to 200%. Changes apply live. Run from the editor, they save into `default_bus_layout.tres`, so they can be committed and are also editable in the editor's bottom **Audio** tab; exported builds save them to user settings.
 - Service-rule evaluator, exercised against 1,024 checked-in expected decisions and used by the live cable/screw controller.
 
@@ -42,6 +43,9 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 | Walk / look | WASD / mouse; no third-person view or camera presets |
 | Release/resume mouse | Tab or Escape; releasing also ends screw/blower holds |
 | Interact / pick up | Aim the crosshair and press E (or click); move within reach |
+| Shop computer | E or click on the beige PC by the front wall (screen, cabinet or keyboard). The camera settles on the CRT and the cursor is freed: click tabs and buttons on the screen, or press F1 / F2 / F3 for the job board, bench and ledger. Esc or Tab steps away. Set held parts down first. |
+| Open the delivery box | E or click on the box on the repair desk; the card lifts out into its holder |
+| Return a card | Portal **My bench** tab: **Return card to customer**. The card must be reassembled with its fan cable connected and set down. |
 | Inspect GPU | E on the card, including with a tool equipped; RMB + mouse rotates, F flips, wheel adjusts holding distance. With a part held, R opens focus; E on the mat places that part and keeps the equipped tool. |
 | Place / return held card | GPU and detached parts sit in the left hand. Aim at the desk: a green ring marks a clear placement and red marks a blocked spot. E places the part while keeping your tool; Q returns the carried card to its repair holder. |
 | Carry GPU to testing | With an assembled GPU and empty tool hand, E on the test board; a held card transfers directly |
@@ -55,11 +59,11 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 | Lift assembly | E on fan/heatsink after removing its cable/screw dependencies |
 | Rotate / place / refit assembly | RMB + mouse / E on clear repair tabletop / Q; cooler refits before fan |
 | Clean dust | Equip the air blower, click a part for focus, hold LMB and sweep the jet over exposed surfaces; remove assemblies to reach internal dust. Debug builds also have the wide-footprint Dev blower. |
-| Thermal camera | E on orange camera on the repair desk; hold RMB for its larger viewfinder |
+| Thermal camera | Boxed in play for now. When unboxed: E on the orange camera on the repair desk; hold RMB for its larger viewfinder |
 | Repaste | With the heatsink removed, equip spudger / IPA wipe / paste syringe and click the GPU or detached heatsink. Hold LMB on the framed die or base to scrape, wipe or squeeze. See [Repasting](#repasting). |
 | Oil the fan bearing | In focus on the detached fan: click the hub sticker, then the hub to pull the rotor. Hold LMB along the shaft with the IPA wipe, then on the bearing with the fan oiler. Click the rotor to refit it. See [Fan bearing](#fan-bearing). |
 | Place / retrieve a tool | E on clear repair tabletop / E on placed tool |
-| Return equipped tool | Q; thermal camera returns to its desk stand, other tools to the toolbox |
+| Return equipped tool | Q, also inside a service close-up (the part stays in hand and the close-up stays open). With a part in one hand and a tool in the other, Q returns the tool first; press Q again to return or refit the part. The thermal camera returns to its desk stand, other tools to the toolbox. |
 | Debug clean/disassemble and dust highlight | Tab to release mouse and open the debug cleaning menu |
 | Toggle sound | M |
 
@@ -68,10 +72,57 @@ hidden screws and memory cannot be picked through another surface. Most room pro
 are fixed scenery; the GPU, service assemblies and three tools are the supported
 pickup objects. There is no jumping or free physics throwing.
 
+## Repair jobs
+
+Play opens on an empty bench with **$100**. The loop:
+
+1. **Take a job.** Walk to the shop computer, a beige 486 with a green-phosphor CRT on
+   the desk by the front wall, and click its screen. The internal **BENCHWORKS REPAIR-NET**
+   portal has three pages (F1-F3): **Job board** (open
+   requests: customer, complaint in their own words, and pay), **My bench** (the
+   accepted card, its status and the return button) and **Ledger** (balance and
+   returned jobs). **Accept job** puts the request on your bench.
+2. **Unbox it.** A taped carton drops onto the repair desk, between the card holder
+   and the screw tray. One click slits the tape, swings the flaps open and lifts the
+   card into its holder.
+3. **Diagnose and repair** with the existing tools. The complaint describes symptoms
+   only. Runs hot, roars and shows coloured sparkles: dust. Slows down after warming
+   up, with no artifacts: dried paste. Grinding: the fan bearing.
+4. **Return it** from **My bench** once it is reassembled, with its fan cable
+   connected, and set down. The courier takes it. If nothing is wrong with the card,
+   the customer pays the listed amount. Otherwise they report what is still wrong
+   and pay nothing. This includes problems you caused, such as refitting the
+   heatsink over too little paste.
+
+The bench holds **one card** at a time (`MAX_QUEUE` in `scripts/repair_jobs.gd`). The
+**job-queue display**, on a stand behind the repair desk, shows each slot with its
+customer, pay, status (in the box / on the bench) and complaint, plus the balance and
+the last result.
+
+**How many faults a card has.** With *n* fault types (three for now: dust, dried paste,
+dry bearing), a card has *k* faults with probability
+
+P(k) = (1 − r) · r^(k−1) / (1 − r^n),  for k = 1 … n,
+
+so each extra fault is *r* times as likely as one fewer. Choosing
+r = (1 + √37) / 18 ≈ 0.3935 puts three faults at exactly 10 in 100:
+
+| Faults | 1 | 2 | 3 |
+| --- | --- | --- | --- |
+| Chance | 64.6% | 25.4% | 10.0% |
+
+Which faults is uniform. Adding a fault type keeps the same *r*, so many-fault cards
+get rarer still (with four types: 62.1 / 24.5 / 9.6 / 3.8%). Every card has at least
+one fault, and everything not rolled starts healthy: clean, freshly pasted, oiled.
+Pay is a $20 diagnosis fee plus $40 for dust, $60 for paste and $45 for the bearing.
+Progress lives in memory only; there is no save yet. Spending money, more bench
+slots and unlocking the boxed thermal camera are not implemented yet.
+
 ## Thermal investigation loop
 
 Seat the dirty, assembled GPU in the test board and give it about 6 seconds to
-warm. Take the orange thermal camera and walk around to the exposed rear VRAM
+warm. While the thermal camera is boxed, read the monitor's **GPU °C**, MHZ and
+artifacts. With the camera unboxed (automated fixtures), take the orange thermal camera and walk around to the exposed rear VRAM
 packages. Hold RMB and note their surface readings and the fixed colour scale.
 Front memory covered by the cooler is occluded, just as it is in the ordinary view.
 
@@ -94,7 +145,7 @@ errors that are fully visible by 92 degrees C.
 
 ### Dried die paste
 
-The card also starts with dried thermal paste between the GPU die and heatsink. The
+A card can arrive with dried thermal paste between the GPU die and heatsink. The
 die sits under the heatsink, so the thermal camera cannot see it; its sensor reading
 appears as **GPU °C** on the powered test monitor. Compare that reading with the
 heatsink on the thermal camera. Dust heats both. Dried paste traps heat in the die,
@@ -150,7 +201,7 @@ and screw-tightening order are not modelled yet.
 
 ### Fan bearing
 
-The 710's cheap sleeve-bearing fan starts dry and gummed up, so it grinds whenever it
+The 710's cheap sleeve-bearing fan can arrive dry and gummed up, so it grinds whenever it
 spins on the test board (a synthesized placeholder until `assets/sounds/fan_grind.wav`
 is supplied). The fix happens in focus on the detached fan:
 
@@ -172,7 +223,7 @@ not modelled yet, and the bearing does not affect temperatures.
 
 ## Pending gameplay
 
-Paste thickness/mounting pressure, directional pad scraping, comparison view, job progression, volumetric dust (shell layers or detachable felt clumps), fan wear from overspinning and general interaction highlights are pending. Imported pad remnants are geometry only. Replacement pads have no gameplay yet. The racing feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
+Paste thickness/mounting pressure, directional pad scraping, comparison view, spending and progression (purchases, more bench slots, unboxing the thermal camera, saving), volumetric dust (shell layers or detachable felt clumps), fan wear from overspinning and general interaction highlights are pending. Imported pad remnants are geometry only. Replacement pads have no gameplay yet. The racing feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
 
 No deployment workflow or export preset is configured.
 
@@ -200,7 +251,12 @@ No deployment workflow or export preset is configured.
 | `scripts/gpu_paste.gd`, `shaders/paste_layer.gdshader` | Die and heatsink-base paste layers (uneven glaze/crust/gum stack, film and fresh paste per cell, with height relief), layered scrape with glaze chipping and gum smearing, wipe/squeeze brushes, pressure spread on seating, lift imprint, contact quality and debug dry/fresh. |
 | `scripts/thermal_camera.gd`, `shaders/thermal_surface.gdshader`, `scenes/thermal_camera.tscn` | Pickup instrument, separate depth-tested thermal world, display, spot readout and fixed palette. |
 | `scripts/gpu_inspection.gd` | Whole-GPU inspection state and exact home-transform restoration. |
-| `scripts/repair_status.gd` | Debug-only repair status rows (dust, paste, bearing, assembly, test run) for the Escape-menu overlay. |
+| `scripts/repair_status.gd` | Debug-only repair status rows (job and rolled faults, dust, paste, bearing, assembly, test run) for the Escape-menu overlay. |
+| `scripts/repair_jobs.gd` | Job offers, fault-count odds and rolling, complaints, the one-card queue, delivery and unboxing, per-job fault setup, return checks and payment. |
+| `scenes/shop_computer.tscn`, `scripts/shop_computer.gd`, `shaders/crt_screen.gdshader` | Retro shop PC (CRT, beige 486 cabinet, keyboard, ball mouse); green-phosphor portal page in a SubViewport drawn through the curved CRT shader, camera settle and in-world click routing that follows the glass curvature. |
+| `scenes/job_queue_monitor.tscn`, `scripts/job_queue_monitor.gd` | Job-queue display on a floor stand behind the repair desk. |
+| `scripts/screen_ui.gd` | Shared helpers for pages drawn on in-world screens. |
+| `scripts/delivery_box.gd` | Procedural carton (flaps, tape, label, foam cradle) for deliveries and the sealed thermal camera box. |
 | `scripts/audio_mix.gd`, `default_bus_layout.tres` | Named mixer buses (one per sound plus Master), levels, reset and saving. |
 | `scripts/hud.gd` | Native UI and signals, including the Escape-menu sound mix panel; closeup provides the tool selection view, and workbench owns switching guards. |
 | `scripts/asset_contract.gd` | Map source part names to imported nodes, validate parents, capture transforms. |
@@ -252,6 +308,7 @@ $godotExe = 'C:\Users\user\Desktop\ayush.dev\godot\Godot_v4.7.2-stable_win64_con
 & $godotExe --headless --path godot --script res://tests/repair_status_flow.gd
 & $godotExe --headless --path godot --script res://tests/tool_hotkey_flow.gd
 & $godotExe --headless --path godot --script res://tests/air_blower_flow.gd
+& $godotExe --headless --path godot --script res://tests/repair_jobs_flow.gd
 
 # Run the game, or open the editor.
 & $godotExe --path godot

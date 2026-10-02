@@ -9,6 +9,12 @@ var look_yaw := 0.0
 var walking_enabled := true
 var captured := false
 var movement_override := Vector2.ZERO
+## A fixed viewpoint (the shop computer screen) the camera eases toward, by anchor_weight.
+var anchor := Transform3D.IDENTITY
+var anchor_weight := 0.0:
+	set(value):
+		anchor_weight = value
+		update_camera()
 
 func _ready() -> void:
 	if legacy_test_mode: return
@@ -32,7 +38,8 @@ func _ready() -> void:
 func build_collisions(world: Node3D) -> void:
 	if legacy_test_mode: return
 	# Static furniture only. Service parts and tools must remain movable/pickable.
-	for branch in [world.get_node("ShopInterior"), world.get_node("RepairDesk"), world.get_node("TestingDesk")]:
+	for branch in [world.get_node("ShopInterior"), world.get_node("RepairDesk"), world.get_node("TestingDesk"),
+			world.get_node("ShopComputer"), world.get_node("JobQueueMonitor")]:
 		for mesh in branch.find_children("*", "MeshInstance3D", true, false):
 			if not mesh.is_visible_in_tree() or mesh.mesh == null: continue
 			if world.get_node("RepairDesk/Toolbox").is_ancestor_of(mesh): continue
@@ -51,6 +58,8 @@ func update_camera() -> void:
 	if body == null: return
 	camera.global_position = body.global_position + Vector3(0, 7.7, 0)
 	camera.global_rotation = Vector3(look_pitch, look_yaw, 0)
+	if anchor_weight > 0.0:
+		camera.global_transform = camera.global_transform.interpolate_with(anchor, anchor_weight)
 
 func _physics_process(delta: float) -> void:
 	if legacy_test_mode or body == null: return

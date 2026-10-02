@@ -53,6 +53,8 @@ var auto_highlight_shown := false
 var muted := false
 var jingle: AudioStreamPlayer
 var air: AudioStreamPlayer
+## Kept so each new job can lay fresh dust (reset_dust) with the same airflow weighting.
+var dust_rng := RandomNumberGenerator.new()
 
 var progress: float:
 	get:
@@ -67,7 +69,7 @@ func configure(card: Node3D, scene_picker: RefCounted, workbench_tools: Node) ->
 	picker = scene_picker
 	tools = workbench_tools
 	rotor = card.find_child("fan-rotor", true, false)
-	var rng := RandomNumberGenerator.new()
+	var rng := dust_rng
 	rng.randomize()
 	var noise_texture := make_noise_texture(rng)
 	var context := airflow_context(card)
@@ -127,13 +129,7 @@ func configure(card: Node3D, scene_picker: RefCounted, workbench_tools: Node) ->
 				if coverage.slice(y * WIDTH + (face % 3) * TILE, y * WIDTH + (face % 3 + 1) * TILE).has(1):
 					faces.append(face)
 					break
-		var mass := 0.0
-		for index in range(data.size()):
-			if data[index] == 0: continue
-			var x := index % WIDTH
-			var y := index / WIDTH
-			var face: int = (y / TILE) * 3 + x / TILE
-			mass += data[index] * weights[face]
+		var mass := mask_mass(data, weights)
 		if mass <= 0.0: continue
 		var image := Image.create_from_data(WIDTH, HEIGHT, false, Image.FORMAT_L8, data)
 		var texture := ImageTexture.create_from_image(image)
@@ -161,7 +157,7 @@ func configure(card: Node3D, scene_picker: RefCounted, workbench_tools: Node) ->
 			highlight_mesh.visible = false
 		var surface := {"mesh": mesh, "owner": owner, "name": String(mesh.name), "bounds": bounds, "coverage": coverage, "faces": faces,
 			"size": size, "weights": weights, "data": data, "texture": texture, "highlight": highlight_mesh,
-			"mass": mass, "remaining": mass}
+			"mass": mass, "remaining": mass, "affinity": affinity, "texels": texels}
 		surfaces.append(surface)
 		lookup[mesh] = surface
 	jingle = AudioStreamPlayer.new()
@@ -261,6 +257,37 @@ func make_dust_mask(coverage: PackedByteArray, rng: RandomNumberGenerator, affin
 			var depth := clampf(0.35 * (scores[i] - threshold) / span + 0.65 * loads[i], 0.0, 1.0)
 			data[indices[i]] = roundi(lerpf(FILM, FELT, depth))
 	return data
+
+func mask_mass(data: PackedByteArray, weights: Array[float]) -> float:
+	var mass := 0.0
+	for index in range(data.size()):
+		if data[index] == 0: continue
+		var face: int = (index / WIDTH / TILE) * 3 + (index % WIDTH) / TILE
+		mass += data[index] * weights[face]
+	return mass
+
+## A new card on the bench: lay a fresh randomized coat of dust, or start it clean. A clean
+## card counts every part as done without the jingle.
+func reset_dust(dusty: bool) -> void:
+	end()
+	set_highlight(false)
+	celebrated = false
+	completed_parts.clear()
+	completed_count = 0
+	blower_elapsed = -1.0
+	auto_highlight_shown = false
+	for surface in surfaces:
+		var data: PackedByteArray = make_dust_mask(surface.coverage, dust_rng, surface.affinity, surface.texels) if dusty else PackedByteArray()
+		if not dusty: data.resize(WIDTH * HEIGHT)
+		surface.data = data
+		if dusty: surface.mass = mask_mass(data, surface.weights)
+		surface.remaining = surface.mass if dusty else 0.0
+		surface.texture.update(Image.create_from_data(WIDTH, HEIGHT, false, Image.FORMAT_L8, data))
+	if not dusty:
+		for owner in ["board", "fan-assembly", "cooler-assembly"]: completed_parts[owner] = true
+		completed_count = 3
+		celebrated = true
+	changed.emit()
 
 ## Seamless clump/fibre noise shared by every dust overlay.
 func make_noise_texture(rng: RandomNumberGenerator) -> ImageTexture:

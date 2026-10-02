@@ -37,6 +37,7 @@ func hit_at(screen: Vector2) -> Dictionary:
 	# Small forgiving targets remain depth-tested against the actual visible surfaces.
 	for target in targets:
 		var node: Node3D = target.node
+		if not node.is_visible_in_tree(): continue
 		if target.action == "screw_hole" and not is_removed.call(target.id): continue
 		if target.action == "screw_hole" and node.global_basis.y.normalized().dot(-direction) < 0.15: continue
 		if target.action == "screw" and not is_removed.call(target.id) and node.global_basis.y.normalized().dot(-direction) < 0.15: continue

@@ -1,0 +1,59 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/job_queue_monitor.gd" id="1"]
+
+[sub_resource type="StandardMaterial3D" id="Plastic"]
+albedo_color = Color(0.085, 0.092, 0.105, 1)
+roughness = 0.78
+
+[sub_resource type="StandardMaterial3D" id="Steel"]
+albedo_color = Color(0.13, 0.14, 0.15, 1)
+metallic = 0.6
+roughness = 0.45
+
+[sub_resource type="StandardMaterial3D" id="ScreenMaterial"]
+shading_mode = 0
+
+[sub_resource type="BoxMesh" id="BaseMesh"]
+material = SubResource("Steel")
+size = Vector3(1.8, 0.1, 1.2)
+
+[sub_resource type="BoxMesh" id="PoleMesh"]
+material = SubResource("Steel")
+size = Vector3(0.22, 5.9, 0.22)
+
+[sub_resource type="BoxMesh" id="MountMesh"]
+material = SubResource("Steel")
+size = Vector3(1.2, 1, 0.2)
+
+[sub_resource type="BoxMesh" id="HousingMesh"]
+material = SubResource("Plastic")
+size = Vector3(6.8, 3.95, 0.2)
+
+[sub_resource type="PlaneMesh" id="ScreenMesh"]
+material = SubResource("ScreenMaterial")
+size = Vector2(6.5, 3.656)
+
+[node name="JobQueueMonitor" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Base" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.05, 0)
+mesh = SubResource("BaseMesh")
+
+[node name="Pole" type="MeshInstance3D" parent="."]
+position = Vector3(0, 3, -0.2)
+mesh = SubResource("PoleMesh")
+
+[node name="Mount" type="MeshInstance3D" parent="."]
+position = Vector3(0, 7.9, -0.2)
+mesh = SubResource("MountMesh")
+
+[node name="Housing" type="MeshInstance3D" parent="."]
+position = Vector3(0, 7.9, 0)
+mesh = SubResource("HousingMesh")
+
+[node name="Screen" type="MeshInstance3D" parent="."]
+position = Vector3(0, 7.9, 0.105)
+rotation = Vector3(1.5707964, 0, 0)
+mesh = SubResource("ScreenMesh")

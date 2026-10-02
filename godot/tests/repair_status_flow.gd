@@ -16,7 +16,7 @@ func run() -> void:
 	await process_frame
 	# A fresh job: every fault is red, the card is assembled and off the board.
 	var fresh := states(bench)
-	expect(fresh == {"Dust": "fault", "Thermal paste": "fault", "Fan bearing": "fault", "Assembly": "done", "Test run": "info"},
+	expect(fresh == {"Job": "info", "Dust": "fault", "Thermal paste": "fault", "Fan bearing": "fault", "Assembly": "done", "Test run": "info"},
 		"Fresh card status was %s" % fresh)
 	expect(bench.testing_station.attach(), "Card could not attach for a test run")
 	await create_timer(0.6).timeout
@@ -31,6 +31,7 @@ func run() -> void:
 	expect(bench.bearing.debug_oil(), "Debug oil was refused")
 	bench.thermal.advance(6)
 	var fixed := states(bench)
+	fixed.erase("Job")
 	expect(fixed.values().all(func(state: String): return state == "done"), "Repaired card was not all green: %s" % fixed)
 	# Pulling the card apart shows the reassembly still owed.
 	expect(bench.testing_station.detach(), "Card could not leave the test board")
@@ -43,7 +44,7 @@ func run() -> void:
 	var rows: Array[Dictionary] = preload("res://scripts/repair_status.gd").rows(bench)
 	bench.hud.refresh_repair_status(rows)
 	expect(bench.hud.repair_rows.get_child_count() == rows.size(), "Overlay row count does not match the status")
-	expect((bench.hud.repair_rows.get_child(0).get_child(0) as ColorRect).color == Color("#5ec46f"), "Clean dust row was not green")
+	expect((bench.hud.repair_rows.get_child(1).get_child(0) as ColorRect).color == Color("#5ec46f"), "Clean dust row was not green")
 	expect("broken" in bench.hud.repair_summary.text, "Overlay summary is missing")
 	expect(bench.hud.repair_toggle.visible == OS.is_debug_build(), "Overlay toggle is not limited to debug builds")
 	bench.queue_free()

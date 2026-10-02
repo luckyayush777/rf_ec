@@ -7,6 +7,9 @@ const Paste = preload("res://scripts/gpu_paste.gd")
 const Bearing = preload("res://scripts/gpu_bearing.gd")
 const AudioMix = preload("res://scripts/audio_mix.gd")
 const RepairStatus = preload("res://scripts/repair_status.gd")
+const RepairJobs = preload("res://scripts/repair_jobs.gd")
+## Rendered acceptance runs (`-- --capture`) keep the base viewport size so PNGs stay comparable; play opens at the project's 1920x1080 window.
+const CAPTURE_SIZE := Vector2i(1280, 800)
 @onready var camera_rig = $CameraRig
 @onready var inspection = $Inspection
 @onready var tools = $Tools
@@ -19,6 +22,14 @@ const RepairStatus = preload("res://scripts/repair_status.gd")
 @onready var hud: CanvasLayer = $HUD
 @onready var thermal: Node = $Thermal
 @onready var thermal_viewer: Node = $ThermalViewer
+@onready var computer: Node3D = $ShopComputer
+@onready var queue_monitor: Node3D = $JobQueueMonitor
+@onready var delivery_box: Node3D = $DeliveryBox
+## Product play (the workbench as the running scene) opens on an empty bench with the job
+## loop and the thermal camera still boxed. Scripts that instantiate the workbench (tests) get
+## the original three-fault card as a walk-in job unless they set this before adding it.
+var job_flow := false
+var jobs: Node
 var asset_contract: Dictionary
 var service_rules: RefCounted
 var picker: RefCounted
@@ -40,6 +51,8 @@ var status_elapsed := 0.0
 var focus_return: Node3D
 
 func _ready() -> void:
+	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
+		get_window().size = CAPTURE_SIZE
 	AudioMix.ensure_buses()
 	gpu.name = "gpu"
 	asset_contract = Contract.bind_parts(gpu)
@@ -79,7 +92,7 @@ func _ready() -> void:
 		$ShopInterior.enclose_room()
 		camera_rig.build_collisions(self)
 	inspection.configure(gpu, camera_rig.camera, Contract.bounds_in(gpu))
-	inspection.can_interact = func(): return not service.busy and service.held_part == "" and not tools.busy and not testing_station.installed and not testing_station.moving and (inspection.held or near_node(gpu))
+	inspection.can_interact = func(): return gpu.visible and not service.busy and service.held_part == "" and not tools.busy and not testing_station.installed and not testing_station.moving and (inspection.held or near_node(gpu))
 	tools.configure($RepairDesk/Toolbox, camera_rig.camera, self,
 		func(id: String): return not service.busy and not inspection.moving and (tool_menu_open or tools.equipped_tool != "" or near_node(tools.tool_node(id) if id != "toolbox" else $RepairDesk/Toolbox)))
 	service.configure(asset_contract, service_rules, self, camera_rig.camera,
@@ -115,6 +128,18 @@ func _ready() -> void:
 	testing_station.bearing = bearing
 	thermal.configure(self)
 	thermal_viewer.configure(self)
+	job_flow = job_flow or get_tree().current_scene == self
+	jobs = RepairJobs.new()
+	jobs.name = "Jobs"
+	add_child(jobs)
+	jobs.configure(self, delivery_box, job_flow)
+	computer.configure(self, jobs)
+	queue_monitor.configure(jobs)
+	if job_flow: tools.set_locked("thermal-camera", true)
+	else: $ThermalCameraBox.visible = false
+	jobs.notice.connect(hud.set_status)
+	jobs.changed.connect(refresh_ui)
+	computer.used.connect(hud.set_computer_mode)
 	hud.view_requested.connect(select_view)
 	hud.test_requested.connect(toggle_test_gpu)
 	hud.inspect_requested.connect(toggle_inspection)
@@ -192,7 +217,7 @@ func interaction_hit(point: Vector2) -> Dictionary:
 	return hit
 
 func ready_for_action() -> bool:
-	return not inspection.moving and not tools.busy and not service.busy and not testing_station.moving
+	return not inspection.moving and not tools.busy and not service.busy and not testing_station.moving and (jobs == null or not jobs.busy)
 
 func select_view(view: String) -> void:
 	if not camera_rig.legacy_test_mode: return
@@ -213,11 +238,11 @@ func toggle_test_gpu() -> void:
 		hud.set_testing_mode(not was_installed)
 
 func debug_clean_gpu() -> void:
-	if not OS.is_debug_build(): return
+	if not OS.is_debug_build() or not gpu.visible: return
 	cleaning.debug_clean()
 
 func debug_disassemble_gpu() -> void:
-	if not OS.is_debug_build() or not ready_for_action() or inspection.held or testing_station.installed: return
+	if not OS.is_debug_build() or not gpu.visible or not ready_for_action() or inspection.held or testing_station.installed: return
 	cleaning.end()
 	if service.debug_disassemble():
 		if camera_rig.legacy_test_mode: camera_rig.select_view("repair")
@@ -247,6 +272,11 @@ func refresh_ui() -> void:
 	hud.refresh(inspection.held, inspection.moving, tools, service, cleaning, testing_station)
 	hud.refresh_tool_menu(tools, service, tool_selection_busy)
 	if service.busy or tools.busy: return
+	if not camera_rig.legacy_test_mode and not gpu.visible:
+		hud.set_status("Unboxing the card..." if jobs.busy else
+			"The customer's card has arrived. Click the box on the repair desk to open it." if not jobs.active().is_empty() else
+			"No card on the bench. Take a repair job on the shop computer by the front wall.")
+		return
 	if not camera_rig.legacy_test_mode:
 		hud.set_status("GPU powered on the test board. Heat builds over time; scan the exposed rear memory packages." if testing_station.installed else
 			"Part in left hand. E on the mat places it and keeps your tool; R opens focus, T the tool bag. RMB rotates and F flips." if inspection.held or service.held_part != "" else
@@ -259,7 +289,7 @@ func refresh_ui() -> void:
 			"Click the clean GPU die, then hold to squeeze fresh paste." if tools.equipped_tool == "paste-syringe" else
 			"RMB + mouse rotates the held part. Aim at a clear table spot and press E to place it; Q refits it." if service.held_part != "" else
 			"GPU in left hand. E places it at the green marker; RMB rotates, F flips, Q returns it to the holder." if inspection.held else
-			"Aim at the GPU or a tool and press E. The orange instrument is the thermal camera.")
+			"Aim at the GPU or a tool and press E." + ("" if "thermal-camera" in tools.locked else " The orange instrument is the thermal camera."))
 		return
 	hud.set_status("Setting the GPU down..." if inspection.moving and not inspection.held else
 		"Lifting the GPU..." if inspection.moving else
@@ -288,6 +318,10 @@ func cancel_press() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if closeup != null and closeup.mode != "": return
+	if computer.in_use:
+		computer.handle_input(event)
+		get_viewport().set_input_as_handled()
+		return
 	if not camera_rig.legacy_test_mode:
 		first_person_input(event)
 		return
@@ -346,6 +380,9 @@ func activate(screen_position: Vector2, pickup_with_tool: bool = false) -> void:
 		toggle_test_gpu()
 		return
 	match hit.get("action", ""):
+		"computer": use_computer()
+		"delivery_box": jobs.unbox()
+		"sealed_box": hud.set_status("The thermal camera is still sealed in its box. It stays packed for now.")
 		"monitor_power": test_monitor.toggle_power()
 		"test_board": toggle_test_gpu()
 		"screwdriver", "air-blower", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler": tools.grab(hit.action)
@@ -367,6 +404,16 @@ func activate(screen_position: Vector2, pickup_with_tool: bool = false) -> void:
 			elif inspection.held: inspection.place(hit.point, placement_obstacles("gpu"))
 			elif tools.equipped_tool != "": tools.place(hit.point, placement_obstacles())
 
+## Parts must be set down first; an equipped tool waits out of view.
+func use_computer() -> void:
+	if camera_rig.legacy_test_mode or computer.in_use or not ready_for_action(): return
+	if inspection.held or service.held_part != "":
+		hud.set_status("Set the part down before using the computer.")
+		return
+	cancel_press()
+	thermal_viewer.aiming = false
+	computer.use()
+
 func pick_gpu(screen_position: Vector2) -> void:
 	var hit: Dictionary = picker.hit_at(screen_position)
 	if hit.get("action", "") in ["gpu", "screw", "cable"]: inspection.lift()
@@ -385,6 +432,8 @@ func placement_obstacles(exclude_id: String = "") -> Array:
 	for id in tools.ROLL_NODES:
 		if tools.tool_location(id) == "desk":
 			boxes.append(tools.tool_node(id).global_transform * Contract.bounds_in(tools.tool_node(id)))
+	for carton in [delivery_box, $ThermalCameraBox]:
+		if carton.visible: boxes.append(carton.global_transform * Contract.bounds_in(carton))
 	if tools.thermal_location != "held":
 		boxes.append(tools.thermal_camera.global_transform * Contract.bounds_in(tools.thermal_camera))
 	return boxes
@@ -412,7 +461,7 @@ func _process(delta: float) -> void:
 		status_elapsed = 0.0
 		hud.refresh_repair_status(RepairStatus.rows(self))
 	if not camera_rig.legacy_test_mode:
-		camera_rig.walking_enabled = ready_for_action() and service.active_screw == "" and (closeup == null or closeup.mode == "")
+		camera_rig.walking_enabled = ready_for_action() and service.active_screw == "" and (closeup == null or closeup.mode == "") and not computer.in_use
 	if cleaning.blowing and (not tools.blower_equipped() or not ready_for_action()):
 		cleaning.end()
 	if tools.blower_equipped() and (closeup == null or closeup.mode == ""):
@@ -428,7 +477,7 @@ func _process(delta: float) -> void:
 		var target_z: float = home_z + float(jaw.get_meta("opening_direction")) * (0.26 if inspection.held or inspection.moving else 0.0)
 		jaw.position.z = lerpf(jaw.position.z, target_z, 1.0 - exp(-13.0 * delta))
 	hover_elapsed += delta
-	if picker != null and dragging_button == 0 and ready_for_action() and hover_elapsed > 0.08:
+	if picker != null and dragging_button == 0 and ready_for_action() and hover_elapsed > 0.08 and not computer.in_use:
 		hover_elapsed = 0.0
 		if not camera_rig.legacy_test_mode:
 			hud.update_reticle(interaction_hit(get_viewport().get_visible_rect().size * 0.5), tools, inspection, service, camera_rig.captured)

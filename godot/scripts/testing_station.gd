@@ -211,6 +211,9 @@ func toggle_gpu() -> bool:
 
 func attach() -> bool:
 	if installed or moving: return false
+	if not gpu.visible:
+		notice.emit("No card on the bench. Accept a job on the shop computer.")
+		return false
 	if not can_attach():
 		notice.emit("Reassemble the GPU, reconnect its cable, set it down, and free your hands before testing.")
 		return false

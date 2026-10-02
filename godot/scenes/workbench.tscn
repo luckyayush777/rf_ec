@@ -16,6 +16,9 @@
 [ext_resource type="PackedScene" path="res://scenes/thermal_camera.tscn" id="14"]
 [ext_resource type="Script" uid="uid://dovq11xywy24x" path="res://scripts/gpu_thermal.gd" id="15"]
 [ext_resource type="Script" uid="uid://nl05uojs5tda" path="res://scripts/thermal_camera.gd" id="16"]
+[ext_resource type="PackedScene" path="res://scenes/shop_computer.tscn" id="17"]
+[ext_resource type="PackedScene" path="res://scenes/job_queue_monitor.tscn" id="18"]
+[ext_resource type="Script" path="res://scripts/delivery_box.gd" id="19"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMaterial"]
 sky_top_color = Color(0.15, 0.19, 0.25, 1)
@@ -107,3 +110,23 @@ script = ExtResource("15")
 
 [node name="ThermalViewer" type="Node" parent="." unique_id=2043495283]
 script = ExtResource("16")
+
+[node name="ShopComputer" parent="." instance=ExtResource("17")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -5, -4.5, 14.6)
+
+[node name="JobQueueMonitor" parent="." instance=ExtResource("18")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, -4.5, -8.8)
+
+[node name="DeliveryBox" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.3, -0.29, 3.3)
+script = ExtResource("19")
+
+[node name="ThermalCameraBox" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, -0.29, 2.4)
+script = ExtResource("19")
+box_size = Vector3(1.25, 1, 1)
+label_text = "THERMAL CAMERA
+handheld imager
+STILL SEALED"
+sealed = true
+start_visible = true

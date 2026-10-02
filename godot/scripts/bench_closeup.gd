@@ -178,7 +178,7 @@ func show_view(kind: String, selected_part: Node3D = null) -> void:
 	for button in bench.hud.tool_close_button.get_parent().get_children():
 		var id: String = button.get_meta("id")
 		button.visible = id == "close" or (id in ["flip", "return"] if mode == "service" else id not in ["flip", "return"])
-		if id == "dev-blower" and not OS.is_debug_build(): button.hide()
+		if (id == "dev-blower" and not OS.is_debug_build()) or id in bench.tools.locked: button.hide()
 	progress.visible = mode == "service"
 	overlay.show()
 	update_camera()
@@ -200,7 +200,7 @@ func frame_view() -> void:
 		center = bounds.get_center()
 		distance = maxf(bounds.size.length() * 0.40 / tan(deg_to_rad(camera.fov * 0.5)), 1)
 		direction = (bench.camera_rig.camera.global_position - center).normalized()
-	status.text = ("GPU" if subject == bench.gpu else bench.service.assembly_name(String(subject.name)).to_upper()) + " SERVICE  /  Hold LMB: use tool   •   T: tools   •   RMB drag: rotate   •   Wheel: zoom" if mode == "service" else "ENGINEER'S TOOL ROLL  /  Select a tool or its label   •   T or Esc: close"
+	status.text = ("GPU" if subject == bench.gpu else bench.service.assembly_name(String(subject.name)).to_upper()) + " SERVICE  /  Hold LMB: use tool   •   T: tools   •   Q: return tool   •   RMB drag: rotate   •   Wheel: zoom" if mode == "service" else "ENGINEER'S TOOL ROLL  /  Select a tool or its label   •   T or Esc: close"
 	var face := paste_face()
 	if face != "":
 		# Paste work frames the exposed contact face, looking straight at it.
@@ -322,6 +322,10 @@ func _input(event: InputEvent) -> void:
 		# T swaps tools without leaving the job: the bag opens, then this close-up returns.
 		if mode == "service": bench.open_tool_menu(true)
 		else: request_close()
+		get_viewport().set_input_as_handled()
+	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_Q and mode == "service":
+		# Q puts the tool back in the kit; the part stays in hand and the close-up stays open.
+		if bench.tools.equipped_tool != "": return_equipped_tool()
 		get_viewport().set_input_as_handled()
 	if event is InputEventMouseButton and not event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT:

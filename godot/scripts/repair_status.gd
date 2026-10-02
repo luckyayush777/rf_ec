@@ -10,8 +10,16 @@ const INFO := "info"
 const GOOD_CONTACT := 0.9
 
 static func rows(bench: Node3D) -> Array[Dictionary]:
-	return [dust(bench.cleaning), paste(bench.paste), bearing(bench.bearing),
+	if not bench.gpu.visible: return [job(bench.jobs)]
+	return [job(bench.jobs), dust(bench.cleaning), paste(bench.paste), bearing(bench.bearing),
 		assembly(bench.service), test(bench)]
+
+## The rolled faults, which play only hints at through the customer's complaint.
+static func job(jobs: Node) -> Dictionary:
+	var active: Dictionary = jobs.active()
+	if active.is_empty(): return row("Job", INFO, "No card on the bench · balance $%d" % jobs.balance)
+	return row("Job", INFO, "#%d %s · %s · faults: %s · pays $%d" % [active.id, active.customer,
+		"in the box" if active.state == "boxed" else "on the bench", ", ".join(active.faults), active.pay])
 
 static func row(label: String, state: String, detail: String) -> Dictionary:
 	return {"label": label, "state": state, "detail": detail}

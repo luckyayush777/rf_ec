@@ -39,6 +39,8 @@ var dev_location: String:
 var thermal_location: String:
 	get: return locations["thermal-camera"]
 	set(value): locations["thermal-camera"] = value
+## Tools still packed in their box: hidden and never equipped (the thermal camera, for now).
+var locked: Array[String] = []
 var nodes: Dictionary = {}
 var homes: Dictionary = {}
 var thermal_camera: Node3D
@@ -97,6 +99,13 @@ func tool_location(id: String) -> String:
 func set_tool_location(id: String, value: String) -> void:
 	locations[id] = value
 
+func set_locked(id: String, value: bool) -> void:
+	if value == (id in locked) or tool_location(id) == "held": return
+	if value: locked.append(id)
+	else: locked.erase(id)
+	tool_node(id).visible = not value
+	changed.emit()
+
 func toggle_box() -> void:
 	if busy or not can_use.call("toolbox"): return
 	busy = true
@@ -112,7 +121,7 @@ func move_lid(value: bool) -> void:
 	await tween.finished
 
 func equip(id: String = "screwdriver") -> void:
-	if id not in TOOLS or (id == "dev-blower" and not OS.is_debug_build()): return
+	if id not in TOOLS or id in locked or (id == "dev-blower" and not OS.is_debug_build()): return
 	if busy or equipped_tool != "" or not can_use.call(id): return
 	busy = true
 	changed.emit()

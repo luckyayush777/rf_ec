@@ -535,6 +535,12 @@ func debug_dry() -> bool:
 
 func debug_repaste() -> bool:
 	if not OS.is_debug_build() or (is_fresh() and not dried): return false
+	set_fresh()
+	notice.emit("Debug: GPU die repasted with full contact.")
+	return true
+
+## A healthy card: a full, even bond line under the seated heatsink.
+func set_fresh() -> void:
 	for id in faces:
 		var face: Dictionary = faces[id]
 		var zero := PackedFloat32Array()
@@ -549,11 +555,10 @@ func debug_repaste() -> bool:
 		face.clean = true
 		refresh(id)
 	dried = false
+	seated = "cooler-assembly" not in bench.service.removed
 	report = {"coverage": 1.0, "overflow": 0.0, "volume": IDEAL_VOLUME}
 	quality = evaluate()
-	notice.emit("Debug: GPU die repasted with full contact.")
 	changed.emit()
-	return true
 
 func _exit_tree() -> void:
 	if jingle != null: jingle.stop()

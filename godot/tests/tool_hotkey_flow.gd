@@ -13,8 +13,9 @@ func key(bench: Node3D, keycode: Key) -> void:
 	if bench.closeup.mode != "": bench.closeup._input(event)
 	else: bench.first_person_input(event)
 func settle(bench: Node3D) -> void:
-	for step in range(90):
-		await process_frame
+	# Real time, not frames: headless frames outrun the lid and tool tweens.
+	for step in range(60):
+		await create_timer(0.05).timeout
 		if not bench.tool_selection_busy and not bench.tools.busy and not bench.inspection.moving: return
 func run() -> void:
 	var bench = load("res://scenes/workbench.tscn").instantiate()
@@ -52,14 +53,37 @@ func run() -> void:
 	await settle(bench)
 	expect(bench.tools.equipped_tool == "ipa-wipe" and bench.tools.tool_location("spudger") == "toolbox", "Swap did not return the previous tool")
 	expect(bench.closeup.mode == "service" and bench.closeup.subject == bench.gpu, "Second swap lost the close-up")
+	# Q in the close-up puts the tool back in the kit; the card stays in hand and in view.
+	key(bench, KEY_Q)
+	await settle(bench)
+	expect(bench.tools.equipped_tool == "" and bench.tools.tool_location("ipa-wipe") == "toolbox", "Q in a close-up did not return the tool to the kit")
+	expect(bench.inspection.held and bench.closeup.mode == "service" and bench.closeup.subject == bench.gpu, "Q in a close-up dropped the card or left the close-up")
 	# Empty hands is a choice in the bag too.
+	key(bench, KEY_T)
+	await settle(bench)
+	await bench.select_tool("spudger")
+	await settle(bench)
 	key(bench, KEY_T)
 	await settle(bench)
 	await bench.select_tool("")
 	await settle(bench)
 	expect(bench.tools.equipped_tool == "" and bench.closeup.mode == "service", "Choosing empty hands did not return to the close-up")
 	bench.closeup.close()
+	# Q in first person with the card in hand also empties the tool hand first.
+	key(bench, KEY_T)
+	await settle(bench)
+	await bench.select_tool("screwdriver")
+	await settle(bench)
+	expect(bench.tools.equipped_tool == "screwdriver" and bench.closeup.mode == "" and bench.inspection.held, "Setup: screwdriver not in hand with the card held")
+	bench.camera_rig.set_captured(true)
+	key(bench, KEY_Q)
+	await settle(bench)
+	expect(bench.tools.equipped_tool == "" and bench.tools.tool_location("screwdriver") == "toolbox", "Q while holding the card did not return the tool")
+	expect(bench.inspection.held, "Q with a tool equipped also put the card down")
+	key(bench, KEY_Q)
+	await settle(bench)
+	expect(not bench.inspection.held, "Q with empty tool hand did not return the card")
 	bench.queue_free()
 	await process_frame
-	print("PASS: T opens the tool bag anywhere, swaps tools while holding a part and returns to the same close-up" if failures.is_empty() else "FAIL: " + str(failures))
+	print("PASS: T opens the tool bag anywhere, swaps tools while holding a part and returns to the same close-up; Q returns the tool before the part" if failures.is_empty() else "FAIL: " + str(failures))
 	quit(0 if failures.is_empty() else 1)

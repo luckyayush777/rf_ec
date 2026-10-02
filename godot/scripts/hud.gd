@@ -400,6 +400,9 @@ func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Nod
 	var action: String = hit.get("action", "")
 	var prompt := ""
 	match action:
+		"computer": prompt = "E / Click: use the shop computer"
+		"delivery_box": prompt = "E / Click: open the box"
+		"sealed_box": prompt = "Thermal camera, still sealed"
 		"screw", "screw_hole": prompt = "E: pick up GPU  |  Click: focus" if tools.equipped_tool != "" else "Screwdriver required"
 		"gpu": prompt = "E: pick up GPU  |  Click: focus" if tools.equipped_tool == "screwdriver" or tools.blower_equipped() or tools.equipped_tool in tools.SURFACE_TOOLS else "E: pick up / remove GPU"
 		"test_board": prompt = "E: connect / remove GPU"
@@ -410,11 +413,20 @@ func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Nod
 		"assembly": prompt = "E: inspect GPU / lift loosened assembly"
 		"desk":
 			if tools.equipped_tool != "" or service.held_part != "" or inspection.held: prompt = "E: place on desk"
-	if inspection.held or service.held_part != "": prompt += "   |   RMB + mouse: rotate   F: flip   Q: return/refit"
-	if inspection.held or service.held_part != "": prompt += "   |   R: focus"
-	elif tools.equipped_tool != "": prompt += "   |   Q: return tool"
+	# Q empties the tool hand first; only then does it return or refit the held part.
+	if inspection.held or service.held_part != "": prompt += "   |   RMB + mouse: rotate   F: flip   R: focus"
+	if tools.equipped_tool != "": prompt += "   |   Q: return tool"
+	elif inspection.held or service.held_part != "": prompt += "   |   Q: return/refit"
 	if tools.equipped_tool == "thermal-camera": prompt += "   |   Hold RMB: thermal view"
 	interaction_hint.text = (prompt + "\nWASD: move   Mouse: look   E: interact   Tab/Esc: release mouse") if captured else "Mouse released — Tab/Esc to resume"
+
+## At the shop computer the cursor works the screen; the pause menu, reticle and hints stay
+## away (the portal's own footer says how to step away).
+func set_computer_mode(active: bool) -> void:
+	if not fps_mode: return
+	set_menu_open(false)
+	reticle.visible = not active
+	interaction_hint.text = ""
 
 func set_status(text: String) -> void:
 	status_label.text = text

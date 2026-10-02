@@ -363,20 +363,28 @@ func set_muted(value: bool) -> void:
 
 func debug_dry() -> bool:
 	if not OS.is_debug_build() or moving: return false
-	reset_dry()
-	close_all()
+	set_dry()
 	notice.emit("Debug: fan bearing dried out and gummed up.")
 	return true
 
 func debug_oil() -> bool:
 	if not OS.is_debug_build() or moving or not dry: return false
+	set_oiled()
+	notice.emit("Debug: fan shaft cleaned and bearing oiled.")
+	return true
+
+## A healthy fan: clean shaft, oiled sleeve, rotor and sticker in place.
+func set_oiled() -> void:
 	gunk.fill(0.0)
 	shaft_clean = true
 	oil_drops = 2
 	refresh()
 	close_all()
-	notice.emit("Debug: fan shaft cleaned and bearing oiled.")
-	return true
+
+## A gummed, dry bearing with the fan closed up, as a faulty card arrives.
+func set_dry() -> void:
+	reset_dry()
+	close_all()
 
 func _exit_tree() -> void:
 	for player in [jingle, peel_audio]:
