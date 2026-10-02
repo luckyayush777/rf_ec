@@ -16,7 +16,7 @@ func run() -> void:
 	await process_frame
 	# A fresh job: every fault is red, the card is assembled and off the board.
 	var fresh := states(bench)
-	expect(fresh == {"Job": "info", "Dust": "fault", "Thermal paste": "fault", "Fan bearing": "fault", "Assembly": "done", "Test run": "info"},
+	expect(fresh == {"Job": "info", "Dust": "fault", "Thermal paste": "fault", "Fan bearing": "fault", "Edge connector": "done", "Assembly": "done", "Test run": "info"},
 		"Fresh card status was %s" % fresh)
 	expect(bench.testing_station.attach(), "Card could not attach for a test run")
 	await create_timer(0.6).timeout

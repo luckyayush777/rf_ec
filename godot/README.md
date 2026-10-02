@@ -18,7 +18,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 - Surface picking, animated whole-GPU lift/set-down, independent inspection rotation/zoom, and flip.
 - Holder jaws open during inspection and close when the GPU returns.
 - Metadata adapter that validates named parts and original parent relationships, records original transforms, and creates service definitions.
-- Animated canvas tool bag pulled toward the front of the bench, clear of the screw tray, with seven stitched pockets and retaining straps; the air blower fills the last pocket. Clicking it opens a large live 3D view over the blurred room and unrolls the fabric; click a visible tool or its keyboard-accessible label. Switching returns the previous tool, and closing rolls the bag shut. When unboxed, the thermal camera stays on its stand and is also selectable from the footer; while boxed, its button is hidden.
+- Animated canvas tool bag pulled toward the front of the bench, clear of the screw tray, with eight stitched pockets and retaining straps; the air blower and then the jeweller's loupe fill the last pockets. Clicking it opens a large live 3D view over the blurred room and unrolls the fabric; click a visible tool or its keyboard-accessible label. Switching returns the previous tool, and closing rolls the bag shut. When unboxed, the thermal camera stays on its stand and is also selectable from the footer; while boxed, its button is hidden.
 - Screwdriver equip/return, automatic toolbox opening, and desk placement/retrieval with footprint and obstacle checks. Inspection can continue with the screwdriver equipped.
 - Fan cable unplug/reconnect with plug animation and wire deformation. Cable handling requires empty hands; cooler screws require the cable unplugged.
 - All eight screws support 1.5-second hold-to-turn removal/refit, independent paused progress, labeled tray slots, and exact original parent/transform restoration. Shallow screw seats remain visible when screws move to the tray; click an empty seat with the screwdriver to seat that screw immediately, then hold to tighten it in place. Released screws retain their progress and follow the GPU.
@@ -33,7 +33,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 - Pointer release, Escape and window focus loss pause active screw turns. Tool/cable/inspection changes are blocked during active service animations.
 - Screwdriver, blowers and cleaning jingles share a sound toggle; see [asset credits](ASSET_CREDITS.md).
 - **Repair status overlay** (debug builds, developer aid): switch it on with **Repair status overlay** in the Escape menu's debug panel; the choice is remembered. It lists the Job (including the rolled faults the customer only hints at), then Dust, Thermal paste, Fan bearing, Assembly and the live Test run readout, each red (broken or untouched), yellow (in progress) or green (done), with hidden truth such as paste contact percentage. It stays visible during play and above focus views.
-- **Sound mix**: press Escape in play to release the mouse and open a panel with a Master slider and one slider per sound (fan quiet/loud loops, bearing grind, air blower motor, Dev blower air, screwdriver, clean jingle, GPU seating, monitor button, racing game, sticker peel), from silent to 200%. Changes apply live. Run from the editor, they save into `default_bus_layout.tres`, so they can be committed and are also editable in the editor's bottom **Audio** tab; exported builds save them to user settings.
+- **Sound mix**: press Escape in play to release the mouse and open a panel with a Master slider and one slider per sound (fan quiet/loud loops, bearing grind, air blower motor, Dev blower air, screwdriver, clean jingle, GPU seating, monitor button, racing game, sticker peel, spudger scrape, IPA wipe, shop PC keys and mouse), from silent to 200%. Changes apply live. Run from the editor, they save into `default_bus_layout.tres`, so they can be committed and are also editable in the editor's bottom **Audio** tab; exported builds save them to user settings.
 - Service-rule evaluator, exercised against 1,024 checked-in expected decisions and used by the live cable/screw controller.
 
 ## Controls
@@ -43,13 +43,15 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 | Walk / look | WASD / mouse; no third-person view or camera presets |
 | Release/resume mouse | Tab or Escape; releasing also ends screw/blower holds |
 | Interact / pick up | Aim the crosshair and press E (or click); move within reach |
-| Shop computer | E or click on the beige PC by the front wall (screen, cabinet or keyboard). The camera settles on the CRT and the cursor is freed: click tabs and buttons on the screen, or press F1 / F2 / F3 for the job board, bench and ledger. Esc or Tab steps away. Set held parts down first. |
+| Shop computer | E or click on the beige PC by the front wall (screen, cabinet or keyboard). The camera settles on the CRT and the cursor is freed: click tabs and buttons on the screen, or press F1 / F2 / F3 for the job board, bench and ledger. Esc or Tab steps away. Set held parts down first. Sitting down types a quick burst on the clacky keyboard; page keys and stepping away clack too, and every mouse press and release clicks (recorded CC0 sounds, see [asset credits](ASSET_CREDITS.md)). |
 | Open the delivery box | E or click on the box on the repair desk; the card lifts out into its holder |
 | Return a card | Portal **My bench** tab: **Return card to customer**. The card must be reassembled with its fan cable connected and set down. |
 | Inspect GPU | E on the card, including with a tool equipped; RMB + mouse rotates, F flips, wheel adjusts holding distance. With a part held, R opens focus; E on the mat places that part and keeps the equipped tool. |
 | Place / return held card | GPU and detached parts sit in the left hand. Aim at the desk: a green ring marks a clear placement and red marks a blocked spot. E places the part while keeping your tool; Q returns the carried card to its repair holder. |
 | Carry GPU to testing | With an assembled GPU and empty tool hand, E on the test board; a held card transfers directly |
 | Remove tested card | E on the installed card or board; it returns to the holder |
+| Wiggle test | Aim at the seated card, hold LMB and move the mouse side to side: the card rocks in its slot (the view stays put). Watch the monitor for dropouts. |
+| Loupe | Take the loupe from the tool roll and click the GPU: focus opens on the gold fingers under a round lens. Click a spot to centre and double the magnification; the wheel zooms much deeper than other tools allow. |
 | Monitor power | E on its physical button; monitor power does not disconnect board power |
 | Switch tool (anywhere) | **T**: opens the tool bag from anywhere, including while holding a part or inside a service close-up. Pick a tool (or Empty hands) and you return to where you were; from a close-up it reopens on the same part, framed for the new tool. T or Esc closes the bag. |
 | Select / switch tool | Click the tool bag or press E on it; wait for it to unroll, then click a tool or select its label with arrow keys + Enter. Esc rolls it closed. |
@@ -192,6 +194,22 @@ Both surfaces need the same two stages:
    the die and base and the status reports contact, dry patches or squeeze-out.
    Refitting presses the paste again, and the IPA wipe can remove squeeze-out.
 
+**Feedback while working.** In focus, the equipped tool is drawn on the face under the
+pointer: hovering, it floats just above; holding LMB presses it down. Each press is one
+stroke. Right after pressing, the blade is still being aimed: circle the mouse near where
+you pressed and it turns to point from that spot toward the pointer. Once the pointer moves
+about three paste cells away, the heading locks until release, so the blade can follow a
+curve but never turns around mid-stroke (moving back is ignored; release and press again
+to scrape the other way). Gum is pushed along that heading. Pasty compound
+beads along the blade's edge until a clump drops off, chalky crust crumbs get pushed off
+ahead of it, and glaze throws grey chips. The IPA pad lies flat and turns grey as it
+lifts film.
+
+Sounds: drop a seamless loop at `assets/sounds/spudger_scrape.wav` and/or
+`assets/sounds/ipa_wipe.wav` (16-bit PCM WAV). Each loops over its whole length while its
+tool is on the face, louder with stroke speed and removal, fading out on release. Without
+the file the tool is silent. Each has its own mixer slider (**Spudger scrape**, **IPA wipe**).
+
 A single central dot of the right amount leaves the corners dry (about 92% contact).
 An X of the same volume reaches them (about 95%). Too little paste leaves most of the
 die dry, and a heatsink seated on a bare die with no paste is worse than the old
@@ -221,9 +239,27 @@ peeled gets the sticker pressed back on. Debug builds have **Debug: Dry bearing*
 **Debug: Oil bearing**. Worn (wobbly) bearings, over-oiling and fan replacement are
 not modelled yet, and the bearing does not affect temperatures.
 
+### Edge connector (diagnosis only, debug for now)
+
+The card's PCIe edge connector can be damaged in three ways. There is no repair yet, so
+the job board never rolls it; in debug builds **Debug: Edge connector** cycles clean →
+oxidised → lifted finger → torn finger → clean. Each has its own signature:
+
+| Damage | Test monitor | Wiggle test | Under the loupe |
+| --- | --- | --- | --- |
+| Oxidised fingers | `PCIe x8`, capped at 34 FPS; the picture drops out at random (`LINK LOST`, then retrains) | Rocking makes dropouts far likelier | Patchy brown-green tarnish on a dozen fingers, both faces |
+| Lifted finger | `PCIe x16`, normal | Rocking past a small angle cuts the picture until the card settles | One fan-side finger (contact 17) peels up at its tip |
+| Torn finger | `PCIe x4`, capped at 18 FPS, steady | No change | Contact 24 is missing: a stub, bare fibreglass and a curl of trace |
+
+The tell is **slow but cool**: a narrow link caps the frame rate while the core stays
+cool at the full 1905 MHz, unlike dried paste (hot core, falling clock) or dust
+(heat and memory artifacts). A card returned with connector damage is not paid. The
+rocking card tilts about its connector line on a damped spring; the monitor goes blank
+and silent while the link is down.
+
 ## Pending gameplay
 
-Paste thickness/mounting pressure, directional pad scraping, comparison view, spending and progression (purchases, more bench slots, unboxing the thermal camera, saving), volumetric dust (shell layers or detachable felt clumps), fan wear from overspinning and general interaction highlights are pending. Imported pad remnants are geometry only. Replacement pads have no gameplay yet. The racing feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
+Edge-connector repairs (cleaning, re-gluing, bodge wires) and rolling connector faults in jobs, paste thickness/mounting pressure, directional pad scraping, comparison view, spending and progression (purchases, more bench slots, unboxing the thermal camera, saving), volumetric dust (shell layers or detachable felt clumps), fan wear from overspinning and general interaction highlights are pending. Imported pad remnants are geometry only. Replacement pads have no gameplay yet. The racing feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
 
 No deployment workflow or export preset is configured.
 
@@ -233,9 +269,10 @@ No deployment workflow or export preset is configured.
 | --- | --- |
 | `scenes/workbench.tscn` | Main composition, asset instances, camera, lighting, environment, and controller nodes. |
 | `scenes/repair_desk.tscn` | Editable desk/mat/holder/tray and prop meshes. |
-| `scenes/toolbox.tscn` | Screwdriver, air blower, Dev blower, spudger, IPA wipe, paste syringe and fan oiler meshes; tool_roll.gd builds the canvas bag, pockets, straps and rolling geometry and places tools from its `POCKETS` table. |
-| `scenes/test_monitor.tscn`, `scripts/test_monitor.gd` | Editable LCD housing, power button, sound, deterministic pseudo-3D racing display driven by core clock, VRAM error artifacts and GPU core sensor/clock readout. |
-| `scripts/testing_station.gd` | PCIe fixture interaction, GPU transfer, monitor connection, signal cable, fan animation (powered or air-blown), cleanliness-driven fan audio and dry-bearing grind. |
+| `scripts/gpu_connector.gd`, `shaders/loupe_lens.gdshader` | Edge-connector damage (oxidised, lifted, torn) drawn on the imported gold contacts, PCIe link width, dropouts and retraining, debug cycle; the loupe's lens overlay. |
+| `scenes/toolbox.tscn` | Screwdriver, air blower, Dev blower, spudger, IPA wipe, paste syringe, fan oiler and loupe meshes; tool_roll.gd builds the canvas bag, pockets, straps and rolling geometry and places tools from its `POCKETS` table. |
+| `scenes/test_monitor.tscn`, `scripts/test_monitor.gd` | Editable LCD housing, power button, sound, deterministic pseudo-3D racing display driven by core clock and capped by PCIe link width, link-lost dropouts, VRAM error artifacts and GPU core sensor/clock readout. |
+| `scripts/testing_station.gd` | PCIe fixture interaction, GPU transfer, rocking the seated card (wiggle test), monitor connection, signal cable, fan animation (powered or air-blown), cleanliness-driven fan audio and dry-bearing grind. |
 | `scripts/gpu_bearing.gd`, `shaders/shaft_gunk.gdshader` | Fan sleeve bearing: runtime bearing boss, struts and shaft, hub-sticker peel, rotor pull/refit, shaft gunk wipe, oil drops and the dry/serviced state. |
 | `scenes/shop_interior.tscn`, `scripts/shop_interior.gd` | Imported workshop shell and props, editor-visible layout conversion and cutaway visibility. |
 | `scripts/workbench.gd` | Startup, controller wiring, input arbitration, desk alignment, placement obstacles and jaw motion. |
@@ -248,7 +285,8 @@ No deployment workflow or export preset is configured.
 | `scripts/interaction_picker.gd` | Cached triangle picking, live-transform tracking, depth-tested screw/plug targets, cleaning rays through fan-hub decoration, surface normals and action routing. |
 | `scripts/first_person.gd` | Runtime walking body, collision generation, mouse capture/look and reach. `orbit_camera.gd` supplies only legacy test poses. |
 | `scripts/gpu_thermal.gd` | Dust- and paste-dependent heating/cooling (about 6 s powered warm-up), core throttle limit and boost-clock bins, VRAM error rate, surface temperature/emissivity and VRAM markings. |
-| `scripts/gpu_paste.gd`, `shaders/paste_layer.gdshader` | Die and heatsink-base paste layers (uneven glaze/crust/gum stack, film and fresh paste per cell, with height relief), layered scrape with glaze chipping and gum smearing, wipe/squeeze brushes, pressure spread on seating, lift imprint, contact quality and debug dry/fresh. |
+| `scripts/contact_loop.gd` | Plays a supplied loop (spudger scrape, IPA wipe) while its tool is on the face; silent without the file. |
+| `scripts/gpu_paste.gd`, `shaders/paste_layer.gdshader` | Per-stroke contact report (sound, blade load, pad soil, crumbs and clumps); die and heatsink-base paste layers (uneven glaze/crust/gum stack, film and fresh paste per cell, with height relief), layered scrape with glaze chipping and gum smearing, wipe/squeeze brushes, pressure spread on seating, lift imprint, contact quality and debug dry/fresh. |
 | `scripts/thermal_camera.gd`, `shaders/thermal_surface.gdshader`, `scenes/thermal_camera.tscn` | Pickup instrument, separate depth-tested thermal world, display, spot readout and fixed palette. |
 | `scripts/gpu_inspection.gd` | Whole-GPU inspection state and exact home-transform restoration. |
 | `scripts/repair_status.gd` | Debug-only repair status rows (job and rolled faults, dust, paste, bearing, assembly, test run) for the Escape-menu overlay. |
@@ -309,6 +347,7 @@ $godotExe = 'C:\Users\user\Desktop\ayush.dev\godot\Godot_v4.7.2-stable_win64_con
 & $godotExe --headless --path godot --script res://tests/tool_hotkey_flow.gd
 & $godotExe --headless --path godot --script res://tests/air_blower_flow.gd
 & $godotExe --headless --path godot --script res://tests/repair_jobs_flow.gd
+& $godotExe --headless --path godot --script res://tests/edge_connector_flow.gd
 
 # Run the game, or open the editor.
 & $godotExe --path godot

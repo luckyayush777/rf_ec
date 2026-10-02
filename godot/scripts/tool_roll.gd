@@ -9,10 +9,11 @@ const POCKETS := {
 	"IpaWipe": [0.225, 0.38, 0.7, 0.63],
 	"PasteSyringe": [1.125, 0.37, 0.78, 0.78],
 	"FanOiler": [2.025, 0.37, 0.78, 0.86],
-	"AirBlower": [2.925, 0.4, 0.62, 0.94]}
+	"AirBlower": [2.925, 0.4, 0.62, 0.94],
+	"Loupe": [3.825, 0.37, 0.85, 0.97]}
 ## Canvas strips are 0.15 wide; pockets sit on every sixth strip from the fourth. The roll
 ## unrolls rightward from its fixed left edge.
-const STRIPS := 46
+const STRIPS := 48
 const LEFT_EDGE := 3.0
 var strips: Array[Node3D] = []
 var opening := 0.0

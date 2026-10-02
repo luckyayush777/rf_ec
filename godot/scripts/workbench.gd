@@ -8,6 +8,7 @@ const Bearing = preload("res://scripts/gpu_bearing.gd")
 const AudioMix = preload("res://scripts/audio_mix.gd")
 const RepairStatus = preload("res://scripts/repair_status.gd")
 const RepairJobs = preload("res://scripts/repair_jobs.gd")
+const Connector = preload("res://scripts/gpu_connector.gd")
 ## Rendered acceptance runs (`-- --capture`) keep the base viewport size so PNGs stay comparable; play opens at the project's 1920x1080 window.
 const CAPTURE_SIZE := Vector2i(1280, 800)
 @onready var camera_rig = $CameraRig
@@ -44,6 +45,7 @@ var tool_selection_busy := false
 var closeup: CanvasLayer
 var paste: Node
 var bearing: Node
+var connector: Node
 var placement_marker: MeshInstance3D
 var placement_material: StandardMaterial3D
 var status_elapsed := 0.0
@@ -118,6 +120,7 @@ func _ready() -> void:
 	add_child(paste)
 	paste.configure(self)
 	paste.chipped.connect(cleaning.puffs.chip)
+	paste.shed.connect(cleaning.puffs.debris)
 	service.assembly_seated.connect(func(id: String): if id == "cooler-assembly": paste.seat())
 	service.assembly_detached.connect(func(id: String): if id == "cooler-assembly": paste.lift())
 	bearing = Bearing.new()
@@ -126,6 +129,10 @@ func _ready() -> void:
 	bearing.configure(self)
 	service.refit_block = bearing.refit_block
 	testing_station.bearing = bearing
+	connector = Connector.new()
+	connector.name = "Connector"
+	add_child(connector)
+	connector.configure(self)
 	thermal.configure(self)
 	thermal_viewer.configure(self)
 	job_flow = job_flow or get_tree().current_scene == self
@@ -156,6 +163,7 @@ func _ready() -> void:
 	hud.debug_repaste_requested.connect(paste.debug_repaste)
 	hud.debug_dry_bearing_requested.connect(bearing.debug_dry)
 	hud.debug_oil_bearing_requested.connect(bearing.debug_oil)
+	hud.debug_connector_requested.connect(connector.debug_cycle)
 	hud.return_requested.connect(tools.return_tool)
 	hud.cable_requested.connect(service.toggle_cable)
 	hud.assembly_requested.connect(lift_assembly)
@@ -171,7 +179,8 @@ func _ready() -> void:
 		paste.set_muted(service.muted)
 		bearing.set_muted(service.muted)
 		testing_station.set_muted(service.muted)
-		test_monitor.set_muted(service.muted))
+		test_monitor.set_muted(service.muted)
+		computer.set_muted(service.muted))
 	inspection.changed.connect(refresh_ui)
 	tools.changed.connect(refresh_ui)
 	service.changed.connect(refresh_ui)
@@ -187,6 +196,7 @@ func _ready() -> void:
 	test_monitor.notice.connect(hud.set_status)
 	paste.notice.connect(hud.set_status)
 	bearing.notice.connect(hud.set_status)
+	connector.notice.connect(hud.set_status)
 	refresh_ui()
 	hud.refresh_paste(paste)
 	hud.refresh_bearing(bearing)
@@ -278,7 +288,7 @@ func refresh_ui() -> void:
 			"No card on the bench. Take a repair job on the shop computer by the front wall.")
 		return
 	if not camera_rig.legacy_test_mode:
-		hud.set_status("GPU powered on the test board. Heat builds over time; scan the exposed rear memory packages." if testing_station.installed else
+		hud.set_status("GPU powered on the test board. Watch the monitor; hold LMB on the card and move the mouse to rock it in its slot. E removes it." if testing_station.installed else
 			"Part in left hand. E on the mat places it and keeps your tool; R opens focus, T the tool bag. RMB rotates and F flips." if inspection.held or service.held_part != "" else
 			"Thermal camera: hold RMB to scan visible surfaces. Q returns it to the stand." if tools.equipped_tool == "thermal-camera" else
 			"E picks up a part with the blower equipped. Click a part to rotate and clean it in focus." if tools.blower_equipped() else
@@ -287,6 +297,7 @@ func refresh_ui() -> void:
 			"Click the scraped die, heatsink base or detached fan to wipe in focus." if tools.equipped_tool == "ipa-wipe" else
 			"Click the detached fan, pull its rotor, then hold on the bearing to oil it." if tools.equipped_tool == "fan-oiler" else
 			"Click the clean GPU die, then hold to squeeze fresh paste." if tools.equipped_tool == "paste-syringe" else
+			"Click the GPU to look over its gold fingers through the loupe." if tools.equipped_tool == "loupe" else
 			"RMB + mouse rotates the held part. Aim at a clear table spot and press E to place it; Q refits it." if service.held_part != "" else
 			"GPU in left hand. E places it at the green marker; RMB rotates, F flips, Q returns it to the holder." if inspection.held else
 			"Aim at the GPU or a tool and press E." + ("" if "thermal-camera" in tools.locked else " The orange instrument is the thermal camera."))
@@ -313,6 +324,7 @@ func cancel_press() -> void:
 	cleaning.end()
 	if paste != null: paste.end()
 	if bearing != null: bearing.end()
+	testing_station.end_wiggle()
 	dragging_button = 0
 	service_press = false
 
@@ -385,7 +397,7 @@ func activate(screen_position: Vector2, pickup_with_tool: bool = false) -> void:
 		"sealed_box": hud.set_status("The thermal camera is still sealed in its box. It stays packed for now.")
 		"monitor_power": test_monitor.toggle_power()
 		"test_board": toggle_test_gpu()
-		"screwdriver", "air-blower", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler": tools.grab(hit.action)
+		"screwdriver", "air-blower", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler", "loupe": tools.grab(hit.action)
 		"toolbox":
 			open_tool_menu()
 		"cable": service.toggle_cable()
@@ -447,6 +459,7 @@ func _input(event: InputEvent) -> void:
 		cleaning.end()
 		if paste != null: paste.end()
 		if bearing != null: bearing.end()
+		testing_station.end_wiggle()
 		if get_viewport().gui_get_hovered_control() != null: cancel_press()
 	if event is InputEventScreenTouch and (event.canceled or (event.pressed and event.index > 0)):
 		cancel_press()
@@ -461,7 +474,7 @@ func _process(delta: float) -> void:
 		status_elapsed = 0.0
 		hud.refresh_repair_status(RepairStatus.rows(self))
 	if not camera_rig.legacy_test_mode:
-		camera_rig.walking_enabled = ready_for_action() and service.active_screw == "" and (closeup == null or closeup.mode == "") and not computer.in_use
+		camera_rig.walking_enabled = ready_for_action() and service.active_screw == "" and (closeup == null or closeup.mode == "") and not computer.in_use and not testing_station.wiggling
 	if cleaning.blowing and (not tools.blower_equipped() or not ready_for_action()):
 		cleaning.end()
 	if tools.blower_equipped() and (closeup == null or closeup.mode == ""):
@@ -480,7 +493,8 @@ func _process(delta: float) -> void:
 	if picker != null and dragging_button == 0 and ready_for_action() and hover_elapsed > 0.08 and not computer.in_use:
 		hover_elapsed = 0.0
 		if not camera_rig.legacy_test_mode:
-			hud.update_reticle(interaction_hit(get_viewport().get_visible_rect().size * 0.5), tools, inspection, service, camera_rig.captured)
+			var aimed := interaction_hit(get_viewport().get_visible_rect().size * 0.5)
+			hud.update_reticle(aimed, tools, inspection, service, camera_rig.captured, seated_card(aimed))
 			return
 		var over_ui: bool = get_viewport().gui_get_hovered_control() != null
 		var hit: Dictionary = {} if over_ui else picker.hit_at(get_viewport().get_mouse_position())
@@ -534,6 +548,10 @@ func first_person_input(event: InputEvent) -> void:
 	if not camera_rig.captured: return
 	if event is InputEventMouseMotion:
 		if service.busy or inspection.moving or tools.busy: return
+		if testing_station.wiggling:
+			# Holding the seated card: sideways mouse travel rocks it instead of looking.
+			testing_station.rock(event.relative.x)
+			return
 		if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) and ready_for_action():
 			if service.held_part != "": service.rotate_held(event.relative)
 			elif inspection.held: inspection.rotate_item(event.relative)
@@ -548,6 +566,7 @@ func first_person_input(event: InputEvent) -> void:
 			elif ready_for_action():
 				var hit := interaction_hit(center)
 				if tools.blower_equipped() and hit.get("action", "") == "toolbox": open_tool_menu()
+				elif seated_card(hit): testing_station.begin_wiggle()
 				elif tools.blower_equipped() and (inspection.held or service.held_part != ""): closeup.show_view("service", focused_held_part())
 				elif open_service_view(hit): pass
 				elif tools.blower_equipped() and not testing_station.installed: cleaning.begin()
@@ -585,6 +604,11 @@ func close_tool_menu() -> void:
 	if part != null and is_instance_valid(part) and not testing_station.installed:
 		closeup.show_view("service", part)
 
+## The aimed surface belongs to the card seated on the test board.
+func seated_card(hit: Dictionary) -> bool:
+	var target: Node = hit.get("target")
+	return testing_station.installed and not testing_station.moving and target != null and (target == gpu or gpu.is_ancestor_of(target))
+
 func focused_held_part() -> Node3D:
 	return asset_contract.objects[service.held_part] if service.held_part != "" else gpu
 
@@ -598,7 +622,7 @@ func service_subject(target: Node) -> Node3D:
 	return null
 
 func open_service_view(hit: Dictionary) -> bool:
-	if camera_rig.legacy_test_mode or (tools.equipped_tool != "screwdriver" and not tools.blower_equipped() and tools.equipped_tool not in tools.SURFACE_TOOLS) or testing_station.installed or not ready_for_action(): return false
+	if camera_rig.legacy_test_mode or not tools.focus_tool() or testing_station.installed or not ready_for_action(): return false
 	if hit.get("action", "") not in ["gpu", "assembly", "screw", "screw_hole"]: return false
 	var target: Node = hit.get("target")
 	if target == null: return false

@@ -97,6 +97,11 @@ func run() -> void:
 	await click_at(bench, centre())
 	expect(computer.in_use and not bench.camera_rig.captured, "Clicking the screen did not sit down at the computer")
 	await create_timer(0.45).timeout
+	# Sitting down types a burst of recorded keys; the click that sat down was not a page click.
+	expect(computer.keystrokes == computer.LOGIN_KEYS, "Sitting down did not type a burst of keys (%d)" % computer.keystrokes)
+	for player in [computer.keys_audio, computer.mouse_down_audio, computer.mouse_up_audio]:
+		expect(player.stream != null and player.bus == &"PcInput", "%s has no sound or is not on the PC channel" % player.name)
+	var clicks_before: int = computer.mouse_clicks
 	expect(is_equal_approx(bench.camera_rig.anchor_weight, 1.0), "The camera did not settle on the screen")
 	expect(bench.camera_rig.camera.global_transform.origin.distance_to(computer.screen.global_position) < 4.0, "The camera was not in front of the screen")
 	bench.camera_rig.movement_override = Vector2(0, -1)
@@ -113,6 +118,7 @@ func run() -> void:
 	if accept != null: await click_page(bench, accept)
 	await process_frame
 	expect(jobs.queue.size() == 1 and jobs.active().id == offer.id and jobs.active().state == "boxed", "Clicking Accept did not take the job")
+	expect(computer.mouse_clicks == clicks_before + 1, "Clicking on the page made no mouse click sound")
 	expect(bench.delivery_box.visible and jobs.offers.size() == jobs.OFFER_COUNT, "The box did not arrive or the board was not refilled")
 	expect(not jobs.accept(jobs.offers[0].id) and jobs.queue.size() == jobs.MAX_QUEUE, "A second job fit on a one-card bench")
 	computer.tab = "board"
@@ -123,9 +129,10 @@ func run() -> void:
 	var Computer = preload("res://scripts/shop_computer.gd")
 	for probe in [Vector2(0.5, 0.5), Vector2(0.1, 0.2), Vector2(0.93, 0.88), Vector2(0.02, 0.6)]:
 		expect(Computer.tube_to_page(Computer.page_to_tube(probe)).distance_to(probe) < 0.0001, "Tube mapping did not round-trip at %s" % probe)
+	var keys_before: int = computer.keystrokes
 	key(bench, KEY_F3)
 	await process_frame
-	expect(computer.tab == "ledger", "F3 did not open the ledger page")
+	expect(computer.tab == "ledger" and computer.keystrokes == keys_before + 1, "F3 did not open the ledger page with a keystroke")
 	computer.tab = "bench"
 	computer.refresh()
 	await process_frame
@@ -155,7 +162,7 @@ func run() -> void:
 	expect(bench.bearing.dry == ("bearing" in job.faults), "Bearing did not match the rolled faults %s" % [job.faults])
 	expect(jobs.problems() == job.faults, "Problems %s did not match the rolled faults %s" % [jobs.problems(), job.faults])
 	var status: Array[Dictionary] = preload("res://scripts/repair_status.gd").rows(bench)
-	expect(status[0].label == "Job" and ", ".join(job.faults) in status[0].detail and status.size() == 6, "The debug status did not show the rolled faults")
+	expect(status[0].label == "Job" and ", ".join(job.faults) in status[0].detail and status.size() == 7,"The debug status did not show the rolled faults")
 	await capture("jobs-queue-monitor")
 
 	# Returning needs the card assembled and set down; a held card is refused.

@@ -69,6 +69,12 @@ func open_face(bench: Node3D, subject: Node3D, action: String) -> bool:
 	await process_frame
 	await process_frame
 	return opened
+## Points the close-up pointer at a view position; rendered runs also move the real cursor
+## there, since the view follows the mouse every frame.
+func hover(view: CanvasLayer, at: Vector2) -> void:
+	view.cleaning_pointer = at
+	if DisplayServer.get_name() != "headless":
+		Input.warp_mouse(view.surface.get_viewport().get_screen_transform() * (view.surface.get_global_transform_with_canvas() * at))
 func total(values: PackedFloat32Array) -> float:
 	var sum := 0.0
 	for value in values: sum += value
@@ -219,9 +225,47 @@ func run() -> void:
 	var stack_after: float = paste.dried_stack(die_face, thickest)
 	print("die scrape: thickest cell %.2f -> %.2f after 0.1 s" % [stack_before, stack_after])
 	expect(stack_after < stack_before and stack_after > 0.25 * stack_before, "A brief scrape did not take the stack partway down")
+	var crumbs := [0]
+	var clumps := [0]
+	paste.shed.connect(func(_point, _normal, _direction, count: int, color: Color, _size):
+		if color == paste.CRUMB_COLOR: crumbs[0] += count
+		else: clumps[0] += count)
+	var voice: AudioStreamPlayer = paste.scrape_sound
+	voice.report_age = 1.0
 	sweep(bench, view, "die", 1, 0.5)
+	# The scrape loop (a supplied recording) is driven by contact; the blade picks up compound.
+	expect(voice.report_age == 0.0 and voice.target > 0.0 and paste.blade_load > 0.0, "Scraping reported no contact to its sound or blade")
+	expect(voice.stream != null or not ResourceLoader.exists(paste.SCRAPE_RECORDING), "The supplied scrape recording was not loaded")
+	# Aim, then lock: circling near the press point turns the blade freely; once the pointer
+	# travels away the heading holds until release. It may curve, but never turns around.
+	paste.begin()
+	paste.press_cell = Vector2(10, 10)
+	paste.steer(Vector2(11, 10), Vector2(1, 0))
+	paste.steer(Vector2(9, 10.2), Vector2(-2, 0.2))
+	expect(paste.aiming and paste.stroke_dir.x < -0.9, "Circling near the press point did not turn the blade")
+	paste.steer(Vector2(10, 13.5), Vector2(1, 3.3))
+	expect(not paste.aiming and paste.stroke_dir.y > 0.9, "Moving away did not lock the aimed heading")
+	paste.steer(Vector2(10, 12.5), Vector2(0, -1))
+	expect(paste.stroke_dir.y > 0.9, "Moving back reversed the locked stroke")
+	paste.steer(Vector2(11, 13.5), Vector2(1, 1))
+	expect(paste.stroke_dir.x > 0.0 and paste.stroke_dir.y > 0.0, "A curving stroke did not bend its heading")
+	paste.end()
+	paste.begin()
+	expect(paste.stroke_dir == Vector2.ZERO and paste.aiming, "A new press kept the last stroke's heading")
+	paste.end()
+	# The blade is seen riding the face, pressed and tilted low, with compound on its edge.
+	var rect := layer_rect(view, paste.faces.die.mesh)
+	press(view, rect.get_center())
+	hover(view, rect.get_center() + Vector2(rect.size.x * 0.15, 0))
+	for frame in range(4): view.place_work_tool(0.1)
+	var blade: Node3D = view.work_tools["spudger"]
+	var cell: float = paste.cell_size(paste.faces.die.mesh)
+	expect(blade.visible and blade.global_position.distance_to(paste.faces.die.mesh.global_position) < cell * 20.0 and view.tool_press > 0.9,
+		"The spudger was not shown pressed on the die")
 	await capture_angled(view, "paste-die-half-scraped")
+	paste.end()
 	sweep(bench, view, "die", 6)
+	expect(crumbs[0] > 0 and clumps[0] > 0, "Scraping shed no crumbs or clumps (%d, %d)" % [crumbs[0], clumps[0]])
 	expect(total(paste.faces.die.glaze) + total(paste.faces.die.crust) < 0.02 * hard_before, "Spudger left glaze or crust on the die")
 	expect(total(paste.faces.die.gum) < 0.35 * gum_before, "Spudger did not plough off the pasty gum")
 	expect(not paste.faces.die.clean and total(paste.faces.die.film) > 50.0, "Scraping alone removed the residue film")
@@ -230,6 +274,17 @@ func run() -> void:
 	expect(await open_face(bench, bench.gpu, "gpu"), "Wipe view did not reopen")
 	sweep(bench, view, "die", 6)
 	expect(paste.faces.die.clean and paste.face_progress("die") >= 0.99, "Wiping did not finish the die")
+	# The pad greys with what it lifted, and its loop is driven by contact.
+	var wipe_voice: AudioStreamPlayer = paste.wipe_sound
+	expect(paste.pad_soil > 0.3 and wipe_voice.target > 0.0, "The IPA pad did not soil or report contact (soil %.2f)" % paste.pad_soil)
+	var pad_rect := layer_rect(view, paste.faces.die.mesh)
+	press(view, pad_rect.get_center())
+	hover(view, pad_rect.get_center())
+	for frame in range(4): view.place_work_tool(0.1)
+	expect(view.work_tools["ipa-wipe"].visible and not view.work_tools["spudger"].visible and view.pad_material.albedo_color.v < 0.85,
+		"The soiled IPA pad was not shown on the die")
+	await capture("paste-wipe-at-work")
+	paste.end()
 	expect(notices.any(func(text: String): return "die clean" in text.to_lower()), "Clean die gave no completion notice")
 	await capture("paste-die-clean")
 	# The heatsink base needs the same two stages.

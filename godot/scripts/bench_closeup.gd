@@ -26,6 +26,20 @@ var cleaning_pointer := Vector2.ZERO
 var subject: Node3D
 var subject_targets: Array = []
 var puff_view: MultiMeshInstance3D
+## Loupe: a round lens over the view, much deeper zoom, and a click centres what to magnify.
+const VIEW_ZOOM := 0.4
+const LOUPE_ZOOM := 0.05
+var lens: ColorRect
+var lens_motion: Tween
+## Paste tools seen at work on the face: the spudger blade riding it (with compound beading on
+## its edge) or the IPA pad pressed flat (greying as it lifts residue). Built in cell units and
+## scaled to the face; lifted while hovering, pressed while LMB is held.
+var work_tools: Dictionary = {}
+var blade_tilt: Node3D
+var blade_bead: MeshInstance3D
+var pad_material: StandardMaterial3D
+var tool_dir := Vector3.ZERO
+var tool_press := 0.0
 
 func configure(owner_bench: Node3D) -> void:
 	bench = owner_bench
@@ -83,6 +97,25 @@ func configure(owner_bench: Node3D) -> void:
 	light.rotation_degrees = Vector3(-40, -25, 0)
 	light.light_energy = 1.4
 	stage.add_child(light)
+	lens = ColorRect.new()
+	lens.name = "LoupeLens"
+	lens.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var lens_material := ShaderMaterial.new()
+	lens_material.shader = preload("res://shaders/loupe_lens.gdshader")
+	lens.material = lens_material
+	surface.add_child(lens)
+	lens.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var power := Label.new()
+	power.name = "Magnification"
+	power.add_theme_font_size_override("font_size", 22)
+	power.add_theme_color_override("font_color", Color(0.85, 0.8, 0.65))
+	lens.add_child(power)
+	power.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	power.offset_top = -40
+	power.offset_left = -60
+	power.offset_right = 60
+	power.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lens.hide()
 	progress = ProgressBar.new()
 	progress.custom_minimum_size.y = 12
 	column.add_child(progress)
@@ -94,9 +127,10 @@ func configure(owner_bench: Node3D) -> void:
 	puff_view.custom_aabb = bench.cleaning.puffs.custom_aabb
 	puff_view.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	stage.add_child(puff_view)
+	build_work_tools()
 	for item in [["Flip part", "flip"], ["Return tool", "return"], ["Screwdriver", "screwdriver"], ["Air blower", "air-blower"], ["Dev blower", "dev-blower"],
 			["Spudger", "spudger"], ["IPA wipe", "ipa-wipe"], ["Paste syringe", "paste-syringe"], ["Fan oiler", "fan-oiler"],
-			["Thermal camera (stand)", "thermal-camera"], ["Empty hands", ""], ["Close / Esc", "close"]]:
+			["Loupe", "loupe"], ["Thermal camera (stand)", "thermal-camera"], ["Empty hands", ""], ["Close / Esc", "close"]]:
 		var button := Button.new()
 		button.text = item[0]
 		button.custom_minimum_size.y = 42
@@ -130,6 +164,95 @@ func configure(owner_bench: Node3D) -> void:
 	bench.bearing.opened_changed.connect(func():
 		if mode == "service": frame_view())
 	overlay.hide()
+
+func work_part(parent: Node3D, mesh: Mesh, at: Vector3, material: Material, turn := Vector3.ZERO) -> MeshInstance3D:
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.material_override = material
+	node.position = at
+	node.rotation = turn
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(node)
+	return node
+
+func build_work_tools() -> void:
+	var plastic := StandardMaterial3D.new()
+	plastic.albedo_color = Color(0.2, 0.32, 0.62)
+	plastic.roughness = 0.45
+	var grip := StandardMaterial3D.new()
+	grip.albedo_color = Color(0.06, 0.07, 0.08)
+	grip.roughness = 0.7
+	var gum := StandardMaterial3D.new()
+	gum.albedo_color = Color(0.4, 0.4, 0.38)
+	gum.roughness = 0.3
+	# Spudger: the leading edge sits at the origin; the blade rises back along -x into the grip.
+	var spudger := Node3D.new()
+	spudger.name = "SpudgerAtWork"
+	stage.add_child(spudger)
+	blade_tilt = Node3D.new()
+	spudger.add_child(blade_tilt)
+	var blade := BoxMesh.new()
+	blade.size = Vector3(7.0, 0.4, 5.0)
+	work_part(blade_tilt, blade, Vector3(-3.5, 0.2, 0), plastic)
+	var handle := CylinderMesh.new()
+	handle.top_radius = 0.9
+	handle.bottom_radius = 1.0
+	handle.height = 11.0
+	work_part(blade_tilt, handle, Vector3(-12.5, 0.2, 0), grip, Vector3(0, 0, PI / 2.0))
+	var bead := SphereMesh.new()
+	bead.radius = 0.5
+	bead.height = 1.0
+	blade_bead = work_part(spudger, bead, Vector3(0.6, 0.45, 0), gum)
+	spudger.hide()
+	work_tools["spudger"] = spudger
+	# IPA pad: a folded lint-free square pressed flat under the fingers.
+	pad_material = StandardMaterial3D.new()
+	pad_material.albedo_color = Color(0.95, 0.95, 0.93)
+	pad_material.roughness = 0.95
+	var pad := Node3D.new()
+	pad.name = "IpaPadAtWork"
+	stage.add_child(pad)
+	var sheet := BoxMesh.new()
+	sheet.size = Vector3(7.0, 0.7, 6.0)
+	work_part(pad, sheet, Vector3(0, 0.35, 0), pad_material)
+	var fold := BoxMesh.new()
+	fold.size = Vector3(6.4, 0.6, 2.6)
+	work_part(pad, fold, Vector3(0, 0.95, -1.4), pad_material, Vector3(0.15, 0, 0))
+	pad.hide()
+	work_tools["ipa-wipe"] = pad
+
+## Rides the equipped paste tool on the face under the pointer, aimed along the stroke.
+func place_work_tool(delta: float) -> void:
+	var tool: String = bench.tools.equipped_tool
+	for id in work_tools: work_tools[id].visible = false
+	if mode != "service" or not work_tools.has(tool) or paste_face() == "": return
+	if not Rect2(Vector2.ZERO, surface.size).has_point(cleaning_pointer): return
+	var hit: Dictionary = pick.surface_hit_at(cleaning_pointer)
+	var face: String = bench.paste.face_of(hit.get("mesh")) if not hit.is_empty() else ""
+	if face == "": return
+	var face_layer: MeshInstance3D = bench.paste.faces[face].mesh
+	var cell: float = bench.paste.cell_size(face_layer)
+	var normal := face_layer.global_basis.y.normalized()
+	# The blade follows the stroke's locked heading (set on the stroke's first movement, never
+	# reversed until release) and keeps its last heading while hovering between strokes.
+	var heading: Vector2 = bench.paste.stroke_dir
+	if bench.paste.working and heading != Vector2.ZERO:
+		tool_dir = (face_layer.global_basis * Vector3(heading.x, 0.0, heading.y)).normalized()
+	if tool_dir == Vector3.ZERO or absf(tool_dir.dot(normal)) > 0.9:
+		tool_dir = face_layer.global_basis.x.normalized()
+	tool_dir = (tool_dir - normal * tool_dir.dot(normal)).normalized()
+	tool_press = move_toward(tool_press, 1.0 if bench.paste.working else 0.0, delta * 8.0)
+	var node: Node3D = work_tools[tool]
+	node.global_transform = Transform3D(Basis(tool_dir, normal, tool_dir.cross(normal)).scaled(Vector3.ONE * cell),
+		hit.point + normal * cell * (0.15 + 1.8 * (1.0 - tool_press)))
+	if tool == "spudger":
+		blade_tilt.rotation.z = -deg_to_rad(lerpf(55.0, 28.0, tool_press))
+		var carried: float = bench.paste.blade_load
+		blade_bead.visible = carried > 0.03
+		blade_bead.scale = Vector3(0.4 + 1.2 * carried, 0.3 + 1.0 * carried, 4.4)
+	else:
+		pad_material.albedo_color = Color(0.95, 0.95, 0.93).lerp(Color(0.42, 0.42, 0.4), bench.paste.pad_soil)
+	node.visible = true
 
 func contains_subject(node: Node) -> bool:
 	return subject != null and (node == subject or subject.is_ancestor_of(node))
@@ -236,7 +359,31 @@ func frame_view() -> void:
 		status.text = "FAN SERVICE  /  " + ("Click the rotor to refit it" if "fan-rotor" in bench.bearing.opened else
 			"Click the hub to pull the rotor out" if "hub-label" in bench.bearing.opened else
 			"Click the hub sticker to peel it off") + "   •   RMB drag: rotate   •   Wheel: zoom"
+	if mode == "service" and loupe_view():
+		status.text = "LOUPE  /  Click: centre and magnify   •   Wheel: zoom   •   RMB drag: rotate"
+		if subject == bench.gpu:
+			# The card opens on its gold fingers, looking at the fan-side face from past the edge.
+			var card: Basis = bench.gpu.global_basis
+			center = bench.connector.centre()
+			distance = maxf(bench.connector.span() * 0.45 / tan(deg_to_rad(camera.fov * 0.5)), 0.1)
+			direction = (card.y.normalized() + card.z.normalized() * 0.8).normalized()
+			status.text = "EDGE CONNECTOR  /  " + status.text.trim_prefix("LOUPE  /  ")
 	update_camera()
+
+func loupe_view() -> bool:
+	return bench.tools.equipped_tool in bench.tools.VIEW_TOOLS
+
+func min_zoom() -> float:
+	return LOUPE_ZOOM if mode == "service" and loupe_view() else VIEW_ZOOM
+
+## Centres the view on the clicked spot and doubles the magnification.
+func magnify_at(point: Vector2) -> void:
+	var hit: Dictionary = pick.surface_hit_at(point)
+	if hit.is_empty() or not contains_subject(hit.mesh): return
+	if lens_motion != null: lens_motion.kill()
+	lens_motion = create_tween().set_parallel().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	lens_motion.tween_property(self, "center", hit.point, 0.25)
+	lens_motion.tween_property(self, "zoom", maxf(zoom * 0.5, LOUPE_ZOOM), 0.25)
 
 ## The bearing part this service view should frame for the equipped tool, once the rotor is out.
 func bearing_face() -> String:
@@ -263,6 +410,8 @@ func sync_proxies() -> void:
 	for proxy in proxies:
 		proxy.node.global_transform = proxy.source.global_transform
 		proxy.node.visible = proxy.source.is_visible_in_tree()
+		# Damage can change a part's look while the view is open (tarnished contacts).
+		proxy.node.material_override = proxy.source.material_override
 		# A removed screw leaves this view; a seated screw returns immediately.
 		if mode == "service":
 			proxy.node.visible = proxy.node.visible and contains_subject(proxy.source)
@@ -283,6 +432,8 @@ func view_input(event: InputEvent) -> void:
 				var opening: String = bench.bearing.click_target(hit.get("mesh")) if mode == "service" else ""
 				if opening != "" and bench.tools.equipped_tool in bench.bearing.HANDLING_TOOLS:
 					bench.bearing.operate(opening)
+				elif mode == "service" and loupe_view():
+					magnify_at(event.position)
 				elif mode == "service" and bench.tools.blower_equipped():
 					bench.cleaning.begin()
 				elif mode == "service" and bench.tools.equipped_tool in bench.tools.SURFACE_TOOLS:
@@ -307,7 +458,7 @@ func view_input(event: InputEvent) -> void:
 				elif mode == "bag" and hit.get("action") in bench.tools.ROLL_NODES:
 					bench.select_tool(hit.action)
 		elif event.pressed and not bench.service.busy and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
-			zoom = clampf(zoom * (0.9 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.1), 0.4, 1.6)
+			zoom = clampf(zoom * (0.9 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.1), min_zoom(), 1.6)
 			update_camera()
 	elif event is InputEventMouseMotion and rotating and mode == "service" and not bench.service.busy:
 		direction = (Basis(camera.global_basis.y, -event.relative.x * 0.008) * Basis(camera.global_basis.x, -event.relative.y * 0.008) * direction).normalized()
@@ -407,8 +558,16 @@ func _process(delta: float) -> void:
 	cleaning_pointer = surface.get_local_mouse_position()
 	clean_under_pointer(delta)
 	paste_under_pointer(delta)
+	place_work_tool(delta)
 	bearing_under_pointer(delta)
 	var id: String = bench.service.active_screw
 	if id != "": selected_screw = id
 	puff_view.visible = bench.cleaning.puffs.visible
+	lens.visible = mode == "service" and loupe_view()
+	progress.visible = mode == "service" and not lens.visible
+	if lens.visible:
+		(lens.material as ShaderMaterial).set_shader_parameter("view_size", lens.size)
+		(lens.get_node("Magnification") as Label).text = "%d×" % maxi(1, roundi(2.0 / zoom))
+	elif zoom < VIEW_ZOOM:
+		zoom = VIEW_ZOOM
 	progress.value = subject_cleaning_progress() * 100 if bench.tools.blower_equipped() else paste_progress() * 100 if bench.tools.equipped_tool in bench.tools.SURFACE_TOOLS else bench.service.turns[selected_screw].progress * 100 if bench.service.turns.has(selected_screw) else 0

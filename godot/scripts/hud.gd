@@ -26,6 +26,7 @@ signal debug_dry_paste_requested
 signal debug_repaste_requested
 signal debug_dry_bearing_requested
 signal debug_oil_bearing_requested
+signal debug_connector_requested
 
 var inspect_button: Button
 var flip_button: Button
@@ -188,6 +189,10 @@ func _ready() -> void:
 	debug_oil_bearing_button = make_button("Debug: Oil bearing", debug_controls)
 	debug_oil_bearing_button.visible = OS.is_debug_build()
 	debug_oil_bearing_button.pressed.connect(func(): debug_oil_bearing_requested.emit())
+	# Cycles the edge connector: clean, oxidised, lifted finger, torn finger.
+	var debug_connector_button := make_button("Debug: Edge connector", debug_controls)
+	debug_connector_button.visible = OS.is_debug_build()
+	debug_connector_button.pressed.connect(func(): debug_connector_requested.emit())
 	repair_toggle = CheckButton.new()
 	repair_toggle.text = "Repair status overlay"
 	repair_toggle.focus_mode = Control.FOCUS_NONE
@@ -394,21 +399,23 @@ func set_menu_open(value: bool) -> void:
 	if mixer_opening: refresh_audio_panel()
 	reticle.visible = not value
 
-func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Node, captured: bool) -> void:
+func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Node, captured: bool, seated: bool = false) -> void:
 	if not fps_mode: return
 	set_menu_open(not captured)
 	var action: String = hit.get("action", "")
 	var prompt := ""
+	if seated: action = "seated"
 	match action:
+		"seated": prompt = "Hold LMB + move mouse: rock the card in its slot   |   E: remove GPU"
 		"computer": prompt = "E / Click: use the shop computer"
 		"delivery_box": prompt = "E / Click: open the box"
 		"sealed_box": prompt = "Thermal camera, still sealed"
 		"screw", "screw_hole": prompt = "E: pick up GPU  |  Click: focus" if tools.equipped_tool != "" else "Screwdriver required"
-		"gpu": prompt = "E: pick up GPU  |  Click: focus" if tools.equipped_tool == "screwdriver" or tools.blower_equipped() or tools.equipped_tool in tools.SURFACE_TOOLS else "E: pick up / remove GPU"
+		"gpu": prompt = "E: pick up GPU  |  Click: focus" if tools.focus_tool() else "E: pick up / remove GPU"
 		"test_board": prompt = "E: connect / remove GPU"
 		"monitor_power": prompt = "E: monitor power"
 		"toolbox": prompt = "E / Click: unroll tool bag"
-		"screwdriver", "air-blower", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler": prompt = "E: pick up " + action.replace("-", " ")
+		"screwdriver", "air-blower", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler", "loupe": prompt = "E: pick up " + action.replace("-", " ")
 		"cable": prompt = "E: connect / disconnect fan cable"
 		"assembly": prompt = "E: inspect GPU / lift loosened assembly"
 		"desk":

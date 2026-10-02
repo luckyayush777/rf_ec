@@ -6,11 +6,13 @@ signal notice(text: String)
 const PASTE_TOOLS := ["spudger", "ipa-wipe", "paste-syringe"]
 ## Hand tools that work a surface in focus: the paste kit and the fan oiler.
 const SURFACE_TOOLS := PASTE_TOOLS + ["fan-oiler"]
-const TOOLS := ["screwdriver", "air-blower", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler"]
+## Hand tools that only look: the jeweller's loupe magnifies the focus view.
+const VIEW_TOOLS := ["loupe"]
+const TOOLS := ["screwdriver", "air-blower", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler", "loupe"]
 ## The shop air blower is the regular cleaning tool; the debug-only Dev blower clears a wide spot.
 const BLOWERS := ["air-blower", "dev-blower"]
 ## Roll-pocket tools and their node names in scenes/toolbox.tscn.
-const ROLL_NODES := {"screwdriver": "Screwdriver", "air-blower": "AirBlower", "dev-blower": "DevBlower", "spudger": "Spudger", "ipa-wipe": "IpaWipe", "paste-syringe": "PasteSyringe", "fan-oiler": "FanOiler"}
+const ROLL_NODES := {"screwdriver": "Screwdriver", "air-blower": "AirBlower", "dev-blower": "DevBlower", "spudger": "Spudger", "ipa-wipe": "IpaWipe", "paste-syringe": "PasteSyringe", "fan-oiler": "FanOiler", "loupe": "Loupe"}
 const EQUIP_NOTICES := {
 	"screwdriver": "Screwdriver equipped. Click the GPU for a close-up, then hold a screw to turn it.",
 	"air-blower": "Air blower equipped. Click a part for a close-up, then hold and sweep the jet over the dust. Air carries into the fins and spins the fan.",
@@ -19,9 +21,10 @@ const EQUIP_NOTICES := {
 	"spudger": "Plastic spudger equipped. Click the bare die or heatsink base, then hold and drag to scrape off old paste.",
 	"ipa-wipe": "IPA wipe equipped. Hold and rub the scraped surfaces to lift the remaining film.",
 	"paste-syringe": "Paste syringe equipped. Click the bare die, then hold to squeeze; drag to lay a line.",
-	"fan-oiler": "Fan oiler equipped. Click the detached fan, pull its rotor, then hold on the bearing for a drop."}
+	"fan-oiler": "Fan oiler equipped. Click the detached fan, pull its rotor, then hold on the bearing for a drop.",
+	"loupe": "Loupe equipped. Click the GPU to look over its gold fingers; click to magnify, wheel to zoom."}
 const NAMES := {"screwdriver": "screwdriver", "air-blower": "air blower", "dev-blower": "Dev blower", "thermal-camera": "thermal camera",
-	"spudger": "spudger", "ipa-wipe": "IPA wipe", "paste-syringe": "paste syringe", "fan-oiler": "fan oiler"}
+	"spudger": "spudger", "ipa-wipe": "IPA wipe", "paste-syringe": "paste syringe", "fan-oiler": "fan oiler", "loupe": "loupe"}
 const RETURN_NOTICES := {
 	"screwdriver": "Screwdriver returned. Hands are free for the fan cable.",
 	"air-blower": "Air blower returned.",
@@ -29,7 +32,7 @@ const RETURN_NOTICES := {
 	"thermal-camera": "Thermal camera returned."}
 
 var locations := {"screwdriver": "toolbox", "air-blower": "toolbox", "dev-blower": "toolbox", "thermal-camera": "stand",
-	"spudger": "toolbox", "ipa-wipe": "toolbox", "paste-syringe": "toolbox", "fan-oiler": "toolbox"}
+	"spudger": "toolbox", "ipa-wipe": "toolbox", "paste-syringe": "toolbox", "fan-oiler": "toolbox", "loupe": "toolbox"}
 var location: String:
 	get: return locations["screwdriver"]
 	set(value): locations["screwdriver"] = value
@@ -196,6 +199,11 @@ func held_pose(id: String = "screwdriver") -> Transform3D:
 func blower_equipped() -> bool:
 	return equipped_tool in BLOWERS
 
+## The equipped tool works in a part's focus view (click the part to open it).
+func focus_tool() -> bool:
+	var id := equipped_tool
+	return id == "screwdriver" or id in BLOWERS or id in SURFACE_TOOLS or id in VIEW_TOOLS
+
 ## The held blower's nozzle axis in world space.
 func blower_axis() -> Vector3:
 	return tool_node(equipped_tool).global_basis.x.normalized()
@@ -216,5 +224,5 @@ func blower_points_at(point: Vector3) -> bool:
 
 func _process(_delta: float) -> void:
 	var id := equipped_tool
-	if (id == "screwdriver" or id in SURFACE_TOOLS) and not busy:
+	if (id == "screwdriver" or id in SURFACE_TOOLS or id in VIEW_TOOLS) and not busy:
 		tool_node(id).transform = held_pose(id)

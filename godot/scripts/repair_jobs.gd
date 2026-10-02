@@ -32,7 +32,9 @@ const FAULTS := {
 		"symptoms": ["There's a grinding, rattling noise coming from the fan.",
 			"The fan makes a scraping sound like a coffee grinder, worse when it spins up.",
 			"It started making a gritty buzzing noise last week."]}}
-const CLOSERS := ["", " Can you take a look?", " It's my only card, please help.", " Would love it back by the weekend."]
+## Faults the board does not roll yet (no repair exists) but a customer would still notice.
+const UNROLLED := {"connector": {"persists": "the screen still cuts out"}}
+const CLOSERS :=["", " Can you take a look?", " It's my only card, please help.", " Would love it back by the weekend."]
 const CUSTOMERS := ["Priya S.", "Marcus T.", "Elena V.", "Tomasz K.", "Aisha R.", "Jonah W.", "Mei L.",
 	"Diego F.", "Sam O.", "Fatima N.", "Lukas B.", "Grace H."]
 const MODEL := "710 2GB low-profile"
@@ -171,6 +173,7 @@ func apply_faults(faults: Array) -> void:
 	else: bench.paste.set_fresh()
 	if "bearing" in faults: bench.bearing.set_dry()
 	else: bench.bearing.set_oiled()
+	bench.connector.set_state("ok")
 	for reading in ["memory_c", "core_c", "cooler_c"]:
 		bench.thermal.set(reading, Thermal.AMBIENT)
 
@@ -181,6 +184,7 @@ func problems() -> Array[String]:
 	var paste: Node = bench.paste
 	if paste.dried or not paste.seated or paste.quality < RepairStatus.GOOD_CONTACT: found.append("paste")
 	if bench.bearing.dry or not bench.bearing.opened.is_empty(): found.append("bearing")
+	if bench.connector.state != "ok": found.append("connector")
 	return found
 
 ## Empty when the card can go back; otherwise what still has to happen first.
@@ -210,7 +214,7 @@ func return_card() -> Dictionary:
 	var amount: int = job.pay if paid else 0
 	balance += amount
 	var complaints: Array[String] = []
-	for kind in left: complaints.append(FAULTS[kind].persists)
+	for kind in left: complaints.append((FAULTS[kind] if FAULTS.has(kind) else UNROLLED[kind]).persists)
 	var said := " and ".join(complaints)
 	last_result = {"id": job.id, "customer": job.customer, "paid": paid, "amount": amount, "left": left, "faults": job.faults,
 		"feedback": "Works perfectly, thanks!" if paid else said.left(1).to_upper() + said.substr(1) + "."}

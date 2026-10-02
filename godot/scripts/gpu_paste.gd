@@ -13,6 +13,9 @@ signal changed
 signal notice(text: String)
 ## Hard glaze broke off under the blade at this world point; the dust puffs throw chips.
 signal chipped(point: Vector3, normal: Vector3, count: int)
+## Scraped-off compound leaving the face: chalky crust crumbs pushed ahead of the blade, or
+## a clump of gum and crust dropping off its loaded edge. The dust puffs draw them.
+signal shed(point: Vector3, normal: Vector3, direction: Vector3, count: int, color: Color, size: float)
 
 const INNER := 20
 const MARGIN := 4
@@ -41,8 +44,30 @@ const WIPE_GUM_RATE := 1.2
 const STACK_DISPLAY := 2.0
 ## Thin glaze chips per chip particle.
 const GLAZE_PER_CHIP := 0.06
+## Crust removed per crumb pushed off ahead of the blade.
+const CRUST_PER_CRUMB := 0.5
+## Compound collects on the spudger's edge as it ploughs; at 1.0 a clump drops off.
+const BLADE_PICKUP := 0.08
+const CLUMP_SHED := 0.7
+## Residue lifted until the IPA pad is fully grey.
+const PAD_CAPACITY := 60.0
+## Removal per second (stack units) that drives a tool's sound to full.
+const FULL_SOUND := 6.0
+const CRUMB_COLOR := Color(0.8, 0.79, 0.74)
+const CLUMP_COLOR := Color(0.55, 0.55, 0.52)
 const SHADER = preload("res://shaders/paste_layer.gdshader")
 const AudioMix = preload("res://scripts/audio_mix.gd")
+const ContactLoop = preload("res://scripts/contact_loop.gd")
+## Supplied loops for the tools at work; each is silent until its file exists.
+const SCRAPE_RECORDING := "res://assets/sounds/spudger_scrape.wav"
+const WIPE_RECORDING := "res://assets/sounds/ipa_wipe.wav"
+## Movement within 90 degrees of the stroke's heading (cosine above STROKE_TURN) bends it by
+## STROKE_FOLLOW per step; anything further back is ignored, so a stroke never turns around.
+const STROKE_TURN := 0.0
+const STROKE_FOLLOW := 0.3
+## Until the pointer travels this many cells from where LMB went down, the stroke is still
+## being aimed: circling the mouse turns the blade freely. Past it, the heading locks.
+const AIM_RADIUS := 3.0
 const WORK := {"spudger": "scrape", "ipa-wipe": "wipe", "paste-syringe": "apply"}
 const SURFACES := [
 	{"id": "die", "exposedBy": "cooler-assembly", "applyPaste": true, "label": "GPU die"},
@@ -66,6 +91,22 @@ var muted := false
 var last_cell := Vector2.ZERO
 var last_face := ""
 var chip_budget := 0.0
+var crumb_budget := 0.0
+## What the last scrape or wipe step removed, per layer (stack units).
+var takes: Dictionary = {}
+## Compound riding on the spudger's edge (0-1) and grime on the IPA pad (0-1); both stay with
+## the tool until a different paste tool is used.
+var blade_load := 0.0
+var pad_soil := 0.0
+var loaded_tool := ""
+var scrape_sound: AudioStreamPlayer
+var wipe_sound: AudioStreamPlayer
+## The current stroke's heading in cell space, set by its first real movement and kept until
+## release. It can bend through a curve but ignores motion back against it.
+var stroke_dir := Vector2.ZERO
+## Where this press touched down, and whether its heading is still free to turn.
+var press_cell := Vector2.ZERO
+var aiming := true
 
 func configure(world: Node3D) -> void:
 	bench = world
@@ -101,6 +142,10 @@ func configure(world: Node3D) -> void:
 	jingle.volume_db = -4.0
 	jingle.bus = AudioMix.JINGLE
 	add_child(jingle)
+	scrape_sound = ContactLoop.new("SpudgerScrape", SCRAPE_RECORDING, AudioMix.SPUDGER)
+	add_child(scrape_sound)
+	wipe_sound = ContactLoop.new("IpaWipeSound", WIPE_RECORDING, AudioMix.IPA_WIPE)
+	add_child(wipe_sound)
 	reset_dried()
 
 func make_layer(layer_name: String, size: Vector2, drop: float) -> MeshInstance3D:
@@ -281,6 +326,13 @@ func begin() -> bool:
 	working = true
 	work_kind = WORK[tool]
 	last_face = ""
+	stroke_dir = Vector2.ZERO
+	aiming = true
+	if tool != loaded_tool:
+		# A clean blade, a fresh pad.
+		loaded_tool = tool
+		blade_load = 0.0
+		pad_soil = 0.0
 	return true
 
 func end() -> void:
@@ -299,25 +351,71 @@ func work_at(hit: Dictionary, delta: float) -> bool:
 	var local := layer.to_local(hit.point)
 	var size: Vector2 = layer.mesh.size
 	var cell := Vector2((local.x / size.x + 0.5) * N, (local.z / size.y + 0.5) * N)
+	if last_face == "": press_cell = cell
 	var stroke := cell - last_cell if last_face == id else Vector2.ZERO
 	last_cell = cell
 	last_face = id
+	steer(cell, stroke)
 	var changed_any := false
+	takes = {}
 	match work_kind:
 		"scrape":
 			var chips_before := chip_budget
-			changed_any = scrape(id, cell, delta, stroke)
+			# Gum is pushed along the locked heading, never back the way the blade came.
+			changed_any = scrape(id, cell, delta, stroke_dir)
 			if chip_budget > chips_before and chip_budget >= 1.0:
 				chipped.emit(hit.point, layer.global_basis.y.normalized(), floori(chip_budget))
 				chip_budget -= floorf(chip_budget)
 		"wipe": changed_any = wipe(id, cell, delta)
 		"apply": changed_any = squeeze(id, cell, delta)
+	if work_kind != "apply": report_contact(layer, hit.point, stroke, delta)
 	if changed_any:
 		dried = false
 		refresh(id)
 		finish_if_clean(id)
 		changed.emit()
 	return changed_any
+
+## Aims, then locks, the stroke's heading. Near the press point the blade points from it to
+## the pointer, so circling the mouse turns it. Once the pointer leaves AIM_RADIUS the heading
+## locks: later movement may bend it gradually through a curve, but motion back is ignored.
+func steer(cell: Vector2, stroke: Vector2) -> void:
+	if aiming:
+		var offset := cell - press_cell
+		if offset.length() > 0.3: stroke_dir = offset.normalized()
+		if offset.length() > AIM_RADIUS: aiming = false
+		return
+	if stroke.length() < 0.3: return
+	var heading := stroke.normalized()
+	if heading.dot(stroke_dir) > STROKE_TURN: stroke_dir = stroke_dir.lerp(heading, STROKE_FOLLOW).normalized()
+
+## The tool is on the face: drive its sound from stroke speed and what it removed, load the
+## spudger's edge or soil the pad, and shed crumbs and clumps off the face.
+func report_contact(layer: MeshInstance3D, point: Vector3, stroke: Vector2, delta: float) -> void:
+	var total := 0.0
+	for layer_name in takes: total += takes[layer_name]
+	var speed := stroke.length() / maxf(delta, 0.001)
+	var loudness := 0.35 * clampf(speed / 20.0, 0.0, 1.0) + clampf(total / maxf(delta, 0.001) / FULL_SOUND, 0.0, 1.0)
+	var normal := layer.global_basis.y.normalized()
+	var ahead := (layer.global_basis * Vector3(stroke_dir.x, 0.0, stroke_dir.y)).normalized() if stroke_dir != Vector2.ZERO else normal
+	if work_kind == "scrape":
+		scrape_sound.set_contact(loudness)
+		blade_load += (takes.get("crust", 0.0) * 0.5 + takes.get("gum", 0.0) + takes.get("paste", 0.0) * 0.6) * BLADE_PICKUP
+		crumb_budget += takes.get("crust", 0.0) / CRUST_PER_CRUMB
+		var size := cell_size(layer)
+		if crumb_budget >= 1.0:
+			shed.emit(point, normal, ahead, floori(crumb_budget), CRUMB_COLOR, size * 0.45)
+			crumb_budget -= floorf(crumb_budget)
+		if blade_load >= 1.0:
+			shed.emit(point + ahead * size * 2.0, normal, ahead, 1, CLUMP_COLOR, size * 1.4)
+			blade_load -= CLUMP_SHED
+	else:
+		wipe_sound.set_contact(loudness)
+		pad_soil = minf(1.0, pad_soil + total / PAD_CAPACITY)
+
+## World size of one paste cell on a face layer.
+func cell_size(layer: MeshInstance3D) -> float:
+	return (layer.mesh as PlaneMesh).size.x * layer.global_basis.get_scale().x / N
 
 func brush(cell: Vector2, radius: float) -> Array:
 	var result: Array = []
@@ -355,25 +453,33 @@ func scrape(id: String, cell: Vector2, delta: float, stroke := Vector2.ZERO) -> 
 	pushed.resize(N * N)
 	var ahead := stroke.normalized() if stroke.length() > 0.05 else Vector2.ZERO
 	var removed := 0.0
+	var taken := {"glaze": 0.0, "crust": 0.0, "gum": 0.0, "paste": 0.0}
 	for entry in brush(cell, 2.4):
 		var k: int = entry[0]
 		var reach: float = entry[1] * delta
 		var before: float = glaze[k] + crust[k] + gum[k] + paste[k]
-		paste[k] = maxf(0.0, paste[k] - 6.0 * reach)
+		var fresh := minf(paste[k], 6.0 * reach)
+		paste[k] -= fresh
+		taken.paste += fresh
 		if glaze[k] > 0.0:
 			var take := minf(glaze[k], GLAZE_RATE * reach * (CHIP_BOOST if glaze_exposed(glaze, k) else 1.0))
 			glaze[k] -= take
+			taken.glaze += take
 			chip_budget += take / GLAZE_PER_CHIP
 		elif crust[k] > 0.0:
-			crust[k] = maxf(0.0, crust[k] - CRUST_RATE * reach)
+			var pared := minf(crust[k], CRUST_RATE * reach)
+			crust[k] -= pared
+			taken.crust += pared
 		elif gum[k] > 0.0:
 			var moved := minf(gum[k], GUM_RATE * reach)
 			gum[k] -= moved
+			taken.gum += moved
 			var at := Vector2(k % N + 0.5, k / N + 0.5)
 			var push := ahead if ahead != Vector2.ZERO else (at - cell).normalized()
 			var target := cell_index(at + push)
 			if target >= 0 and target != k: pushed[target] += moved * SMEAR
 		removed += before - glaze[k] - crust[k] - gum[k] - paste[k]
+	takes = taken
 	for k in range(N * N):
 		gum[k] += pushed[k]
 	face.glaze = glaze
@@ -392,16 +498,21 @@ func wipe(id: String, cell: Vector2, delta: float) -> bool:
 	var removed := 0.0
 	var blocked := 0
 	var cells := brush(cell, 3.2)
+	var taken := {"film": 0.0, "gum": 0.0, "paste": 0.0}
 	for entry in cells:
 		var k: int = entry[0]
 		if face.glaze[k] + face.crust[k] > 0.15:
 			blocked += 1
 			continue
 		var before: float = film[k] + gum[k] + paste[k]
-		film[k] = maxf(0.0, film[k] - 2.4 * delta * entry[1])
-		gum[k] = maxf(0.0, gum[k] - WIPE_GUM_RATE * delta * entry[1])
-		paste[k] = maxf(0.0, paste[k] - 5.0 * delta * entry[1])
+		var lifted := {"film": minf(film[k], 2.4 * delta * entry[1]), "gum": minf(gum[k], WIPE_GUM_RATE * delta * entry[1]),
+			"paste": minf(paste[k], 5.0 * delta * entry[1])}
+		film[k] -= lifted.film
+		gum[k] -= lifted.gum
+		paste[k] -= lifted.paste
+		for layer_name in lifted: taken[layer_name] += lifted[layer_name]
 		removed += before - film[k] - gum[k] - paste[k]
+	takes = taken
 	face.film = film
 	face.gum = gum
 	face.paste = paste
@@ -526,6 +637,8 @@ func deny(reason: String) -> void:
 func set_muted(value: bool) -> void:
 	muted = value
 	if muted and jingle != null: jingle.stop()
+	for voice in [scrape_sound, wipe_sound]:
+		if voice != null: voice.set_muted(value)
 
 func debug_dry() -> bool:
 	if not OS.is_debug_build(): return false

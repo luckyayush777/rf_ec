@@ -57,16 +57,25 @@ func chip(point: Vector3, normal: Vector3, count: int) -> void:
 	for i in range(mini(count, 6)):
 		spawn(point, normal, normal, true, CHIP_COLOR, rng.randf_range(0.004, 0.009))
 
-func spawn(point: Vector3, normal: Vector3, away: Vector3, flake: bool, color := Color(), size := 0.0) -> void:
+## Scraped compound leaving a paste face: crumbs or a clump pushed off ahead of the blade.
+## Slow and small, sized to the face, so they roll off rather than fly.
+func debris(point: Vector3, normal: Vector3, direction: Vector3, count: int, color: Color, size: float) -> void:
+	for i in range(mini(count, 6)):
+		spawn(point, normal, direction, true, color, size * rng.randf_range(0.7, 1.3), size * 4.0)
+
+## speed: launch speed; 0 uses the dust's own range.
+func spawn(point: Vector3, normal: Vector3, away: Vector3, flake: bool, color := Color(), size := 0.0, speed := 0.0) -> void:
 	if particles.size() >= CAPACITY: particles.pop_front()
 	var spread := Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0))
 	particles.append({
-		"position": point + normal * 0.006 + spread * 0.015,
-		"velocity": (away * 0.6 + normal * 0.5 + spread * 0.35).normalized() * rng.randf_range(0.25, 0.6),
+		"position": point + normal * (size if speed > 0.0 else 0.006) + spread * (size if speed > 0.0 else 0.015),
+		"velocity": (away * 0.6 + normal * 0.5 + spread * 0.35).normalized() * (speed * rng.randf_range(0.6, 1.2) if speed > 0.0 else rng.randf_range(0.25, 0.6)),
 		"age": 0.0,
 		"life": rng.randf_range(1.1, 1.8) if flake else rng.randf_range(0.7, 1.4),
 		"size": size if size > 0.0 else rng.randf_range(0.01, 0.018) if flake else rng.randf_range(0.08, 0.18),
 		"color": color if color != Color() else FLAKE_COLOR if flake else PUFF_COLOR,
+		# Debris falls on the paste face's scale, so it is seen rolling off the die.
+		"fall": size * 30.0 if speed > 0.0 else 2.2,
 		"flake": flake})
 	visible = true
 
@@ -77,7 +86,7 @@ func _process(delta: float) -> void:
 		particle.age += delta
 		if particle.age >= particle.life: continue
 		if particle.flake:
-			particle.velocity = particle.velocity * exp(-1.2 * delta) + Vector3.DOWN * 2.2 * delta
+			particle.velocity = particle.velocity * exp(-1.2 * delta) + Vector3.DOWN * particle.fall * delta
 		else:
 			# Fine dust loses its push quickly and hangs, rising a little in the air.
 			particle.velocity = particle.velocity * exp(-2.6 * delta) + Vector3.UP * 0.04 * delta

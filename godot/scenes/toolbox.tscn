@@ -17,6 +17,40 @@ albedo_color = Color(0.8, 0.32, 0.035, 1)
 metallic = 0
 roughness = 0.55
 
+[sub_resource type="StandardMaterial3D" id="LoupeGlass"]
+transparency = 1
+albedo_color = Color(0.78, 0.88, 0.92, 0.28)
+metallic_specular = 1.0
+roughness = 0.05
+
+[sub_resource type="CylinderMesh" id="LoupeHandleMesh"]
+top_radius = 0.07
+bottom_radius = 0.085
+height = 0.9
+radial_segments = 16
+material = SubResource("Black")
+
+[sub_resource type="CylinderMesh" id="LoupeNeckMesh"]
+top_radius = 0.045
+bottom_radius = 0.045
+height = 0.16
+radial_segments = 12
+material = SubResource("Silver")
+
+[sub_resource type="TorusMesh" id="LoupeRingMesh"]
+inner_radius = 0.22
+outer_radius = 0.29
+rings = 32
+ring_segments = 10
+material = SubResource("Silver")
+
+[sub_resource type="CylinderMesh" id="LoupeLensMesh"]
+top_radius = 0.225
+bottom_radius = 0.225
+height = 0.025
+radial_segments = 32
+material = SubResource("LoupeGlass")
+
 [sub_resource type="StandardMaterial3D" id="DevPurple"]
 albedo_color = Color(0.68, 0.34, 0.77, 1)
 metallic = 0.2
@@ -539,3 +573,23 @@ font_size = 28
 pixel_size = 0.006
 modulate = Color(0.12, 0.09, 0.03, 1)
 outline_size = 0
+
+[node name="Loupe" type="Node3D" parent="."]
+
+[node name="Handle" type="MeshInstance3D" parent="Loupe"]
+position = Vector3(-0.4, 0, 0)
+rotation_degrees = Vector3(0, 0, -90)
+mesh = SubResource("LoupeHandleMesh")
+
+[node name="Neck" type="MeshInstance3D" parent="Loupe"]
+position = Vector3(0.12, 0, 0)
+rotation_degrees = Vector3(0, 0, -90)
+mesh = SubResource("LoupeNeckMesh")
+
+[node name="Ring" type="MeshInstance3D" parent="Loupe"]
+position = Vector3(0.45, 0, 0)
+mesh = SubResource("LoupeRingMesh")
+
+[node name="Lens" type="MeshInstance3D" parent="Loupe"]
+position = Vector3(0.45, 0, 0)
+mesh = SubResource("LoupeLensMesh")

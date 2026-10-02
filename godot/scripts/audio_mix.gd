@@ -14,6 +14,9 @@ const MONITOR_POWER := &"MonitorPower"
 const STICKER_PEEL := &"StickerPeel"
 const AIR_BLOWER := &"AirBlower"
 const RACING_GAME := &"RacingGame"
+const SPUDGER := &"SpudgerScrape"
+const IPA_WIPE := &"IpaWipe"
+const PC_INPUT := &"PcInput"
 const CHANNELS := [
 	[MASTER, "Master"],
 	[FAN_QUIET, "Fan, quiet loop"],
@@ -26,7 +29,10 @@ const CHANNELS := [
 	[GPU_ATTACH, "GPU seating"],
 	[MONITOR_POWER, "Monitor power button"],
 	[RACING_GAME, "Racing test game"],
-	[STICKER_PEEL, "Sticker peel"]]
+	[STICKER_PEEL, "Sticker peel"],
+	[SPUDGER, "Spudger scrape"],
+	[IPA_WIPE, "IPA wipe"],
+	[PC_INPUT, "Shop PC keys and mouse"]]
 const LAYOUT_PATH := "res://default_bus_layout.tres"
 const USER_PATH := "user://audio_mix.cfg"
 ## Sliders run from silent to double loudness (+6 dB).

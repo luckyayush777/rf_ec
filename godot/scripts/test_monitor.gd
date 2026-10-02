@@ -40,6 +40,8 @@ const STALL_MIN := 0.09
 ## Chance per sample, at full memory errors, of a corrupted (crackling) sample.
 const CRACKLE_RATE := 0.002
 const GAME_TRIM_DB := -6.0
+## A narrow PCIe link caps the feed however cool and fast the core runs.
+const LINK_FPS := {16: 60, 8: 34, 4: 18, 1: 8}
 
 @onready var screen: MeshInstance3D = $Screen
 @onready var button: MeshInstance3D = $PowerButton
@@ -58,6 +60,8 @@ var clock_mhz := Thermal.BOOST_CLOCK
 var throttle := 0.0
 ## 0-1 share of VRAM bit errors reaching the feed.
 var memory_errors := 0.0
+## Lanes the slot trained, from gpu_connector.gd; 0 while the link is down (no picture).
+var link_width := 16
 var presented_frames := 0
 var frame_time := 0.0
 var frame_interval := 0.125
@@ -129,6 +133,9 @@ func set_muted(value: bool) -> void:
 
 func set_connection(value: bool) -> void:
 	connected = value
+	# A newly seated card starts at full width until gpu_connector.gd reports its link.
+	link_width = 16
+	update_rate()
 	reset_simulation()
 	update_face()
 	changed.emit()
@@ -139,8 +146,26 @@ func set_sensors(core: float, clock: int, errors: float) -> void:
 	core_c = roundi(core)
 	clock_mhz = clock
 	throttle = clampf(float(Thermal.BOOST_CLOCK - clock) / (Thermal.BOOST_CLOCK - Thermal.THROTTLED_CLOCK), 0.0, 1.0)
-	simulated_fps = roundi(lerpf(60.0, 8.0, 1.0 - pow(1.0 - throttle, 2.0)))
+	update_rate()
 	if stats.visible: update_face()
+
+func set_link(width: int) -> void:
+	if width == link_width: return
+	var regained := link_width == 0
+	link_width = width
+	update_rate()
+	# The game resumes from its next frame after the link retrains.
+	if regained: frame_time = 0.0
+	update_face()
+	changed.emit()
+
+func update_rate() -> void:
+	var clock_fps := roundi(lerpf(60.0, 8.0, 1.0 - pow(1.0 - throttle, 2.0)))
+	simulated_fps = mini(clock_fps, LINK_FPS.get(link_width, 60))
+
+## A picture reaches the screen: powered, cabled, and the card's link is up.
+func has_picture() -> bool:
+	return powered and connected and link_width > 0
 
 func toggle_power() -> void:
 	powered = not powered
@@ -196,7 +221,7 @@ func next_interval() -> float:
 	return interval
 
 func _process(delta: float) -> void:
-	if powered and connected: present(delta)
+	if has_picture(): present(delta)
 	feed_audio()
 
 func present(delta: float) -> void:
@@ -211,11 +236,11 @@ func present(delta: float) -> void:
 
 ## The game is stuck between frames for far longer than its normal cadence.
 func is_stalled() -> bool:
-	return powered and connected and frame_time > maxf(STALL_INTERVALS / float(simulated_fps), STALL_MIN)
+	return has_picture() and frame_time > maxf(STALL_INTERVALS / float(simulated_fps), STALL_MIN)
 
-## Keeps the monitor speakers' stream filled while the race runs.
+## Keeps the monitor speakers' stream filled while the race runs; a dropped link silences it.
 func feed_audio() -> void:
-	if not powered or not connected:
+	if not has_picture():
 		if game_audio.playing: game_audio.stop()
 		audio_playback = null
 		return
@@ -400,10 +425,14 @@ func update_face() -> void:
 	elif not connected:
 		image.fill(Color(0.055, 0.105, 0.14))
 		readout.text = "NO SIGNAL"
+	elif link_width == 0:
+		# The card dropped off the bus: a blank input until the link retrains.
+		image.fill(Color(0.055, 0.105, 0.14))
+		readout.text = "LINK LOST"
 	else:
-		readout.text = "RALLY"
-	fps_readout.visible = powered and connected
+		readout.text = "RALLY  PCIe x%d" % link_width
+	fps_readout.visible = has_picture()
 	fps_readout.text = "SIM %02d FPS" % simulated_fps
-	stats.visible = powered and connected
+	stats.visible = has_picture()
 	stats.text = "LAP %d\n%s\nMHZ\n%d\nGPU\n%d°C" % [lap, lap_clock(), clock_mhz, core_c]
-	if not powered or not connected: texture.update(image)
+	if not has_picture(): texture.update(image)

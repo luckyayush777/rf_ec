@@ -12,7 +12,15 @@ const GOOD_CONTACT := 0.9
 static func rows(bench: Node3D) -> Array[Dictionary]:
 	if not bench.gpu.visible: return [job(bench.jobs)]
 	return [job(bench.jobs), dust(bench.cleaning), paste(bench.paste), bearing(bench.bearing),
-		assembly(bench.service), test(bench)]
+		connector(bench.connector), assembly(bench.service), test(bench)]
+
+## Debug-set damage only for now: jobs do not roll it and it cannot be repaired yet.
+static func connector(edge: Node) -> Dictionary:
+	if edge.state == "ok": return row("Edge connector", DONE, "Clean contacts, link x16")
+	var detail: String = {"oxidised": "Oxidised fingers · link x8, drops out at random and when rocked",
+		"lifted": "Lifted finger (contact 17, fan side) · drops out when rocked",
+		"torn": "Torn finger (contact 24, fan side) · lanes lost, link x4"}[edge.state]
+	return row("Edge connector", FAULT, detail + " · %d dropout%s" % [edge.drops, "" if edge.drops == 1 else "s"])
 
 ## The rolled faults, which play only hints at through the customer's complaint.
 static func job(jobs: Node) -> Dictionary:

@@ -9,6 +9,13 @@ signal used(active: bool)
 
 const UI = preload("res://scripts/screen_ui.gd")
 const CRT = preload("res://shaders/crt_screen.gdshader")
+const AudioMix = preload("res://scripts/audio_mix.gd")
+## Recorded keystrokes (unicaegames, CC0) and mouse buttons (Kenney, CC0); see ASSET_CREDITS.md.
+const KEY_SOUNDS := 12
+const KEY_SOUND_PATH := "res://assets/sounds/pc/keypress-%03d.wav"
+## Sitting down types a quick login-like burst of keys, this many with gaps in this range.
+const LOGIN_KEYS := 5
+const KEY_GAP := Vector2(0.06, 0.13)
 ## A 4:3 tube; low resolution keeps the type chunky.
 const PAGE_SIZE := Vector2i(800, 600)
 ## Glass bulge shared with crt_screen.gdshader: corners curve out of view.
@@ -42,6 +49,13 @@ var led_on := {}
 var led_off: StandardMaterial3D
 var disk_time := 0.0
 var floppy_time := 0.0
+var keys_audio: AudioStreamPlayer
+var mouse_down_audio: AudioStreamPlayer
+var mouse_up_audio: AudioStreamPlayer
+var typing: Tween
+## Counted for tests: every keystroke and mouse button the PC has sounded.
+var keystrokes := 0
+var mouse_clicks := 0
 
 func _ready() -> void:
 	for node in [screen, $Housing, $Keyboard, $Cabinet]:
@@ -52,6 +66,7 @@ func _ready() -> void:
 	(screen.material_override as ShaderMaterial).set_shader_parameter("curvature", CURVATURE)
 	build_page()
 	build_hardware()
+	build_sounds()
 
 func configure(world: Node3D, repair_jobs: Node) -> void:
 	bench = world
@@ -59,6 +74,53 @@ func configure(world: Node3D, repair_jobs: Node) -> void:
 	# Deferred: a page button's own click can change the jobs, and its page is rebuilt.
 	jobs.changed.connect(func(): refresh.call_deferred())
 	refresh()
+
+# --- Keyboard and mouse sounds ------------------------------------------------------------
+
+func build_sounds() -> void:
+	# Each keystroke is a different recorded key, slightly re-pitched, overlapping when fast.
+	var keys := AudioStreamRandomizer.new()
+	for index in range(1, KEY_SOUNDS + 1):
+		keys.add_stream(-1, load(KEY_SOUND_PATH % index))
+	keys.random_pitch = 1.06
+	keys.random_volume_offset_db = 2.0
+	keys_audio = make_player("KeyboardClack", keys, -3.0)
+	keys_audio.max_polyphony = 4
+	mouse_down_audio = make_player("MouseClick", load("res://assets/sounds/pc/mouse_click.wav"), -6.0)
+	mouse_up_audio = make_player("MouseRelease", load("res://assets/sounds/pc/mouse_release.wav"), -8.0)
+
+func make_player(player_name: String, sound: AudioStream, trim_db: float) -> AudioStreamPlayer:
+	var player := AudioStreamPlayer.new()
+	player.name = player_name
+	player.stream = sound
+	player.volume_db = trim_db
+	player.set_meta("trim_db", trim_db)
+	player.bus = AudioMix.PC_INPUT
+	add_child(player)
+	return player
+
+func set_muted(value: bool) -> void:
+	for player in [keys_audio, mouse_down_audio, mouse_up_audio]:
+		player.volume_db = -80.0 if value else float(player.get_meta("trim_db"))
+
+func clack() -> void:
+	keystrokes += 1
+	keys_audio.play()
+
+## A short run of keys at an uneven human pace.
+func type_burst(count: int) -> void:
+	if typing != null: typing.kill()
+	typing = create_tween()
+	for index in range(count):
+		typing.tween_callback(clack)
+		typing.tween_interval(randf_range(KEY_GAP.x, KEY_GAP.y))
+
+func mouse_button(pressed: bool) -> void:
+	if pressed:
+		mouse_clicks += 1
+		mouse_down_audio.play()
+	else:
+		mouse_up_audio.play()
 
 # --- Hardware details -------------------------------------------------------------------
 
@@ -403,11 +465,14 @@ func use() -> void:
 	if hidden_tool != null: hidden_tool.visible = false
 	blend_to(1.0)
 	refresh()
+	type_burst(LOGIN_KEYS)
 	used.emit(true)
 
 func leave() -> void:
 	if not in_use: return
 	in_use = false
+	if typing != null: typing.kill()
+	clack()
 	push_pointer(Vector2(-1, -1), InputEventMouseMotion.new())
 	if hidden_tool != null: hidden_tool.visible = true
 	hidden_tool = null
@@ -424,8 +489,12 @@ func blend_to(weight: float) -> void:
 func handle_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.physical_keycode in [KEY_ESCAPE, KEY_TAB]: leave()
-		elif PAGE_KEYS.has(event.physical_keycode): show_tab(PAGE_KEYS[event.physical_keycode])
+		elif PAGE_KEYS.has(event.physical_keycode):
+			clack()
+			show_tab(PAGE_KEYS[event.physical_keycode])
 	elif event is InputEventMouse:
+		if event is InputEventMouseButton and event.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
+			mouse_button(event.pressed)
 		push_pointer(page_point(event.position), event)
 
 ## Screen UV to page UV through the glass bulge; identical to crt_screen.gdshader.

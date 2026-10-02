@@ -41,8 +41,20 @@ const AIR_COAST := 2.5
 const AIR_HOLD_MSEC := 150
 var air_until := 0
 var air_spun := false
+## Rocking the seated card in its slot (the wiggle test). The card tilts about its connector
+## line on a damped spring; gpu_connector.gd reads the angle to open a lifted finger.
+const ROCK_LIMIT := 0.06
+const ROCK_PUSH := 0.012
+const ROCK_STIFFNESS := 140.0
+const ROCK_DAMPING := 9.0
+var seated_pose := Transform3D.IDENTITY
+var rock_angle := 0.0
+var rock_velocity := 0.0
+var wiggling := false
 ## A supplied recording replaces the synthesized placeholder grind.
 const GRIND_RECORDING := "res://assets/sounds/fan_grind.wav"
+## The edge connector's centre line in card space (imported connector meshes sit at z 1.43).
+const CONNECTOR_LINE := 1.43
 
 func configure(card: Node3D, test_board: Node3D, display: Node3D, inspect: Node,
 		gpu_service: Node, workbench_tools: Node, gpu_cleaning: Node) -> void:
@@ -88,7 +100,38 @@ func make_fan_audio(node_name: String, source: AudioStreamWAV, bus: StringName) 
 	add_child(player)
 	return player
 
+func begin_wiggle() -> bool:
+	if not installed or moving: return false
+	wiggling = true
+	return true
+
+func end_wiggle() -> void:
+	wiggling = false
+
+## Mouse travel while holding the seated card pushes it side to side.
+func rock(pixels: float) -> void:
+	if wiggling: rock_velocity += pixels * ROCK_PUSH
+
+func update_rock(delta: float) -> void:
+	if not installed or moving:
+		rock_angle = 0.0
+		rock_velocity = 0.0
+		return
+	rock_velocity += (-ROCK_STIFFNESS * rock_angle - ROCK_DAMPING * rock_velocity) * delta
+	rock_angle += rock_velocity * delta
+	if absf(rock_angle) > ROCK_LIMIT:
+		rock_angle = clampf(rock_angle, -ROCK_LIMIT, ROCK_LIMIT)
+		rock_velocity = 0.0
+	if not wiggling and absf(rock_angle) < 0.0005 and absf(rock_velocity) < 0.01:
+		rock_angle = 0.0
+		rock_velocity = 0.0
+	# Tilt about the connector line, which runs along the card's length in the slot.
+	var pivot: Vector3 = seated_pose * Vector3(0, 0, CONNECTOR_LINE)
+	var axis: Vector3 = seated_pose.basis.x.normalized()
+	gpu.global_transform = Transform3D(Basis(axis, rock_angle), pivot) * Transform3D(Basis.IDENTITY, -pivot) * seated_pose
+
 func _process(delta: float) -> void:
+	update_rock(delta)
 	if rotor == null: return
 	var running := installed and not moving
 	var blown := not running and Time.get_ticks_msec() < air_until
@@ -230,6 +273,7 @@ func attach() -> bool:
 	motion = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	motion.tween_property(gpu, "global_transform", destination, 0.55)
 	motion.finished.connect(func():
+		seated_pose = destination
 		installed = true
 		moving = false
 		monitor.set_connection(true)
@@ -242,6 +286,7 @@ func attach() -> bool:
 func detach() -> bool:
 	if not installed or moving or service.busy or tools.busy: return false
 	attach_audio.stop()
+	wiggling = false
 	moving = true
 	monitor.set_connection(false)
 	update_fan_audio(false)
