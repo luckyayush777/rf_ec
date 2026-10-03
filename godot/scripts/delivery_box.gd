@@ -41,6 +41,11 @@ var motion: Tween
 var rest := Transform3D.IDENTITY
 var brand := "Lotac"
 var parked := false
+## Where the parcel is: "" (not delivered), "outside" (behind the hatch shutter), "sill" (on the
+## hatch counter), "held" (carried under the camera) or "desk" (on the repair desk, openable).
+var location := ""
+## True while a carry or set-down move is under way.
+var moving := false
 var print_labels: Array[Label3D] = []
 var brand_labels: Array[Label3D] = []
 var unbox_audio: AudioStreamPlayer
@@ -291,12 +296,52 @@ func deliver(text: String, id := "Lotac", faults: Array = [], note := "", signat
 	for pivot in flaps: pivot.basis = Basis.IDENTITY
 	tape.visible = true
 	parked = false
+	location = "desk"
 	set_meta("action", "delivery_box")
 	transform = rest.translated(Vector3(0, 1.6, 0))
 	scale = Vector3.ONE
 	visible = true
 	motion = create_tween().set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
 	motion.tween_property(self, "transform", rest, 0.5)
+
+## Waits, hidden and unclickable, behind the hatch shutter (`delivery_window.gd` brings it in).
+func hold_outside(at: Transform3D) -> void:
+	if motion != null: motion.kill()
+	location = "outside"
+	set_meta("action", "")
+	visible = false
+	scale = Vector3.ONE
+	global_transform = at
+
+func land_on_sill() -> void:
+	location = "sill"
+	set_meta("action", "parcel")
+
+## Lifts the parcel into both hands: it rides under the camera (so aim rays pass it) at `pose`.
+func carry(holder: Node3D, pose: Transform3D) -> Signal:
+	if motion != null: motion.kill()
+	location = "held"
+	moving = true
+	set_meta("action", "")
+	reparent(holder)
+	motion = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	motion.tween_property(self, "transform", pose, 0.3)
+	motion.finished.connect(func(): moving = false)
+	return motion.finished
+
+## Puts the parcel down at a world transform under `parent`: on the repair desk it becomes the
+## box to open (and `rest` follows it); back on the hatch counter it waits to be carried again.
+func set_down(parent: Node3D, at: Transform3D, where: String) -> Signal:
+	if motion != null: motion.kill()
+	moving = true
+	reparent(parent)
+	location = where
+	set_meta("action", "delivery_box" if where == "desk" else "parcel")
+	if where == "desk": rest = parent.global_transform.affine_inverse() * at
+	motion = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	motion.tween_property(self, "global_transform", at, 0.35)
+	motion.finished.connect(func(): moving = false)
+	return motion.finished
 
 func open() -> Signal:
 	if motion != null: motion.kill()
@@ -332,4 +377,5 @@ func take_away() -> void:
 	motion.finished.connect(func():
 		visible = false
 		parked = false
+		location = ""
 		transform = rest)

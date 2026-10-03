@@ -21,6 +21,7 @@ const UNBOX := &"Unbox"
 const SET_DOWN := &"SetDown"
 const OIL_DROP := &"OilDrop"
 const PASTE_SQUEEZE := &"PasteSqueeze"
+const SHUTTER := &"Shutter"
 const CHANNELS := [
 	[MASTER, "Master"],
 	[FAN_QUIET, "Fan, quiet loop"],
@@ -40,6 +41,7 @@ const CHANNELS := [
 	[OIL_DROP, "Bearing oil drop"],
 	[UNBOX, "Unboxing"],
 	[SET_DOWN, "Card set down"],
+	[SHUTTER, "Delivery hatch shutter"],
 	[PC_INPUT, "Shop PC keys and mouse"]]
 const LAYOUT_PATH := "res://default_bus_layout.tres"
 const USER_PATH := "user://audio_mix.cfg"

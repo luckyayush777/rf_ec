@@ -6,9 +6,10 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 
 ## Implemented
 
-- **Repair jobs**: play opens on an empty bench. Take a job on the shop computer's internal portal, open the delivery box on the repair desk, diagnose and fix the card, then return it from the portal to get paid. See [Repair jobs](#repair-jobs).
+- **Repair jobs**: play opens on an empty bench. Take a job on the shop computer's internal portal; a few seconds later the parcel comes in through the delivery hatch under the window. Carry it to the repair desk, open it, diagnose and fix the card, then return it from the portal to get paid. See [Repair jobs](#repair-jobs).
+- **The view outside and the time of day**: the shop sits on a ledge high in the mountains of central China. A three-bay window in the right wall looks over a yard and stone parapet into a valley framed by detailed stylized mountains, steep rock faces and hazy distant ridges. The sky follows the shop clock: morning, a western sunset straight out of the window, then a night of stars, moon and village lights in the valley. Afternoon sun throws a window-shaped patch into the room; at night the room dims and the workshop lamps turn warmer. Leaving through the front door ends the day. See [Day and night](#day-and-night).
 - Rounded, stylized 710 / 2GB DDR3 GPU with rounded fins and larger capacitors/screw heads, retaining its original component hierarchy and 12 separate worn-pad residue meshes. Delivered cards use one of three consistent brand palettes: **Lotac** (teal, cream and orange), **Vsus** (navy and mint), or **CSI** (charcoal, plum and red). Each brand has matching printed retail packaging; components, specifications and repair behaviour are shared.
-- Imported workshop interior with a brick back wall, painted side wall, tiled floor, background instrument bench, oscilloscope, labelled parts bins, soldering station, stool and trolley. The runtime is enclosed for first-person play; the editor keeps a cutaway overview. The props are scenery. See [room authoring](../models/shop-interior.md).
+- Imported workshop interior with a brick back wall, painted side wall, tiled floor, a delivery window in the right wall, background instrument bench, oscilloscope, labelled parts bins, soldering station, stool and trolley. The runtime is enclosed for first-person play; the editor keeps a cutaway overview. The props are scenery. See [room authoring](../models/shop-interior.md).
 - Native, editable repair-desk scene with mat, holder jaws, tray, canvas tool roll, simplified lamp/spare-parts props, and floor.
 - Imported second testing desk, aligned beside the repair desk using tabletop bounds.
 - Native LCD test monitor with a physical power button, status LED and a visible signal cable to the testing board. The assembled GPU seats in the board and returns to its repair holder; the monitor runs a deterministic pseudo-3D racing demo whose simulated rate follows the card's core clock. The clock holds 1905 MHz below 70 degrees C and drops in 15 MHz bins to 600 MHz at the 105 degrees C limit (60 FPS at full clock, down to 8 FPS fully throttled); a throttling card also stutters with uneven frame pacing and hitches. Hot VRAM does not slow the feed; it shows memory errors as sparkling pixels, garbage blocks and torn rows. The monitor lists the lap time, core **MHZ** and **GPU °C**. The game plays through the monitor speakers: an engine whose pitch follows the car's speed, road roar, tyre squeal in tight bends and a whoosh when passing. Its sound breaks up with the card: at low frame rates the engine pitch moves in steps, a hitched frame loops the last fraction of a second into a stuttering buzz, and hot VRAM adds crackles. Attachment and power-on sounds are included.
@@ -30,13 +31,13 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 - Shop **air blower** (electric duster) in the tool bag's last pocket. It works in focus: hold LMB and sweep its narrow jet. Thick felt lifts quickly in clumps; the last thin film clings and needs steady air. Air also carries a little way past the aimed surface into faces turned toward it, such as fin gaps or the fins under the fan. Cleaned dust leaves as a soft cloud with falling flakes. Its motor (a synthesized placeholder until `assets/sounds/air_blower.wav` is supplied) winds up on the trigger and coasts down after release. Blowing on an idle fan's rotor freewheels it, then it coasts to a stop; a dry bearing grinds while it spins, and the rotor cannot be serviced until it stops.
 - Development-only **Dev blower** in the toolbox. Its nozzle follows the crosshair and must point at a visible part to remove dust. Holding the trigger plays the supplied air recording, with its steady section looped. The Tab menu shows overall and per-part cleanliness. At 98% cleanliness, that part's remaining dust clears and its jingle plays once (unless sound is muted).
 - The Escape menu opens with collapsed sections: **Dust & diagnostics**, **Assembly**, **Fault setup**, **Repair speeds**, and **Sound**. Click a header to expand or collapse its subpanel; expanded groups scroll inside the menu when needed. The four debug sections appear only in debug builds.
-- Debug builds have **Clean GPU** under **Dust & diagnostics** and **Disassemble GPU** / **Reassemble GPU** under **Assembly**. Clean GPU clears every dust mask; a connected test monitor recovers as the card cools (dried paste still throttles it). Disassemble GPU unplugs the cable, moves all eight screws into their tray rows, and lays the heatsink and fan out on the mat just left of the card; normal refitting still works afterward. Disassembly is available when the GPU is set down and off the test board.
+- Debug builds have **Clean GPU** and **Advance clock 1 h** (to look at the evening and night sky) under **Dust & diagnostics** and **Disassemble GPU** / **Reassemble GPU** under **Assembly**. Clean GPU clears every dust mask; a connected test monitor recovers as the card cools (dried paste still throttles it). Disassemble GPU unplugs the cable, moves all eight screws into their tray rows, and lays the heatsink and fan out on the mat just left of the card; normal refitting still works afterward. Disassembly is available when the GPU is set down and off the test board.
 - Low-density dust remains visible until its mask is fully erased. In debug builds, the bottom **highlight dust** button toggles a magenta view of remaining dust through parts. If dust remains 30 seconds after equipping the Dev blower, this view turns on automatically. Rotate, flip or remove parts to expose dust before cleaning it.
 - Pointer release, Escape and window focus loss pause active screw turns. Tool/cable/inspection changes are blocked during active service animations.
 - Screwdriver, blowers and cleaning jingles share a sound toggle; see [asset credits](ASSET_CREDITS.md).
 - **Repair status overlay** (debug builds, developer aid): expand **Escape → Dust & diagnostics** and switch on **Repair status overlay**; the choice is remembered. It lists the Job (including the rolled faults the customer only hints at), then Dust, Thermal paste, Fan bearing, Assembly and the live Test run readout, each red (broken or untouched), yellow (in progress) or green (done), with hidden truth such as paste contact percentage. It stays visible during play and above focus views.
 - **Repair speeds (debug)**: expand **Escape → Repair speeds** and adjust **Dust clearing**, **IPA wiping**, or **Paste scraping**. Each multiplier ranges from 0.1x to 20x; 1x is the original speed and higher values remove material faster. Changes apply immediately and persist in `user://bench_repair_speeds.cfg`. **Reset repair speeds to 1x** restores the baseline. Dust affects both blowers; IPA affects paste residue and fan-shaft gunk. Brush sizes, scrape-before-wipe rules and paste application stay the same. Release builds always use the original rates. Automated fixtures start at 1x regardless of saved play tuning.
-- **Sound mix**: expand **Escape → Sound** for a Master slider and one slider per sound (fan quiet/loud loops, bearing grind, air blower motor, Dev blower air, screwdriver, clean jingle, GPU seating, monitor button, racing game, sticker peel, spudger scrape, IPA wipe, paste squeeze, bearing oil drop, unboxing, card set down, shop PC keys and mouse), from silent to 200%. Changes apply live. Run from the editor, they save into `default_bus_layout.tres`, so they can be committed and are also editable in the editor's bottom **Audio** tab; exported builds save them to user settings.
+- **Sound mix**: expand **Escape → Sound** for a Master slider and one slider per sound (fan quiet/loud loops, bearing grind, air blower motor, Dev blower air, screwdriver, clean jingle, GPU seating, monitor button, racing game, sticker peel, spudger scrape, IPA wipe, paste squeeze, bearing oil drop, unboxing, card set down, delivery hatch shutter, shop PC keys and mouse), from silent to 200%. Changes apply live. Run from the editor, they save into `default_bus_layout.tres`, so they can be committed and are also editable in the editor's bottom **Audio** tab; exported builds save them to user settings.
 - Service-rule evaluator, exercised against 1,024 checked-in expected decisions and used by the live cable/screw controller.
 
 ## Controls
@@ -47,7 +48,9 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 | Release/resume mouse | Tab or Escape; releasing also ends screw/blower holds |
 | Interact / pick up | Aim the crosshair and press E (or click); move within reach |
 | Shop computer | E or click on the beige PC by the front wall (screen, cabinet or keyboard). The camera settles on the CRT and the cursor is freed: click tabs and buttons on the screen, or press F1 / F2 / F3 for the job board, bench and ledger. Esc or Tab steps away. Set held parts down first. Sitting down types a quick burst on the clacky keyboard; page keys and stepping away clack too, and every mouse press and release clicks (recorded CC0 sounds, see [asset credits](ASSET_CREDITS.md)). |
+| Fetch a parcel | E or click on the parcel on the delivery hatch counter under the window (empty hands: set parts down and return the tool first). It is carried in both hands: aim at a clear spot on the repair desk (green ring) and press E or click to set it down; Q puts it back on the hatch. |
 | Open the delivery box | E or click on the box on the repair desk; the flaps open and the card slides out of its sleeve into its holder (recorded sounds, see [asset credits](ASSET_CREDITS.md)) |
+| End the day | E or click on the front door (EXIT sign). Set held parts down first. The screen fades and the shop opens again at 09:00 the next day, with you back by the bench. |
 | Return a card | Portal **My bench** tab: **Return card to customer**. The card must be reassembled with its fan cable connected and set down. |
 | Inspect GPU | E on the card, including with a tool equipped; RMB + mouse rotates, F flips, wheel adjusts holding distance. With a part held, R opens focus; E on the mat places that part and keeps the equipped tool. |
 | Place / return held card | GPU and detached parts sit in the left hand. Aim at the desk: a green ring marks a clear placement and red marks a blocked spot. E places the part while keeping your tool; Q returns the carried card to its repair holder. |
@@ -92,8 +95,10 @@ Play opens on an empty bench with **$100**. The loop:
      price, and tag the box with the faults they found.
    - **Customers** only leave a note such as "fix it". You diagnose the card and bill them,
      and they rate you.
-2. **Unbox it.** A branded retail box drops onto the repair desk, between the card holder
-   and the screw tray. Its lid carries the paperwork, handwritten: a tech's fault tag in
+2. **Fetch and unbox it.** About 2.5 seconds after you accept, the roller shutter on the
+   delivery hatch under the right-wall window rattles up, a branded retail box slides in
+   onto the counter and the shutter comes back down. Carry the box to the repair desk and
+   set it down on a clear spot (see [Controls](#controls)). Its lid carries the paperwork, handwritten: a tech's fault tag in
    marker (green tag for one fault, yellow tag for two, red card for three or more, signed),
    or a customer's yellow sticky note in ballpoint. One click breaks the seal, opens the hinged lid and lifts the
    card out of its foam cradle and silver anti-static sleeve into the holder. The open,
@@ -143,14 +148,17 @@ Half of all requests come from techs (`TECH_SHARE`). The opening board always st
 so the first card arrives tagged with its faults, which acts as a soft tutorial. Techs do not
 rate the shop yet.
 
-**Shop clock.** Play time runs at a quarter of a shop minute per second (15 shop minutes per
-real minute) from 09:00 on day 1. The portal header shows it.
+**Shop clock.** Play time runs at half a shop minute per second (30 shop minutes per real
+minute) from 09:00 on day 1, so the 09:00-21:00 working day takes 24 real minutes. The
+portal header shows it. At 21:00 a notice reminds you to close; leaving through the front
+door skips to 09:00 the next day. Cards, parcels and customers' deadlines carry over, and
+deadlines keep counting through the night.
 
 **Customer bills** are itemised on **My bench** while you work:
 
 - a $20 diagnosis fee;
 - labour from unboxing to return, billed in started quarter hours at the shop's **labour
-  rate** ($40/h by default; the **-**/**+** buttons beside the bill change it in $5 steps,
+  rate** ($20/h by default; the **-**/**+** buttons beside the bill change it in $5 steps,
   from $10 to $150);
 - the card's **bill of materials**: everything used on it, at catalogue prices. For now that
   is consumables: thermal paste per gram from the syringe, one IPA pad per fresh pad
@@ -160,12 +168,34 @@ real minute) from 09:00 on day 1. The portal header shows it.
 The customer pays the total in whole dollars.
 
 **Ratings.** A customer starts at five stars and loses up to three for lateness. They wait from
-acceptance to return, and the board shows how long they will wait (a base hour plus 45 minutes
+acceptance to return, and the board shows how long they will wait (two hours plus 90 minutes
 per hidden fault plus some slack). They lose another star at 1.5x the due time, at 2x and beyond.
 They also lose up to three for price compared with what they consider fair: the diagnosis fee
 plus the fault prices a tech would pay. Bills up to 1.2x fair cost nothing, then a star each at
 1.5x, 2x and beyond. The minimum is one star. The ledger shows each customer's stars and the
 shop's average; the queue display shows the average too. Ratings do not affect jobs yet.
+
+## Day and night
+
+The shop clock drives the light (`scripts/day_cycle.gd`). The sun rises at 06:00 behind the
+shop, crosses the south and sets at 19:30 out of the west-facing window; the moon and stars
+take over after dusk. The sky, haze, clouds and the lighting on the scenery follow a table
+of hour keys (`KEYS`). Inside, the morning keeps the room's authored lighting; from early
+afternoon a sunbeam comes through the window, and at night the ambient and fill light drop
+while the workshop key light dims only a little and turns warmer, so repairs stay readable.
+
+The view is built in `scripts/outdoor_scenery.gd`. The yard, stepping stones, boulders and
+parapet are real geometry, as are two connected mountain ranges. Their authored ridgelines
+(`FRONT_RIDGE` and `BACK_RIDGE`) descend through irregular shoulders into shared foothills.
+The front range has 248,832 triangles and the rear has 72,576: 321,408 in total, using
+the active GPU model (131,404 triangles) as the visual detail reference. This geometry shapes
+smaller summit breaks, gullies, branching subsidiary ridges, rock outcrops and selective shelves. Interpolated normals with a partial face-normal blend
+soften the facets, following the rounded GPU art; broad slope-based rock/green colours
+keep the mountains stylized without photographic surface grain. The rear range fades into cooler haze. Trees are deferred while the mountain composition is established.
+The distant ridgelines, valley forest and mist, sun, moon, stars, clouds and village lights
+are drawn by view direction inside a sky dome (`shaders/sky_backdrop.gdshader`), so they sit
+at infinity. Mountain geometry stays inside that dome without extending the camera far plane.
+None of it collides or takes clicks.
 
 ## Thermal investigation loop
 
@@ -310,7 +340,7 @@ and silent while the link is down.
 
 ## Pending gameplay
 
-Edge-connector repairs (cleaning, re-gluing, bodge wires) and rolling connector faults in jobs, paste thickness/mounting pressure, directional pad scraping, comparison view, spending and progression (purchases, more bench slots, unboxing the thermal camera, saving), volumetric dust (shell layers or detachable felt clumps), fan wear from overspinning and general interaction highlights are pending. Imported pad remnants are geometry only. Replacement pads have no gameplay yet. The racing feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
+Edge-connector repairs (cleaning, re-gluing, bodge wires) and rolling connector faults in jobs, paste thickness/mounting pressure, directional pad scraping, comparison view, spending and progression (purchases, more bench slots, unboxing the thermal camera, saving), volumetric dust (shell layers or detachable felt clumps), fan wear from overspinning and general interaction highlights are pending. Outside, there is nothing to do yet beyond the view: the door only ends the day, parcels arrive by the hatch with no modelled courier, and there is no weather, seasons or night-time event. Imported pad remnants are geometry only. Replacement pads have no gameplay yet. The racing feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
 
 No deployment workflow or export preset is configured.
 
@@ -330,7 +360,10 @@ For request-to-owner navigation, see [the task router](../AGENTS.md#task-router)
 | `scenes/test_monitor.tscn`, `scripts/test_monitor.gd` | Editable LCD housing, power button, sound, deterministic pseudo-3D racing display driven by core clock and capped by PCIe link width, link-lost dropouts, VRAM error artifacts and GPU core sensor/clock readout. |
 | `scripts/testing_station.gd` | PCIe fixture interaction, GPU transfer, rocking the seated card (wiggle test), monitor connection, signal cable, fan animation (powered or air-blown), cleanliness-driven fan audio and dry-bearing grind. |
 | `scripts/gpu_bearing.gd`, `shaders/shaft_gunk.gdshader` | Fan sleeve bearing: runtime bearing boss, struts and shaft, hub-sticker peel, rotor pull/refit, shaft gunk wipe, oil drops and the dry/serviced state. |
-| `scenes/shop_interior.tscn`, `scripts/shop_interior.gd` | Imported workshop shell and props, editor-visible layout conversion and cutaway visibility. |
+| `scenes/shop_interior.tscn`, `scripts/shop_interior.gd` | Imported workshop shell and props, editor-visible layout conversion and cutaway visibility; in play, the right-wall window (wall pieces, frame, glazing, hatch counter) and the clickable front door. |
+| `scripts/delivery_window.gd` | The delivery hatch: roller shutter, synthesized rattle, and the parcel's arrival onto the counter a few seconds after a job is accepted. |
+| `scripts/outdoor_scenery.gd`, `shaders/scenery.gdshader`, `shaders/sky_backdrop.gdshader` | The mountain view: yard and two connected detailed, stylized mountain ranges; sky dome with distant ridgelines, sky, sun, moon, stars, clouds and valley. |
+| `scripts/day_cycle.gd` | Time of day from the shop clock: sky and scenery lighting, the window sunbeam, room dimming at night, and the end-of-day fade to 09:00 the next morning. |
 | `scripts/workbench.gd` | Startup, controller wiring, input arbitration, desk alignment, placement obstacles and jaw motion. |
 | `scripts/bench_closeup.gd`, `scripts/tool_roll.gd` | Live GPU/tool-bag viewing windows, isolated mesh proxies, mouse picking, orbit/zoom and segmented fabric animation. |
 | `scripts/workbench_tools.gd` | Table-driven exclusive tool locations (`TOOLS`), roll/tool animations and placement guards. |
@@ -346,12 +379,12 @@ For request-to-owner navigation, see [the task router](../AGENTS.md#task-router)
 | `scripts/thermal_camera.gd`, `shaders/thermal_surface.gdshader`, `scenes/thermal_camera.tscn` | Pickup instrument, separate depth-tested thermal world, display, spot readout and fixed palette. |
 | `scripts/gpu_inspection.gd` | Whole-GPU inspection state and exact home-transform restoration. |
 | `scripts/repair_status.gd` | Debug-only repair status rows (job and rolled faults, dust, paste, bearing, assembly, test run) for the Escape-menu overlay. |
-| `scripts/repair_jobs.gd` | Job offers from techs and customers, fault-count odds and rolling, the one-card queue, delivery with box paperwork and unboxing, per-job fault setup, shop clock, bill of materials recording, customer bills at the labour rate, ratings, return checks and payment. |
+| `scripts/repair_jobs.gd` | Job offers from techs and customers, fault-count odds and rolling, the one-card queue, delivery with box paperwork (through the hatch in play) and unboxing, per-job fault setup, shop clock and next-day rollover, bill of materials recording, customer bills at the labour rate, ratings, return checks and payment. |
 | `scripts/bill_of_materials.gd` | Per-job bill of materials: catalogue (consumables now, spare parts later), quantities and costs in cents. |
 | `scenes/shop_computer.tscn`, `scripts/shop_computer.gd`, `shaders/crt_screen.gdshader` | Retro shop PC (CRT, beige 486 cabinet, keyboard, ball mouse); green-phosphor portal page in a SubViewport drawn through the curved CRT shader, camera settle and in-world click routing that follows the glass curvature. |
 | `scenes/job_queue_monitor.tscn`, `scripts/job_queue_monitor.gd` | Job-queue display on a floor stand behind the repair desk. |
 | `scripts/screen_ui.gd` | Shared helpers for pages drawn on in-world screens. |
-| `scripts/delivery_box.gd` | Procedural carton (flaps, tape, label, foam cradle) for deliveries and the sealed thermal camera box. |
+| `scripts/delivery_box.gd` | Procedural carton (flaps, tape, label, foam cradle) for deliveries and the sealed thermal camera box; where a parcel is (outside, on the hatch counter, carried, on the desk) and carrying/setting it down. |
 | `scripts/audio_mix.gd`, `default_bus_layout.tres` | Named mixer buses (one per sound plus Master), levels, reset and saving. |
 | `scripts/hud.gd` | Native UI and signals; Escape menu with collapsible diagnostic, assembly, fault, speed and sound subpanels and bounded scrolling. Closeup provides the tool selection view, and workbench owns switching guards. |
 | `scripts/asset_contract.gd` | Map source part names to imported nodes, validate parents, capture transforms. |
@@ -414,6 +447,7 @@ $godotExe = 'C:\Users\user\Desktop\ayush.dev\godot\Godot_v4.7.2-stable_win64_con
 & $godotExe --headless --path godot --script res://tests/repair_jobs_flow.gd
 & $godotExe --headless --path godot --script res://tests/gpu_brand_flow.gd
 & $godotExe --headless --path godot --script res://tests/edge_connector_flow.gd
+& $godotExe --headless --path godot --script res://tests/outside_flow.gd
 
 # Run the game, or open the editor.
 & $godotExe --path godot

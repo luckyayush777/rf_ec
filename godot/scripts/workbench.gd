@@ -10,6 +10,13 @@ const RepairStatus = preload("res://scripts/repair_status.gd")
 const RepairJobs = preload("res://scripts/repair_jobs.gd")
 const Connector = preload("res://scripts/gpu_connector.gd")
 const GpuStyle = preload("res://scripts/gpu_style.gd")
+const DeliveryWindow = preload("res://scripts/delivery_window.gd")
+const DayCycle = preload("res://scripts/day_cycle.gd")
+const OutdoorScenery = preload("res://scripts/outdoor_scenery.gd")
+## The parcel rides low in both hands, tilted so its lid (and paperwork) faces the player.
+## Drawn a little smaller and close, so it neither fills the view nor sinks into the desk.
+## (0.8 scale, tilted 0.45 rad about X.)
+const PARCEL_POSE := Transform3D(Basis(Vector3(0.8, 0, 0), Vector3(0, 0.72036, 0.34798), Vector3(0, -0.34798, 0.72036)), Vector3(0.0, -1.8, -3.6))
 ## Rendered acceptance runs (`-- --capture`) keep the base viewport size so PNGs stay comparable; play opens at the project's 1920x1080 window.
 const CAPTURE_SIZE := Vector2i(1280, 800)
 @onready var camera_rig = $CameraRig
@@ -53,6 +60,12 @@ var placement_material: StandardMaterial3D
 var status_elapsed := 0.0
 ## The close-up to reopen after the tool bag closes, when T was pressed inside one.
 var focus_return: Node3D
+## First-person play only: the parcel hatch, the mountain view and the time of day.
+var delivery_window: Node3D
+var scenery: Node3D
+var day_cycle: Node
+## The authored desk spot of the delivery box: the reference for parking empty packaging.
+var parcel_spot: Vector3
 
 func _ready() -> void:
 	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
@@ -142,10 +155,26 @@ func _ready() -> void:
 	thermal.configure(self)
 	thermal_viewer.configure(self)
 	job_flow = job_flow or get_tree().current_scene == self
+	parcel_spot = delivery_box.global_position
 	jobs = RepairJobs.new()
 	jobs.name = "Jobs"
 	add_child(jobs)
 	jobs.configure(self, delivery_box, job_flow)
+	# After the picker: none of the outdoor view takes clicks.
+	if not camera_rig.legacy_test_mode:
+		scenery = OutdoorScenery.new()
+		scenery.name = "OutdoorScenery"
+		add_child(scenery)
+		delivery_window = DeliveryWindow.new()
+		delivery_window.name = "DeliveryWindow"
+		add_child(delivery_window)
+		delivery_window.configure(self, delivery_box)
+		delivery_window.arrived.connect(refresh_ui)
+		day_cycle = DayCycle.new()
+		day_cycle.name = "DayCycle"
+		add_child(day_cycle)
+		day_cycle.configure(self, jobs, scenery)
+		day_cycle.notice.connect(hud.set_status)
 	computer.configure(self, jobs)
 	queue_monitor.configure(jobs)
 	if job_flow: tools.set_locked("thermal-camera", true)
@@ -172,6 +201,7 @@ func _ready() -> void:
 	hud.debug_oil_bearing_requested.connect(bearing.debug_oil)
 	hud.debug_connector_requested.connect(connector.debug_cycle)
 	hud.debug_repair_speed_changed.connect(set_debug_repair_speed)
+	hud.debug_advance_clock_requested.connect(func(): if OS.is_debug_build(): jobs.shop_minutes += 60.0)
 	# Fixtures start at authored rates, independent of the developer's saved play tuning.
 	if get_tree().current_scene == self: hud.load_repair_speeds()
 	hud.return_requested.connect(tools.return_tool)
@@ -192,6 +222,7 @@ func _ready() -> void:
 		test_monitor.set_muted(service.muted)
 		inspection.set_muted(service.muted)
 		delivery_box.set_muted(service.muted)
+		if delivery_window != null: delivery_window.set_muted(service.muted)
 		computer.set_muted(service.muted))
 	inspection.changed.connect(refresh_ui)
 	tools.changed.connect(refresh_ui)
@@ -239,7 +270,7 @@ func interaction_hit(point: Vector2) -> Dictionary:
 	return hit
 
 func ready_for_action() -> bool:
-	return not inspection.moving and not tools.busy and not service.busy and not testing_station.moving and (jobs == null or not jobs.busy)
+	return not inspection.moving and not tools.busy and not service.busy and not testing_station.moving and (jobs == null or not jobs.busy) and (day_cycle == null or not day_cycle.busy)
 
 func select_view(view: String) -> void:
 	if not camera_rig.legacy_test_mode: return
@@ -311,11 +342,14 @@ func refresh_ui() -> void:
 	hud.refresh_tool_menu(tools, service, tool_selection_busy)
 	if service.busy or tools.busy: return
 	if not camera_rig.legacy_test_mode and not gpu.visible:
+		var customer: String = jobs.active().get("customer", "")
 		hud.set_status("Unboxing the card..." if jobs.busy else
-			("%s's card has arrived. Click the box on the repair desk to open it; %s." % [jobs.active().customer,
+			"No card on the bench. Take a repair job on the shop computer by the front wall." if jobs.active().is_empty() else
+			"%s's parcel is on its way. Listen for the shutter on the delivery hatch under the window." % customer if delivery_box.location == "outside" else
+			"%s's parcel is on the delivery hatch counter under the window. Click it to carry it to the repair desk." % customer if delivery_box.location == "sill" else
+			"Carry the parcel to the repair desk, aim at a clear spot and press E or click to set it down. Q puts it back on the hatch." if delivery_box.location == "held" else
+			"%s's card has arrived. Click the box on the repair desk to open it; %s." % [customer,
 				"the tech's tag on the lid lists the faults they found" if jobs.is_tech(jobs.active()) else "the customer left a note on the lid"])
-				if not jobs.active().is_empty() else
-			"No card on the bench. Take a repair job on the shop computer by the front wall.")
 		return
 	if not camera_rig.legacy_test_mode:
 		hud.set_status("GPU powered on the test board. Watch the monitor; hold LMB on the card and move the mouse to rock it in its slot. E removes it." if testing_station.installed else
@@ -424,6 +458,8 @@ func activate(screen_position: Vector2, pickup_with_tool: bool = false) -> void:
 	match hit.get("action", ""):
 		"computer": use_computer()
 		"delivery_box": jobs.unbox()
+		"parcel": pick_up_parcel()
+		"exit_door": end_day()
 		"sealed_box": hud.set_status("The thermal camera is still sealed in its box. It stays packed for now.")
 		"monitor_power": test_monitor.toggle_power()
 		"test_board": toggle_test_gpu()
@@ -456,6 +492,68 @@ func use_computer() -> void:
 	thermal_viewer.aiming = false
 	computer.use()
 
+func carrying_parcel() -> bool:
+	return delivery_box.location == "held"
+
+## Lifts the parcel off the hatch counter into both hands. Hands must be empty.
+func pick_up_parcel() -> bool:
+	if delivery_box.location != "sill" or delivery_box.moving or not ready_for_action(): return false
+	if inspection.held or service.held_part != "":
+		hud.set_status("Set the part down before carrying the parcel.")
+		return false
+	if tools.equipped_tool != "":
+		hud.set_status("Return the tool (Q) before carrying the parcel.")
+		return false
+	cancel_press()
+	thermal_viewer.aiming = false
+	delivery_box.carry(camera_rig.camera, PARCEL_POSE)
+	refresh_ui()
+	return true
+
+## Where the parcel would sit with its centre at `point`: on the repair desk, clear of the
+## card holder, tools, parts and other cartons.
+func parcel_placement(point: Vector3) -> Dictionary:
+	var table := $RepairDesk/Tabletop as MeshInstance3D
+	var at := Transform3D(Basis.IDENTITY, Vector3(point.x, parcel_spot.y, point.z))
+	var footprint: AABB = at * Contract.bounds_in(delivery_box)
+	var allowed := Contract.fits_table(footprint, table)
+	for obstacle in placement_obstacles("delivery_box"):
+		if allowed and footprint.intersects(obstacle): allowed = false
+	return {"allowed": allowed, "transform": at}
+
+func set_down_parcel(point: Vector3) -> bool:
+	if not carrying_parcel() or delivery_box.moving: return false
+	var placement := parcel_placement(point)
+	if not placement.allowed:
+		hud.set_status("No room for the parcel there. Aim at a clear spot on the repair desk.")
+		return false
+	delivery_box.set_down(self, placement.transform, "desk").connect(func():
+		inspection.play_set_down()
+		refresh_ui())
+	return true
+
+## Q while carrying: back onto the hatch counter.
+func return_parcel() -> void:
+	if not carrying_parcel() or delivery_box.moving or delivery_window == null: return
+	delivery_box.set_down(self, delivery_window.sill_transform(), "sill").connect(refresh_ui)
+
+func set_down_parcel_at_aim(center: Vector2) -> void:
+	var hit := interaction_hit(center)
+	if hit.get("action", "") == "desk": set_down_parcel(hit.point)
+	else: hud.set_status("Set the parcel down on the repair desk.")
+
+## The front door: close up and skip to the next morning. Parts must be set down first.
+func end_day() -> void:
+	if day_cycle == null or day_cycle.busy or not ready_for_action(): return
+	if inspection.held or service.held_part != "":
+		hud.set_status("Set the part down before leaving for the night.")
+		return
+	cancel_press()
+	thermal_viewer.aiming = false
+	await day_cycle.end_day()
+	refresh_ui()
+	hud.set_status("Day %d, 09:00. The shop is open." % jobs.day())
+
 func pick_gpu(screen_position: Vector2) -> void:
 	var hit: Dictionary = picker.hit_at(screen_position)
 	if hit.get("action", "") in ["gpu", "screw", "cable"]: inspection.lift()
@@ -468,7 +566,7 @@ func park_delivery_box() -> void:
 	var obstacles := placement_obstacles("delivery_box")
 	for x in [mat_bounds.end.x - box_bounds.position.x + 0.18, mat_bounds.position.x - box_bounds.end.x - 0.18]:
 		for z_offset in [0.0, -1.4, -2.8, -4.2, -5.6, -7.0, -8.4, 1.0]:
-			var destination := Vector3(x, delivery_box.rest.origin.y, delivery_box.rest.origin.z + z_offset)
+			var destination := Vector3(x, parcel_spot.y, parcel_spot.z + z_offset)
 			var footprint := Transform3D(delivery_box.global_basis, destination) * box_bounds
 			if not Contract.fits_table(footprint, table): continue
 			var clear := true
@@ -547,7 +645,7 @@ func _process(delta: float) -> void:
 		hover_elapsed = 0.0
 		if not camera_rig.legacy_test_mode:
 			var aimed := interaction_hit(get_viewport().get_visible_rect().size * 0.5)
-			hud.update_reticle(aimed, tools, inspection, service, camera_rig.captured, seated_card(aimed))
+			hud.update_reticle(aimed, tools, inspection, service, camera_rig.captured, seated_card(aimed), delivery_box.location)
 			return
 		var over_ui: bool = get_viewport().gui_get_hovered_control() != null
 		var hit: Dictionary = {} if over_ui else picker.hit_at(get_viewport().get_mouse_position())
@@ -557,6 +655,14 @@ func _process(delta: float) -> void:
 func update_placement_marker() -> void:
 	if placement_marker == null: return
 	placement_marker.hide()
+	if carrying_parcel():
+		if not camera_rig.captured or delivery_box.moving: return
+		var aim := interaction_hit(get_viewport().get_visible_rect().size * 0.5)
+		if aim.get("action") != "desk": return
+		placement_marker.global_position = aim.point + Vector3(0, 0.035, 0)
+		placement_material.albedo_color = Color("#71e6b0") if parcel_placement(aim.point).allowed else Color("#e57c63")
+		placement_marker.show()
+		return
 	if not ready_for_action() or (not inspection.held and service.held_part == ""): return
 	if closeup.mode != "" or (not camera_rig.legacy_test_mode and not camera_rig.captured): return
 	var point: Vector2 = get_viewport().get_mouse_position() if camera_rig.legacy_test_mode else get_viewport().get_visible_rect().size * 0.5
@@ -581,6 +687,13 @@ func first_person_input(event: InputEvent) -> void:
 			hud.set_menu_open(not camera_rig.captured)
 			return
 		if not camera_rig.captured: return
+		# Both hands are on the parcel: it can only be set down or put back.
+		if carrying_parcel():
+			match event.physical_keycode:
+				KEY_E: set_down_parcel_at_aim(center)
+				KEY_Q: return_parcel()
+				KEY_M: hud.mute_requested.emit()
+			return
 		match event.physical_keycode:
 			KEY_E:
 				if (inspection.held or service.held_part != "") and interaction_hit(center).get("action") == "desk": activate(center, true)
@@ -611,6 +724,9 @@ func first_person_input(event: InputEvent) -> void:
 			else: camera_rig.look(event.relative)
 		else: camera_rig.look(event.relative)
 	elif event is InputEventMouseButton:
+		if carrying_parcel():
+			if event.pressed and event.button_index == MOUSE_BUTTON_LEFT: set_down_parcel_at_aim(center)
+			return
 		if event.button_index == MOUSE_BUTTON_RIGHT and tools.equipped_tool == "thermal-camera":
 			thermal_viewer.aiming = event.pressed
 			return

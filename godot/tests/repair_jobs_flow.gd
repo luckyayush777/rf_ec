@@ -53,6 +53,14 @@ func equip_from_bag(bench: Node3D, id: String) -> void:
 	await create_timer(0.65).timeout
 	await bench.select_tool(id)
 	await create_timer(0.65).timeout
+## Parcels come in through the window hatch; carry this one to the box's authored desk spot.
+func fetch_parcel(bench: Node3D) -> void:
+	bench.delivery_window.arrival_delay = 0.1
+	while bench.delivery_box.location != "sill": await process_frame
+	bench.pick_up_parcel()
+	await create_timer(0.35).timeout
+	bench.set_down_parcel(bench.parcel_spot)
+	await create_timer(0.45).timeout
 func run() -> void:
 	# Fault counts: geometric odds with 3 of 3 faults at exactly 10%.
 	var Jobs = preload("res://scripts/repair_jobs.gd")
@@ -129,7 +137,8 @@ func run() -> void:
 	await process_frame
 	expect(jobs.queue.size() == 1 and jobs.active().id == offer.id and jobs.active().state == "boxed", "Clicking Accept did not take the job")
 	expect(computer.mouse_clicks == clicks_before + 1, "Clicking on the page made no mouse click sound")
-	expect(bench.delivery_box.visible and jobs.offers.size() == jobs.OFFER_COUNT, "The box did not arrive or the board was not refilled")
+	expect(bench.delivery_box.location == "outside" and bench.delivery_window.busy() and jobs.offers.size() == jobs.OFFER_COUNT,
+		"The parcel was not sent to the hatch or the board was not refilled")
 	expect(not jobs.accept(jobs.offers[0].id) and jobs.queue.size() == jobs.MAX_QUEUE, "A second job fit on a one-card bench")
 	computer.tab = "board"
 	computer.refresh()
@@ -153,7 +162,9 @@ func run() -> void:
 	await create_timer(0.45).timeout
 	expect(is_equal_approx(bench.camera_rig.anchor_weight, 0.0), "The camera did not return to the player")
 
-	# One click opens the box; the card lands in the holder with its rolled faults.
+	# The parcel comes through the hatch; carried to the desk, one click opens it and the card
+	# lands in the holder with its rolled faults.
+	await fetch_parcel(bench)
 	await stand(bench, Vector3(-0.3, -4.43, 9.0), bench.delivery_box.global_position + Vector3(0, 0.4, 0))
 	await capture("jobs-delivery-box")
 	expect(bench.interaction_hit(centre()).get("action") == "delivery_box", "The delivery box was not the aimed target")
@@ -236,6 +247,7 @@ func run() -> void:
 
 	# An unfixed card goes back without payment, and says what is still wrong.
 	expect(jobs.accept(jobs.offers[1].id), "A second job could not be taken after returning the first")
+	await fetch_parcel(bench)
 	await jobs.unbox()
 	await settle(bench)
 	var second: Dictionary = jobs.active()

@@ -67,5 +67,8 @@ Validated with Blender 5.2.2: saved source reopened for export, both rendered
 views inspected, and exported GLB checked for room, scope, waveform and labels.
 Godot rendered acceptance checks cover placement and the existing service flows.
 The editor retains the cutaway overview. First-person runtime closes the shell,
-adds a front entrance door and builds static collision for the room/furniture.
+adds a front entrance door (clicking it ends the day), replaces the right plaster wall
+with a three-bay window and delivery hatch over a counter, and builds static collision
+for the room/furniture. The window is built in `godot/scripts/shop_interior.gd`, not in
+this Blender source; the view outside is runtime-only (`godot/scripts/outdoor_scenery.gd`).
 The new background props remain scenery; playable tools and GPU parts are separate.

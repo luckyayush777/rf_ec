@@ -442,7 +442,7 @@ func build_bench() -> void:
 	info.get_parent().size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var width := 700 if tech else 360
 	info.add_child(text("#%d  %s" % [job.id, ("TECH " if tech else "") + job.customer.to_upper()], 14, DIM))
-	info.add_child(wrapped("IN THE BOX - OPEN IT ON THE REPAIR DESK" if job.state == "boxed" else
+	info.add_child(wrapped("IN THE BOX - FETCH IT FROM THE HATCH, OPEN IT ON THE REPAIR DESK" if job.state == "boxed" else
 		"ON THE BENCH - " + ("REPAIR THE TAGGED FAULTS" if tech else "DIAGNOSE AND REPAIR"), 16, width, BRIGHT))
 	if tech:
 		info.add_child(wrapped("TECH FOUND: " + ", ".join(jobs.fault_labels(job.faults)).to_upper(), 15, width))

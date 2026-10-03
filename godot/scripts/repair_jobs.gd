@@ -53,18 +53,23 @@ const TECHS := [["Ravi", "Volt & Solder"], ["Dana", "PixelFix Kiosk"], ["Kofi", 
 const NOTES := ["fix it", "pls fix", "It's broken. Fix it please!", "doesn't work right. fix?",
 	"My son says it's the graphics card. Can you fix it?", "FIX ASAP!!", "Something is off with it. Thanks",
 	"games are bad now. fix pls", "it's acting up, sort it out?"]
-## Shop clock: play time runs at this many shop minutes per real second, from 09:00 on day 1.
-const SHOP_MINUTES_PER_SECOND := 0.25
+## Shop clock: play time runs at this many shop minutes per real second, from 09:00 on day 1,
+## so the 09:00-21:00 working day takes 24 real minutes. Leaving through the front door skips
+## to 09:00 on the next day (`start_next_day`); deadlines keep counting overnight.
+const SHOP_MINUTES_PER_SECOND := 0.5
 const OPENING_MINUTE := 9 * 60
-## Labour is billed in started quarter hours at the shop's rate (set on the bench page).
+const CLOSING_MINUTE := 21 * 60
+## Labour is billed in started quarter hours at the shop's rate (set on the bench page). The
+## default rate and the deadlines below were rescaled with the clock (it used to run at 0.25),
+## so a real minute of work bills and waits the same as before.
 const BILL_INCREMENT := 15
-const DEFAULT_LABOR_RATE := 40
+const DEFAULT_LABOR_RATE := 20
 const LABOR_STEP := 5
 const LABOR_RANGE := Vector2i(10, 150)
 ## A customer wants the card back within a base time plus some per (hidden) fault, plus slack.
-const DUE_BASE := 60
-const DUE_PER_FAULT := 45
-const DUE_SLACK := 60
+const DUE_BASE := 120
+const DUE_PER_FAULT := 90
+const DUE_SLACK := 120
 ## Bills up to this multiple of the fair price cost no stars.
 const FAIR_MARGIN := 1.2
 
@@ -112,6 +117,18 @@ func configure(world: Node3D, delivery_box: Node3D, empty_bench: bool) -> void:
 
 func _process(delta: float) -> void:
 	shop_minutes += delta * SHOP_MINUTES_PER_SECOND
+
+## The shop closes for the night and opens again at the next 09:00. Cards, parcels and
+## deadlines are left as they were.
+func start_next_day() -> void:
+	var opening := floorf(shop_minutes / 1440.0) * 1440.0 + OPENING_MINUTE
+	if opening <= shop_minutes: opening += 1440.0
+	shop_minutes = opening
+	changed.emit()
+
+## 1 on the first day.
+func day() -> int:
+	return floori(shop_minutes) / 1440 + 1
 
 ## Material a service controller used, charged to the card on the bench.
 func record_use(item: String, quantity: float) -> void:
@@ -219,7 +236,11 @@ func accept(id: int) -> bool:
 		var tech := is_tech(job)
 		box.deliver("JOB #%d  /  %s\n710  /  2GB DDR3\nANTI-STATIC PACKED" % [job.id, job.customer], job.brand,
 			fault_labels(job.faults) if tech else [], "" if tech else job.complaint, job.get("signature", ""))
-		notice.emit("Job #%d accepted. %s's card is boxed on the repair desk." % [job.id, job.customer])
+		# First-person play receives it through the window hatch; legacy fixtures keep the desk drop.
+		var hatch: Node3D = bench.get("delivery_window")
+		if hatch != null: hatch.receive()
+		notice.emit("Job #%d accepted. %s's card is on its way to the delivery hatch under the window." % [job.id, job.customer]
+			if hatch != null else "Job #%d accepted. %s's card is boxed on the repair desk." % [job.id, job.customer])
 		changed.emit()
 		return true
 	return false
@@ -227,7 +248,7 @@ func accept(id: int) -> bool:
 ## One click opens the box; the card lifts out into the holder carrying its rolled faults.
 func unbox() -> void:
 	var job := active()
-	if busy or job.is_empty() or job.state != "boxed": return
+	if busy or job.is_empty() or job.state != "boxed" or box.location != "desk" or box.moving: return
 	busy = true
 	changed.emit()
 	await box.open()

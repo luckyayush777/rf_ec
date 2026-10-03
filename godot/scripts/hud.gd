@@ -32,6 +32,7 @@ signal debug_repaste_requested
 signal debug_dry_bearing_requested
 signal debug_oil_bearing_requested
 signal debug_connector_requested
+signal debug_advance_clock_requested
 signal debug_repair_speed_changed(id: String, multiplier: float)
 
 var inspect_button: Button
@@ -205,6 +206,8 @@ func _ready() -> void:
 	debug_clean_button = make_button("Clean GPU", cleaning_column)
 	debug_clean_button.visible = OS.is_debug_build()
 	debug_clean_button.pressed.connect(func(): debug_clean_requested.emit())
+	# The section is debug-only, so this is too: a quick look at the evening and night sky.
+	make_button("Advance clock 1 h", cleaning_column).pressed.connect(func(): debug_advance_clock_requested.emit())
 	var assembly_section := build_menu_section("assembly", "Assembly", true)
 	debug_disassemble_button = make_button("Disassemble GPU", assembly_section)
 	debug_disassemble_button.visible = OS.is_debug_build()
@@ -541,16 +544,23 @@ func set_menu_open(value: bool) -> void:
 	cleaning_panel.visible = value and (tool_overlay == null or not tool_overlay.visible)
 	reticle.visible = not value
 
-func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Node, captured: bool, seated: bool = false) -> void:
+## `parcel` is the delivery box's location; "held" means it is being carried.
+func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Node, captured: bool, seated: bool = false, parcel := "") -> void:
 	if not fps_mode: return
 	set_menu_open(not captured)
 	var action: String = hit.get("action", "")
 	var prompt := ""
 	if seated: action = "seated"
+	if parcel == "held":
+		prompt = ("E / Click: set the parcel down here" if action == "desk" else "Carry the parcel to the repair desk") + "   |   Q: put it back on the hatch"
+		interaction_hint.text = (prompt + "\nWASD: move   Mouse: look   Tab/Esc: release mouse") if captured else "Mouse released — Tab/Esc to resume"
+		return
 	match action:
 		"seated": prompt = "Hold LMB + move mouse: rock the card in its slot   |   E: remove GPU"
 		"computer": prompt = "E / Click: use the shop computer"
 		"delivery_box": prompt = "E / Click: open the box"
+		"parcel": prompt = "E / Click: pick up the parcel"
+		"exit_door": prompt = "E / Click: leave the shop and end the day"
 		"sealed_box": prompt = "Thermal camera, still sealed"
 		"screw", "screw_hole": prompt = "E: pick up GPU  |  Click: focus" if tools.equipped_tool != "" else "Screwdriver required"
 		"gpu": prompt = "E: pick up GPU  |  Click: focus" if tools.focus_tool() else "E: pick up / remove GPU"

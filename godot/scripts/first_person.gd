@@ -2,6 +2,10 @@ extends "res://scripts/orbit_camera.gd"
 ## First-person runtime. Inherited orbit poses are used only by legacy acceptance fixtures.
 const REACH := 11.0
 const SPEED := 10.0
+## Far enough for the sky dome and near scenery beyond the right-wall window.
+const FAR := 320.0
+const SPAWN := Vector3(-3, -4.35, 9)
+const SPAWN_PITCH := -0.22
 var legacy_test_mode := false
 var body: CharacterBody3D
 var look_pitch := -0.22
@@ -19,6 +23,7 @@ var anchor_weight := 0.0:
 func _ready() -> void:
 	if legacy_test_mode: return
 	camera.fov = 65.0
+	camera.far = FAR
 	body = CharacterBody3D.new()
 	body.name = "PlayerBody"
 	body.collision_layer = 2
@@ -31,8 +36,17 @@ func _ready() -> void:
 	shape.shape = capsule
 	shape.position.y = 4.0
 	body.add_child(shape)
-	body.position = Vector3(-3, -4.35, 9)
+	body.position = SPAWN
 	set_captured(true)
+	update_camera()
+
+## Back at the starting spot by the bench, looking at it (a new day).
+func respawn() -> void:
+	if body == null: return
+	body.global_position = SPAWN
+	body.velocity = Vector3.ZERO
+	look_yaw = 0.0
+	look_pitch = SPAWN_PITCH
 	update_camera()
 
 func build_collisions(world: Node3D) -> void:

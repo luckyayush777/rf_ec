@@ -17,6 +17,14 @@ func frame_box(bench: Node3D) -> void:
 	bench.hud.set_menu_open(false)
 	camera.global_position = bench.delivery_box.global_position + Vector3(0.3, 3.3, 4.0)
 	camera.look_at(bench.delivery_box.global_position + Vector3(0, 0.35, 0))
+## Parcels come in through the window hatch; carry this one to the box's authored desk spot.
+func fetch_parcel(bench: Node3D) -> void:
+	bench.delivery_window.arrival_delay = 0.1
+	while bench.delivery_box.location != "sill": await process_frame
+	bench.pick_up_parcel()
+	await create_timer(0.35).timeout
+	bench.set_down_parcel(bench.parcel_spot)
+	await create_timer(0.45).timeout
 func run() -> void:
 	var bench = load("res://scenes/workbench.tscn").instantiate()
 	bench.job_flow = true
@@ -40,11 +48,11 @@ func run() -> void:
 		offer.model = id + " " + bench.jobs.MODEL
 		offer.faults = ["bearing"]
 		expect(bench.jobs.accept(offer.id), "Could not accept " + id)
-		await create_timer(0.6).timeout
+		await fetch_parcel(bench)
 		frame_box(bench)
 		await capture("brand-" + id.to_lower() + "-sealed")
 		expect(bench.delivery_box.brand == id and not bench.delivery_box.parked, "New box inherited the previous packaging state")
-		expect(bench.delivery_box.transform.is_equal_approx(bench.delivery_box.rest), "New box did not return to its delivery spot")
+		expect(bench.delivery_box.transform.is_equal_approx(bench.delivery_box.rest), "New box did not land where it was set down")
 		expect(is_zero_approx(bench.delivery_box.flaps[0].rotation.x), "New box arrived already open")
 		await bench.jobs.unbox()
 		expect(bench.gpu_style.brand == id and bench.delivery_box.brand == id, "Card/box brand mismatch")

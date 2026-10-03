@@ -49,6 +49,14 @@ func capture_close(bench: Node3D, name: String) -> void:
 	eye.queue_free()
 func texts(box: Node3D) -> Array:
 	return box.handwriting.map(func(label: Label3D): return label.text)
+## Parcels come in through the window hatch; carry this one to the box's authored desk spot.
+func fetch_parcel(bench: Node3D) -> void:
+	bench.delivery_window.arrival_delay = 0.1
+	while bench.delivery_box.location != "sill": await process_frame
+	bench.pick_up_parcel()
+	await create_timer(0.35).timeout
+	bench.set_down_parcel(bench.parcel_spot)
+	await create_timer(0.45).timeout
 func settle(bench: Node3D) -> void:
 	for step in range(80):
 		await create_timer(0.05).timeout
@@ -110,7 +118,7 @@ func run() -> void:
 	jobs.offers[0] = jobs.make_job(["dust"], "tech")
 	var tech_job: Dictionary = jobs.offers[0]
 	expect(jobs.accept(tech_job.id), "The tech job could not be accepted")
-	await create_timer(0.6).timeout
+	await fetch_parcel(bench)
 	expect(box.paperwork == "green" and texts(box) == ["Dust", "- " + tech_job.signature], "A one-fault tag read %s (%s)" % [texts(box), box.paperwork])
 	var hands := ["PermanentMarker-Regular.ttf", "Caveat-Variable.ttf"]
 	expect(box.handwriting.all(func(label: Label3D): return label.font != null and label.font.resource_path.get_file() in hands), "Paperwork was not handwritten")
@@ -147,7 +155,7 @@ func run() -> void:
 	jobs.offers[0] = jobs.make_job(["bearing"], "customer")
 	var job: Dictionary = jobs.offers[0]
 	expect(jobs.accept(job.id), "The customer job could not be accepted")
-	await create_timer(0.6).timeout
+	await fetch_parcel(bench)
 	expect(box.paperwork == "note" and " ".join(texts(box)) == job.complaint, "The customer's box did not carry their note")
 	await jobs.unbox()
 	await settle(bench)
@@ -183,6 +191,7 @@ func run() -> void:
 	jobs.offers[0] = jobs.make_job(["dust"], "customer")
 	var slow: Dictionary = jobs.offers[0]
 	jobs.accept(slow.id)
+	await fetch_parcel(bench)
 	await jobs.unbox()
 	await settle(bench)
 	bench.debug_clean_gpu()
@@ -195,6 +204,7 @@ func run() -> void:
 	# Unfixed: no payment, one star.
 	jobs.offers[0] = jobs.make_job(["dust"], "customer")
 	jobs.accept(jobs.offers[0].id)
+	await fetch_parcel(bench)
 	await jobs.unbox()
 	await settle(bench)
 	before = jobs.balance
