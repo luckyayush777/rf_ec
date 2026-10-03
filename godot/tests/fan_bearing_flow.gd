@@ -105,6 +105,8 @@ func run() -> void:
 			view.bearing_under_pointer(0.05)
 		stroke += 1
 	bearing.end()
+	expect(bearing.wipe_sound.stream != null and bearing.wipe_sound.target > 0.0 and bearing.wipe_sound.bus == &"IpaWipe",
+		"Wiping the shaft did not drive the IPA wipe loop")
 	expect(bearing.shaft_clean and bearing.total_gunk() == 0.0 and gunk_before > 0.0, "Wiping did not clean the shaft")
 	expect(stroke <= 6, "Cleaning the shaft took too many strokes (%d)" % stroke)
 	expect(notices.any(func(text: String): return "Shaft clean" in text), "Clean shaft gave no completion notice")
@@ -121,6 +123,7 @@ func run() -> void:
 		view.bearing_under_pointer(0.05)
 	bearing.end()
 	expect(bearing.oil_drops == 2 and bearing.oil_bead.visible, "A short hold on the bearing did not give two drops (%d)" % bearing.oil_drops)
+	expect(bearing.oil_audio.playing, "The oil drop made no sound")
 	await capture("fan-bearing-oiled")
 	# Clicking the resting rotor refits it and presses the sticker back on.
 	notices.clear()

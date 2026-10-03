@@ -7,6 +7,26 @@ extends Node3D
 @export var start_visible := false
 
 const GpuStyle = preload("res://scripts/gpu_style.gd")
+const AudioMix = preload("res://scripts/audio_mix.gd")
+## Flaps opening, then the card sliding out of its anti-static sleeve, timed to the lid and lift.
+const UNBOX_SOUND = preload("res://assets/sounds/gpu_unbox.wav")
+const UNBOX_GAIN_DB := -4.0
+## Paperwork on the lid. A referring tech tags the faults they found in marker: a green tag for
+## one, a yellow tag for two, a red card for three or more. A customer leaves a sticky note in pen.
+const MARKER_FONT = preload("res://assets/fonts/PermanentMarker-Regular.ttf")
+const PEN_FONT = preload("res://assets/fonts/Caveat-Variable.ttf")
+const MARKER_INK := Color("16181d")
+const PEN_INK := Color("1f3a8f")
+## Saturated, because the bench lamp washes pale paper out to white.
+const TAG_COLORS := {"green": Color("3f9e4c"), "yellow": Color("e8b21c"), "red": Color("c42e26")}
+const NOTE_COLOR := Color("f2d33a")
+## Paper sizes on the lid (width, depth) and how many characters fit a handwritten line; large
+## enough to read from where the player stands at the desk.
+const TAG_SIZE := Vector2(0.95, 0.5)
+const CARD_SIZE := Vector2(1.05, 0.64)
+const NOTE_SIZE := Vector2(0.78, 0.74)
+const NOTE_LINE_CHARS := 13
+const LINE_HEIGHT := 0.12
 const WALL := 0.03
 const OPEN_ANGLE := deg_to_rad(110.0)
 const FOAM_HEIGHT := 0.24
@@ -23,6 +43,14 @@ var brand := "Lotac"
 var parked := false
 var print_labels: Array[Label3D] = []
 var brand_labels: Array[Label3D] = []
+var unbox_audio: AudioStreamPlayer
+var muted := false
+## The paper on the lid: "" (none), "green"/"yellow"/"red" (tech fault tag) or "note".
+var paperwork := ""
+var paper: Node3D
+var paper_material: StandardMaterial3D
+## Every handwritten line currently on the paper, for tests and captures.
+var handwriting: Array[Label3D] = []
 
 func _ready() -> void:
 	rest = transform
@@ -75,7 +103,18 @@ func _ready() -> void:
 	label.font_size = 40
 	set_label(label_text)
 	tape = add_block("TamperSeal", Vector3(w * 0.14, h * 0.26, 0.008), Vector3(w * 0.39, h * 0.78, d * 0.5 + 0.015), accent)
-	if not sealed: build_packing()
+	if not sealed:
+		build_packing()
+		unbox_audio = AudioStreamPlayer.new()
+		unbox_audio.name = "UnboxSound"
+		unbox_audio.stream = UNBOX_SOUND
+		unbox_audio.volume_db = UNBOX_GAIN_DB
+		unbox_audio.bus = AudioMix.UNBOX
+		add_child(unbox_audio)
+		paper = Node3D.new()
+		paper.name = "Paperwork"
+		pivot.add_child(paper)
+		paper_material = flat("ffffff", 0.9)
 	set_brand("" if sealed else brand)
 	visible = start_visible
 
@@ -154,9 +193,100 @@ func set_brand(id: String) -> void:
 		get_node("LidHinge/TopModel").text = "IR"
 		get_node("LidHinge/TopSpecs").text = "HANDHELD IMAGER"
 
-func deliver(text: String, id := "Lotac") -> void:
+## Colour of a tech's fault tag for this many diagnosed faults.
+static func tag_color(count: int) -> String:
+	return "green" if count <= 1 else "yellow" if count == 2 else "red"
+
+## Lays the job's paperwork on the lid: tagged faults from a tech (signed), or a customer's note.
+## Both empty leaves the lid bare.
+func set_paperwork(faults: Array, note := "", signature := "") -> void:
+	if paper == null: return
+	for child in paper.get_children(): child.queue_free()
+	handwriting.clear()
+	paperwork = "" if faults.is_empty() and note == "" else "note" if faults.is_empty() else tag_color(faults.size())
+	paper.visible = paperwork != ""
+	if paperwork == "": return
+	var w := box_size.x
+	var d := box_size.z
+	# The same handwriting every time the same paperwork is laid out.
+	var jitter := RandomNumberGenerator.new()
+	jitter.seed = hash(str(faults) + note + signature)
+	var size: Vector2 = NOTE_SIZE if paperwork == "note" else CARD_SIZE if paperwork == "red" else TAG_SIZE
+	paper_material.albedo_color = NOTE_COLOR if paperwork == "note" else TAG_COLORS[paperwork]
+	# Stuck on the lid's front half beside the printed fan, a little askew.
+	# Above the lid's printed text and fan (up to WALL + 0.015).
+	paper.position = Vector3(w * 0.06, WALL + 0.018, d * 0.6)
+	paper.rotation = Vector3(0, jitter.randf_range(-0.22, -0.08) if paperwork == "note" else jitter.randf_range(0.1, 0.24), 0)
+	add_block("Paper", Vector3(size.x, 0.004, size.y), Vector3.ZERO, paper_material, paper)
+	var lines: Array[String] = []
+	var font: Font = PEN_FONT if paperwork == "note" else MARKER_FONT
+	var ink: Color = PEN_INK if paperwork == "note" else MARKER_INK
+	if paperwork == "note":
+		lines = wrap_words(note, NOTE_LINE_CHARS)
+	else:
+		lines.assign(faults)
+		# Tags hang on a string; the red card is plain card.
+		if paperwork != "red": add_tag_eyelet(size)
+	# Marker capitals need a little more room per line than ballpoint.
+	var height := LINE_HEIGHT * (0.9 if paperwork != "note" else 0.85)
+	var top := -height * (lines.size() + (0.9 if signature != "" else 0.0)) * 0.5 + height * 0.5
+	var left := -size.x * (0.36 if paperwork != "note" else 0.42)
+	for index in range(lines.size()):
+		write_line(lines[index], font, ink, height, Vector3(left, 0, top + index * height), jitter)
+	if signature != "":
+		write_line("- " + signature, PEN_FONT, PEN_INK, height * 0.95, Vector3(size.x * 0.05, 0, top + lines.size() * height + height * 0.05), jitter)
+
+## One handwritten line, left-aligned at `at` on the paper, slightly off the ruled line.
+func write_line(line: String, font: Font, ink: Color, height: float, at: Vector3, jitter: RandomNumberGenerator) -> void:
+	var node := Label3D.new()
+	node.name = "Handwriting"
+	node.text = line
+	node.font = font
+	node.font_size = 64
+	# Glyphs fill most of the line height.
+	node.pixel_size = height / 60.0 * jitter.randf_range(0.94, 1.06)
+	# A slightly thicker stroke in the same ink reads as pen pressure, not an outline.
+	node.outline_size = 3
+	node.modulate = ink
+	node.outline_modulate = ink
+	node.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	node.double_sided = false
+	node.position = at + Vector3(jitter.randf_range(-0.012, 0.012), 0.004, jitter.randf_range(-0.008, 0.008))
+	node.rotation = Vector3(-PI * 0.5, 0, jitter.randf_range(-0.07, 0.07))
+	paper.add_child(node)
+	handwriting.append(node)
+
+## A paper tag's reinforced eyelet and a loose length of string on its left end.
+func add_tag_eyelet(size: Vector2) -> void:
+	var ring := MeshInstance3D.new()
+	ring.name = "Eyelet"
+	var disc := CylinderMesh.new()
+	disc.top_radius = 0.035
+	disc.bottom_radius = 0.035
+	disc.height = 0.002
+	disc.material = flat("f4efe2", 0.8)
+	ring.mesh = disc
+	ring.position = Vector3(-size.x * 0.5 + 0.05, 0.003, 0)
+	paper.add_child(ring)
+	var string := add_block("String", Vector3(0.24, 0.006, 0.01), Vector3(-size.x * 0.5 - 0.06, 0.004, 0.03), flat("c9b48a", 1.0), paper)
+	string.rotation.y = 0.5
+
+static func wrap_words(text: String, width: int) -> Array[String]:
+	var lines: Array[String] = []
+	var current := ""
+	for word in text.split(" ", false):
+		if current != "" and current.length() + 1 + word.length() > width:
+			lines.append(current)
+			current = word
+		else:
+			current = word if current == "" else current + " " + word
+	if current != "": lines.append(current)
+	return lines
+
+func deliver(text: String, id := "Lotac", faults: Array = [], note := "", signature := "") -> void:
 	set_brand(id)
 	set_label(text)
+	set_paperwork(faults, note, signature)
 	if motion != null: motion.kill()
 	for pivot in flaps: pivot.basis = Basis.IDENTITY
 	tape.visible = true
@@ -172,9 +302,17 @@ func open() -> Signal:
 	if motion != null: motion.kill()
 	transform = rest
 	tape.visible = false
+	if unbox_audio != null and not muted: unbox_audio.play()
 	motion = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	motion.tween_property(flaps[0], "rotation:x", -OPEN_ANGLE, 0.55)
 	return motion.finished
+
+func set_muted(value: bool) -> void:
+	muted = value
+	if muted and unbox_audio != null: unbox_audio.stop()
+
+func _exit_tree() -> void:
+	if unbox_audio != null: unbox_audio.stop()
 
 func cradle_point() -> Vector3:
 	return to_global(Vector3(0, WALL + FOAM_HEIGHT + 0.030, 0))

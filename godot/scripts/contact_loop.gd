@@ -1,6 +1,6 @@
 extends AudioStreamPlayer
-## A supplied recording that loops while a paste tool is on the face: the spudger scrape or the
-## IPA wipe. The tool reports contact every frame it works (set_contact); loudness follows that
+## A supplied recording that loops while a tool works a surface: the spudger scrape, the IPA
+## wipe (paste faces and the fan shaft) or the paste squeeze. The tool reports contact every frame it works (set_contact); loudness follows that
 ## report and fades out once the reports stop. Without the recording the player stays silent.
 ## Recordings are looped in code over their whole length, so trim them to a seamless loop.
 ## Reports older than this mean the tool has lifted off.

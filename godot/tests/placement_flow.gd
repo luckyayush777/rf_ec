@@ -52,6 +52,7 @@ func run() -> void:
 	bench.activate(root.get_visible_rect().size * 0.5)
 	await create_timer(0.55).timeout
 	expect(not bench.inspection.held and bench.gpu.global_transform.is_equal_approx(expected.destination), "GPU did not land at its indicated spot")
+	expect(bench.inspection.set_down_audio.playing, "Setting the GPU on the bench made no sound")
 	expect(not bench.placement_marker.visible, "Placement marker remained after placing GPU")
 	bench.inspection.lift()
 	await create_timer(0.55).timeout

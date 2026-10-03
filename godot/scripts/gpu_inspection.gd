@@ -2,6 +2,10 @@ extends Node
 ## Whole-card inspection. Detached assembly inspection lives in gpu_service.gd.
 signal changed
 
+const AudioMix = preload("res://scripts/audio_mix.gd")
+const SET_DOWN_SOUND = preload("res://assets/sounds/gpu_set_down.wav")
+const SET_DOWN_GAIN_DB := -6.0
+
 var gpu: Node3D
 var camera: Camera3D
 var home := Transform3D.IDENTITY
@@ -12,6 +16,8 @@ var zoom_factor := 1.0
 var center := Vector3.ZERO
 var motion: Tween
 var can_interact: Callable = func(): return true
+var set_down_audio: AudioStreamPlayer
+var muted := false
 
 func configure(card: Node3D, view_camera: Camera3D, bounds: AABB) -> void:
 	gpu = card
@@ -19,6 +25,25 @@ func configure(card: Node3D, view_camera: Camera3D, bounds: AABB) -> void:
 	home = gpu.transform
 	center = bounds.get_center()
 	radius = (bounds.size * gpu.global_basis.get_scale()).length() * 0.5
+	set_down_audio = AudioStreamPlayer.new()
+	set_down_audio.name = "SetDownSound"
+	set_down_audio.stream = SET_DOWN_SOUND
+	set_down_audio.volume_db = SET_DOWN_GAIN_DB
+	set_down_audio.bus = AudioMix.SET_DOWN
+	add_child(set_down_audio)
+
+## The card, or a detached assembly, landing on the bench or in the holder.
+func play_set_down() -> void:
+	if muted or set_down_audio == null: return
+	set_down_audio.pitch_scale = randf_range(0.95, 1.05)
+	set_down_audio.play()
+
+func set_muted(value: bool) -> void:
+	muted = value
+	if muted and set_down_audio != null: set_down_audio.stop()
+
+func _exit_tree() -> void:
+	if set_down_audio != null: set_down_audio.stop()
 
 func held_position() -> Vector3:
 	var offset := preload("res://scripts/held_part_pose.gd").center_offset(camera, radius, zoom_factor)
@@ -49,8 +74,9 @@ func animate_to(destination: Transform3D, restore_holder: bool = true) -> void:
 	motion = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	motion.tween_property(gpu, "global_transform", destination, 0.48)
 	motion.finished.connect(func():
-		if not held and restore_holder:
-			gpu.transform = home
+		if not held:
+			play_set_down()
+			if restore_holder: gpu.transform = home
 		moving = false
 		changed.emit())
 

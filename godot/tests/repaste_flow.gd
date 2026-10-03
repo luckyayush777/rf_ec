@@ -302,6 +302,8 @@ func run() -> void:
 	var die_layer: MeshInstance3D = paste.faces.die.mesh
 	squeeze_at(bench, view, view.camera.unproject_position(die_layer.global_position), 1.5)
 	var bead: float = paste.paste_volume()
+	expect(paste.squeeze_sound.stream != null and paste.squeeze_sound.target > 0.0,
+		"The held squeeze did not drive its toothpaste loop")
 	expect(bead > 0.3 * paste.IDEAL_VOLUME and bead < 0.5 * paste.IDEAL_VOLUME, "Squeeze rate did not build a bead (%.1f)" % bead)
 	squeeze_at(bench, view, view.camera.unproject_position(die_layer.global_position), 2.2)
 	expect(absf(paste.paste_volume() - paste.IDEAL_VOLUME) < 0.1 * paste.IDEAL_VOLUME, "Held squeeze did not reach a full dot")
@@ -353,6 +355,8 @@ func run() -> void:
 	paste.lift()
 	expect(paste.debug_dry() and paste.dried and paste.contact_quality() < 0.2, "Debug dry did not restore old paste")
 	bench.queue_free()
-	await process_frame
+	# The audio server drops a sound still playing at free only a few frames later; quitting
+	# sooner reports its stream as leaked at exit.
+	for frame in range(10): await process_frame
 	print("PASS: paste reach rules, tool kit, scrape/wipe stages, squeeze bead, seat spread, lift imprint and pattern coverage" if failures.is_empty() else "FAIL: " + str(failures))
 	quit(0 if failures.is_empty() else 1)

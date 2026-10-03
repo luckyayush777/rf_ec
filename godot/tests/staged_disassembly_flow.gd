@@ -121,6 +121,8 @@ func run() -> void:
 	expect(bench.open_service_view({"action": "gpu", "target": bench.gpu}), "Bare board on mat cannot open focus")
 	view.close()
 	bench.queue_free()
-	await process_frame
+	# The audio server drops a sound still playing at free only a few frames later; quitting
+	# sooner reports its stream as leaked at exit.
+	for frame in range(10): await process_frame
 	print("PASS: staged fan/heatsink removal, screw service with occupied left hand, tool-retaining placement and full/partial/bare board focus" if failures.is_empty() else "FAIL: " + str(failures))
 	quit(0 if failures.is_empty() else 1)

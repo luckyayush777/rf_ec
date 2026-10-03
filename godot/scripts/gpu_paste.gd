@@ -16,6 +16,8 @@ signal chipped(point: Vector3, normal: Vector3, count: int)
 ## Scraped-off compound leaving the face: chalky crust crumbs pushed ahead of the blade, or
 ## a clump of gum and crust dropping off its loaded edge. The dust puffs draw them.
 signal shed(point: Vector3, normal: Vector3, direction: Vector3, count: int, color: Color, size: float)
+## Material used up, for the job's bill of materials (bill_of_materials.gd item ids).
+signal consumed(item: String, quantity: float)
 
 const INNER := 20
 const MARGIN := 4
@@ -30,6 +32,8 @@ const CLEAN_THRESHOLD := 0.05
 ## Thickness drawn at full bead height.
 const DISPLAY_THICKNESS := 3.0
 const SQUEEZE_RATE := 110.0
+## Grams of compound in IDEAL_VOLUME: a pea-sized dot for a small die.
+const IDEAL_GRAMS := 0.3
 ## Spudger removal per second at full brush strength. Glaze resists until the blade gets
 ## under an exposed edge, then chips away CHIP_BOOST times faster.
 const GLAZE_RATE := 1.4
@@ -61,6 +65,7 @@ const ContactLoop = preload("res://scripts/contact_loop.gd")
 ## Supplied loops for the tools at work; each is silent until its file exists.
 const SCRAPE_RECORDING := "res://assets/sounds/spudger_scrape.wav"
 const WIPE_RECORDING := "res://assets/sounds/ipa_wipe.wav"
+const SQUEEZE_RECORDING := "res://assets/sounds/paste_squeeze.wav"
 ## Movement within 90 degrees of the stroke's heading (cosine above STROKE_TURN) bends it by
 ## STROKE_FOLLOW per step; anything further back is ignored, so a stroke never turns around.
 const STROKE_TURN := 0.0
@@ -104,6 +109,7 @@ var pad_soil := 0.0
 var loaded_tool := ""
 var scrape_sound: AudioStreamPlayer
 var wipe_sound: AudioStreamPlayer
+var squeeze_sound: AudioStreamPlayer
 ## The current stroke's heading in cell space, set by its first real movement and kept until
 ## release. It can bend through a curve but ignores motion back against it.
 var stroke_dir := Vector2.ZERO
@@ -149,6 +155,8 @@ func configure(world: Node3D) -> void:
 	add_child(scrape_sound)
 	wipe_sound = ContactLoop.new("IpaWipeSound", WIPE_RECORDING, AudioMix.IPA_WIPE)
 	add_child(wipe_sound)
+	squeeze_sound = ContactLoop.new("PasteSqueezeSound", SQUEEZE_RECORDING, AudioMix.PASTE_SQUEEZE)
+	add_child(squeeze_sound)
 	reset_dried()
 
 func make_layer(layer_name: String, size: Vector2, drop: float) -> MeshInstance3D:
@@ -370,7 +378,10 @@ func work_at(hit: Dictionary, delta: float) -> bool:
 				chipped.emit(hit.point, layer.global_basis.y.normalized(), floori(chip_budget))
 				chip_budget -= floorf(chip_budget)
 		"wipe": changed_any = wipe(id, cell, delta)
-		"apply": changed_any = squeeze(id, cell, delta)
+		"apply":
+			changed_any = squeeze(id, cell, delta)
+			# A steady press squeezes at a steady rate, so the squelch plays at full level.
+			squeeze_sound.set_contact(1.0)
 	if work_kind != "apply": report_contact(layer, hit.point, stroke, delta)
 	if changed_any:
 		dried = false
@@ -414,6 +425,8 @@ func report_contact(layer: MeshInstance3D, point: Vector3, stroke: Vector2, delt
 			blade_load -= CLUMP_SHED
 	else:
 		wipe_sound.set_contact(loudness)
+		# A fresh pad is used up once it first lifts residue.
+		if pad_soil <= 0.0 and total > 0.0: consumed.emit("ipa-pad", 1.0)
 		pad_soil = minf(1.0, pad_soil + total / PAD_CAPACITY)
 
 ## World size of one paste cell on a face layer.
@@ -545,6 +558,7 @@ func squeeze(id: String, cell: Vector2, delta: float) -> bool:
 	for index in range(cells.size()):
 		paste[cells[index][0]] += amount * weights[index] / sum
 	face.paste = paste
+	consumed.emit("thermal-paste", amount / IDEAL_VOLUME * IDEAL_GRAMS)
 	return true
 
 func finish_if_clean(id: String) -> void:
@@ -642,7 +656,7 @@ func deny(reason: String) -> void:
 func set_muted(value: bool) -> void:
 	muted = value
 	if muted and jingle != null: jingle.stop()
-	for voice in [scrape_sound, wipe_sound]:
+	for voice in [scrape_sound, wipe_sound, squeeze_sound]:
 		if voice != null: voice.set_muted(value)
 
 func debug_dry() -> bool:

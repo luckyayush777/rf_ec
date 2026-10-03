@@ -17,6 +17,10 @@ const RACING_GAME := &"RacingGame"
 const SPUDGER := &"SpudgerScrape"
 const IPA_WIPE := &"IpaWipe"
 const PC_INPUT := &"PcInput"
+const UNBOX := &"Unbox"
+const SET_DOWN := &"SetDown"
+const OIL_DROP := &"OilDrop"
+const PASTE_SQUEEZE := &"PasteSqueeze"
 const CHANNELS := [
 	[MASTER, "Master"],
 	[FAN_QUIET, "Fan, quiet loop"],
@@ -32,6 +36,10 @@ const CHANNELS := [
 	[STICKER_PEEL, "Sticker peel"],
 	[SPUDGER, "Spudger scrape"],
 	[IPA_WIPE, "IPA wipe"],
+	[PASTE_SQUEEZE, "Paste squeeze"],
+	[OIL_DROP, "Bearing oil drop"],
+	[UNBOX, "Unboxing"],
+	[SET_DOWN, "Card set down"],
 	[PC_INPUT, "Shop PC keys and mouse"]]
 const LAYOUT_PATH := "res://default_bus_layout.tres"
 const USER_PATH := "user://audio_mix.cfg"

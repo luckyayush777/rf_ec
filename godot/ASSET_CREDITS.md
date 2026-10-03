@@ -27,6 +27,17 @@ Keep this attribution with distributed builds. GPU and testing-desk assets are c
 
 - Source: https://kenney.nl/assets/ui-audio (via https://github.com/Calinou/kenney-ui-audio)
 
-`assets/sounds/gpu_sounds/spudger_scraping.mp3` and `assets/sounds/gpu_sounds/ipa_wipe.mp3` (a window being wiped) were supplied for the paste tools. `assets/sounds/spudger_scrape.wav` and `assets/sounds/ipa_wipe.wav` are the in-game loops made from them: high-passed (150 Hz and 100 Hz) to remove rumble, the scrape gently compressed into a steady texture, the wipe's long silences shortened, each end crossfaded into its start, and the wipe set 6 dB below the scrape. They loop while the spudger or IPA wipe is on a paste face.
+`assets/sounds/gpu_sounds/spudger_scraping.mp3` and `assets/sounds/gpu_sounds/ipa_wipe.mp3` (a window being wiped) were supplied for the paste tools. `assets/sounds/spudger_scrape.wav` and `assets/sounds/ipa_wipe.wav` are the in-game loops made from them: high-passed (150 Hz and 100 Hz) to remove rumble, the scrape gently compressed into a steady texture, the wipe's long silences shortened, each end crossfaded into its start, and the wipe set 6 dB below the scrape. They loop while the spudger or IPA wipe is on a paste face; the IPA wipe loop also plays while wiping the fan shaft.
+
+The four sounds below were cut from Freesound previews, mixed to mono 44.1 kHz, high-passed to remove rumble and peak-normalised. Keep the CC-BY attributions with distributed builds.
+
+- `assets/sounds/paste_squeeze.wav` loops while the paste syringe squeezes. It joins the five clean squeeze strokes (gaps removed, each end crossfaded into its start) from **"Toothpaste manipulation" by MaslovyTygr**, licensed **Creative Commons Attribution 4.0**. Source: https://freesound.org/s/736059/
+- `assets/sounds/oil_drop.wav` plays once per fan-oiler drop, slightly re-pitched each time. It is **"Oil Squirts.wav" by Augdog** (oil squirted from a dropper), licensed **Creative Commons Attribution 4.0**. Source: https://freesound.org/s/210214/
+- `assets/sounds/gpu_unbox.wav` plays as the delivery box opens: the first flap-opening pass of **"box cardboard open part flaps.wav" by kyles** (CC0, https://freesound.org/s/452567/), then, as the card lifts out, a second of plastic crinkle 7 dB lower from **"Opening Plastic Package" by rodrigocswm** (CC0, https://freesound.org/s/434674/).
+- `assets/sounds/gpu_set_down.wav` plays when the card lands in its holder or on the bench, and when a detached assembly is placed on the table. It is the main impact of **"Plastic object being set down" by bwarpus99**, licensed CC0. Source: https://freesound.org/s/452535/
+
+License: https://creativecommons.org/licenses/by/4.0/
 
 `assets/shop-interior.glb` is the repository-authored workshop, exported from `models/shop-interior.blend`. Visual references and export instructions are recorded in `models/shop-interior.md`; no third-party model or photo textures are embedded.
+
+`assets/fonts/PermanentMarker-Regular.ttf` is **Permanent Marker** by Font Diner, licensed under the Apache License 2.0 (`assets/fonts/LICENSE-PermanentMarker.txt`). Techs write fault tags with it. `assets/fonts/Caveat-Variable.ttf` is **Caveat** by The Caveat Project Authors, licensed under the SIL Open Font License 1.1 (`assets/fonts/OFL-Caveat.txt`). Customer notes and tech signatures use it. Both come from the Google Fonts repository (https://github.com/google/fonts).

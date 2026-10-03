@@ -159,6 +159,7 @@ func run() -> void:
 	expect(bench.interaction_hit(centre()).get("action") == "delivery_box", "The delivery box was not the aimed target")
 	await click_at(bench, centre())
 	expect(jobs.busy, "Clicking the box did not start unboxing")
+	expect(bench.delivery_box.unbox_audio.playing, "Opening the box made no unboxing sound")
 	await create_timer(0.5).timeout
 	await capture("jobs-box-open")
 	await settle(bench)

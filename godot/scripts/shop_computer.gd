@@ -10,6 +10,7 @@ signal used(active: bool)
 const UI = preload("res://scripts/screen_ui.gd")
 const CRT = preload("res://shaders/crt_screen.gdshader")
 const AudioMix = preload("res://scripts/audio_mix.gd")
+const Materials = preload("res://scripts/bill_of_materials.gd")
 ## Recorded keystrokes (unicaegames, CC0) and mouse buttons (Kenney, CC0); see ASSET_CREDITS.md.
 const KEY_SOUNDS := 12
 const KEY_SOUND_PATH := "res://assets/sounds/pc/keypress-%03d.wav"
@@ -40,6 +41,10 @@ var tab := "board"
 var mono: Font
 var mono_bold: Font
 var credit_label: Label
+var clock_label: Label
+## The bench page's bill grows with labour time; it is rebuilt each BILL_REFRESH shop minutes.
+const BILL_REFRESH := 5
+var bill_stamp := -1
 var tab_buttons: Dictionary = {}
 var content: VBoxContainer
 var prompt_label: Label
@@ -235,6 +240,12 @@ func _process(delta: float) -> void:
 	blink += delta
 	if prompt_label != null:
 		prompt_label.text = "C:\\BENCH\\JOBS>" + ("_" if fmod(blink, 1.06) < 0.53 else " ")
+	if jobs != null and clock_label != null:
+		clock_label.text = jobs.clock_text(jobs.shop_minutes)
+		var stamp := floori(jobs.shop_minutes / BILL_REFRESH)
+		if in_use and tab == "bench" and stamp != bill_stamp:
+			bill_stamp = stamp
+			refresh()
 	# The hard disk chatters, busier while someone is at the keyboard.
 	disk_time -= delta
 	if disk_time <= 0.0:
@@ -306,6 +317,10 @@ func build_page() -> void:
 	version.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	version.size_flags_vertical = Control.SIZE_SHRINK_END
 	header.add_child(version)
+	clock_label = text("", 16, PHOSPHOR)
+	clock_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	header.add_child(clock_label)
+	header.add_child(text("  ", 16))
 	var credit := PanelContainer.new()
 	credit.add_theme_stylebox_override("panel", frame(PHOSPHOR, PHOSPHOR, 10, 2))
 	header.add_child(credit)
@@ -354,10 +369,10 @@ func refresh() -> void:
 		"bench": build_bench()
 		"ledger": build_ledger()
 
-func card(border: Color = DIM) -> VBoxContainer:
+func card(border: Color = DIM, parent: Control = null) -> VBoxContainer:
 	var panel := PanelContainer.new()
 	panel.add_theme_stylebox_override("panel", frame(BG, border, 12, 8))
-	content.add_child(panel)
+	(parent if parent != null else content).add_child(panel)
 	var inner := VBoxContainer.new()
 	inner.add_theme_constant_override("separation", 4)
 	panel.add_child(inner)
@@ -371,23 +386,30 @@ func wrapped(value: String, size: int, width: float, color: Color = PHOSPHOR) ->
 
 func build_board() -> void:
 	content.add_child(text("OPEN REPAIR REQUESTS", 20, BRIGHT, true))
-	content.add_child(text("BENCH HOLDS %d CARD - ACCEPTED CARDS ARRIVE BOXED AT THE REPAIR DESK" % jobs.MAX_QUEUE, 13, DIM))
+	content.add_child(text("TECHS PAY THE POSTED PRICE. CUSTOMERS PAY YOUR BILL AND RATE YOU.", 13, DIM))
 	for offer in jobs.offers:
+		var tech: bool = jobs.is_tech(offer)
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 14)
 		card().add_child(row)
 		var details := VBoxContainer.new()
 		details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(details)
-		details.add_child(text("#%d  %s  %s" % [offer.id, offer.customer.to_upper(), offer.model.to_upper()], 14, DIM))
-		details.add_child(wrapped("> " + offer.complaint, 15, 520))
+		details.add_child(text("#%d  %s  %s" % [offer.id, ("TECH " if tech else "") + offer.customer.to_upper(), offer.model.to_upper()], 14, DIM))
+		details.add_child(wrapped("> " + offer.complaint if tech else "> NOTE: \"%s\"" % offer.complaint, 15, 520))
+		if tech:
+			details.add_child(text("DIAGNOSED: %d FAULT%s TAGGED ON THE BOX" % [offer.faults.size(), "" if offer.faults.size() == 1 else "S"], 13, DIM))
 		var side := VBoxContainer.new()
 		side.custom_minimum_size.x = 150
 		side.alignment = BoxContainer.ALIGNMENT_CENTER
 		row.add_child(side)
-		var pay := text("$%d" % offer.pay, 26, BRIGHT, true)
+		var pay := text("$%d" % offer.pay if tech else "BILL", 26, BRIGHT, true)
 		pay.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		side.add_child(pay)
+		if not tech:
+			var due := text("WITHIN " + jobs.duration_text(offer.due).to_upper(), 13, DIM)
+			due.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			side.add_child(due)
 		var accept := term_button("BENCH FULL" if jobs.bench_full() else "ACCEPT", 16)
 		accept.disabled = jobs.bench_full()
 		accept.name = "Accept%d" % offer.id
@@ -403,7 +425,7 @@ func build_bench() -> void:
 		var banner := card(BRIGHT if result.paid else PHOSPHOR)
 		banner.add_child(text(("** JOB #%d RETURNED TO %s - PAID $%d **" if result.paid else "!! JOB #%d RETURNED TO %s - NO PAYMENT !!") %
 			([result.id, result.customer.to_upper(), result.amount] if result.paid else [result.id, result.customer.to_upper()]), 16, BRIGHT, true))
-		banner.add_child(wrapped("> " + result.feedback, 15, 700))
+		banner.add_child(wrapped("> " + result.feedback + ("" if result.stars == 0 else "  [%s %d/5]" % [jobs.stars_text(result.stars), result.stars]), 15, 700))
 	var job: Dictionary = jobs.active()
 	if job.is_empty():
 		content.add_child(text("BENCH EMPTY. ACCEPT A REQUEST ON THE JOB BOARD.", 16))
@@ -412,11 +434,24 @@ func build_bench() -> void:
 		browse.pressed.connect(func(): show_tab("board"))
 		content.add_child(browse)
 		return
-	var info := card()
-	info.add_child(text("#%d  %s  %s" % [job.id, job.customer.to_upper(), job.model.to_upper()], 14, DIM))
-	info.add_child(text("STATUS: IN THE BOX - OPEN IT ON THE REPAIR DESK" if job.state == "boxed" else "STATUS: ON THE BENCH - DIAGNOSE AND REPAIR", 16, BRIGHT, true))
-	info.add_child(wrapped("CUSTOMER SAYS: \"%s\"" % job.complaint, 15, 700))
-	info.add_child(text("PAYS $%d WHEN THE CARD COMES BACK WORKING" % job.pay, 14, DIM))
+	var tech: bool = jobs.is_tech(job)
+	var columns := HBoxContainer.new()
+	columns.add_theme_constant_override("separation", 10)
+	content.add_child(columns)
+	var info := card(DIM, columns)
+	info.get_parent().size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var width := 700 if tech else 360
+	info.add_child(text("#%d  %s" % [job.id, ("TECH " if tech else "") + job.customer.to_upper()], 14, DIM))
+	info.add_child(wrapped("IN THE BOX - OPEN IT ON THE REPAIR DESK" if job.state == "boxed" else
+		"ON THE BENCH - " + ("REPAIR THE TAGGED FAULTS" if tech else "DIAGNOSE AND REPAIR"), 16, width, BRIGHT))
+	if tech:
+		info.add_child(wrapped("TECH FOUND: " + ", ".join(jobs.fault_labels(job.faults)).to_upper(), 15, width))
+		info.add_child(wrapped("SYMPTOMS: \"%s\"" % job.complaint, 15, width))
+		info.add_child(text("PAYS $%d WHEN THE CARD COMES BACK WORKING" % job.pay, 14, DIM))
+	else:
+		info.add_child(wrapped("NOTE: \"%s\"" % job.complaint, 15, width))
+		info.add_child(text(("WANTS IT WITHIN %s - %s" % [jobs.duration_text(job.due), jobs.due_text(job)]).to_upper(), 14, DIM))
+		build_bill(job, columns)
 	var send := term_button("RETURN CARD TO CUSTOMER", 17)
 	send.name = "ReturnCard"
 	send.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -424,26 +459,64 @@ func build_bench() -> void:
 	send.pressed.connect(func(): jobs.return_card())
 	content.add_child(send)
 	content.add_child(wrapped("!! " + jobs.last_refusal.to_upper() if jobs.last_refusal != "" else
-		"REASSEMBLE IT, RECONNECT THE FAN CABLE AND SET IT DOWN FIRST. THE CUSTOMER PAYS ONLY IF EVERY PROBLEM IS GONE.",
+		"REASSEMBLE IT, RECONNECT THE FAN CABLE AND SET IT DOWN FIRST. NOBODY PAYS UNTIL EVERY PROBLEM IS GONE.",
 		14, 700, BRIGHT if jobs.last_refusal != "" else DIM))
+
+## A customer's running bill: diagnosis, labour so far at the shop rate (with its controls) and
+## each material on the card's bill of materials.
+func build_bill(job: Dictionary, parent: Control) -> void:
+	var invoice: Dictionary = jobs.bill(job)
+	var sheet := card(DIM, parent)
+	sheet.get_parent().custom_minimum_size.x = 340
+	sheet.add_child(text("BILL SO FAR", 15, BRIGHT, true))
+	for line in invoice.lines:
+		sheet.add_child(bill_row(line.label.to_upper(), Materials.money(line.cents), PHOSPHOR))
+	rule(sheet, FAINT)
+	sheet.add_child(bill_row("TOTAL", "$%d" % invoice.dollars, BRIGHT))
+	var rate := HBoxContainer.new()
+	rate.add_theme_constant_override("separation", 6)
+	sheet.add_child(rate)
+	var label := text("RATE $%d/H" % jobs.labor_rate, 14, PHOSPHOR)
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rate.add_child(label)
+	for step in [-jobs.LABOR_STEP, jobs.LABOR_STEP]:
+		var button := term_button("-" if step < 0 else "+", 14)
+		button.name = "RateDown" if step < 0 else "RateUp"
+		button.custom_minimum_size.x = 32
+		var change: int = step
+		button.pressed.connect(func(): jobs.set_labor_rate(jobs.labor_rate + change))
+		rate.add_child(button)
+
+func bill_row(label: String, amount: String, color: Color) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	var name_cell := text(label, 13, color)
+	name_cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_cell.clip_text = true
+	row.add_child(name_cell)
+	row.add_child(text(amount, 13, color))
+	return row
 
 func build_ledger() -> void:
 	content.add_child(text("LEDGER", 20, BRIGHT, true))
-	content.add_child(text("BALANCE  $%d" % jobs.balance, 22, BRIGHT, true))
+	var rating: Vector2 = jobs.shop_rating()
+	content.add_child(text("BALANCE  $%d     CUSTOMER RATING  %s" % [jobs.balance,
+		"NONE YET" if rating.y == 0 else "%.1f/5 FROM %d" % [rating.x, rating.y]], 20, BRIGHT, true))
 	if jobs.ledger.is_empty():
 		content.add_child(text("NO RETURNED JOBS YET.", 16, DIM))
 		return
-	content.add_child(ledger_row(["JOB", "CUSTOMER", "RESULT", "AMOUNT"], DIM))
+	content.add_child(ledger_row(["JOB", "CLIENT", "RESULT", "AMOUNT", "RATING"], DIM))
 	rule(content, FAINT)
 	for entry in jobs.ledger.slice(0, 10):
-		content.add_child(ledger_row(["#%d" % entry.id, entry.customer.to_upper(), "FIXED" if entry.paid else "UNFIXED",
-			"+$%d" % entry.amount], PHOSPHOR if entry.paid else DIM))
+		content.add_child(ledger_row(["#%d" % entry.id, ("TECH " if entry.source == "tech" else "") + entry.customer.to_upper(),
+			"FIXED" if entry.paid else "UNFIXED", "+$%d" % entry.amount, "N/A" if entry.stars == 0 else jobs.stars_text(entry.stars)],
+			PHOSPHOR if entry.paid else DIM))
 
 func ledger_row(cells: Array, color: Color) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	for index in range(cells.size()):
-		var cell := text(cells[index], 16, color)
-		cell.custom_minimum_size.x = [110, 260, 200, 120][index]
+		var cell := text(cells[index], 15, color)
+		cell.custom_minimum_size.x = [80, 280, 120, 110, 100][index]
+		cell.clip_text = index == 1
 		row.add_child(cell)
 	return row
 

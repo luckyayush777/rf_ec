@@ -36,7 +36,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 - Screwdriver, blowers and cleaning jingles share a sound toggle; see [asset credits](ASSET_CREDITS.md).
 - **Repair status overlay** (debug builds, developer aid): expand **Escape → Dust & diagnostics** and switch on **Repair status overlay**; the choice is remembered. It lists the Job (including the rolled faults the customer only hints at), then Dust, Thermal paste, Fan bearing, Assembly and the live Test run readout, each red (broken or untouched), yellow (in progress) or green (done), with hidden truth such as paste contact percentage. It stays visible during play and above focus views.
 - **Repair speeds (debug)**: expand **Escape → Repair speeds** and adjust **Dust clearing**, **IPA wiping**, or **Paste scraping**. Each multiplier ranges from 0.1x to 20x; 1x is the original speed and higher values remove material faster. Changes apply immediately and persist in `user://bench_repair_speeds.cfg`. **Reset repair speeds to 1x** restores the baseline. Dust affects both blowers; IPA affects paste residue and fan-shaft gunk. Brush sizes, scrape-before-wipe rules and paste application stay the same. Release builds always use the original rates. Automated fixtures start at 1x regardless of saved play tuning.
-- **Sound mix**: expand **Escape → Sound** for a Master slider and one slider per sound (fan quiet/loud loops, bearing grind, air blower motor, Dev blower air, screwdriver, clean jingle, GPU seating, monitor button, racing game, sticker peel, spudger scrape, IPA wipe, shop PC keys and mouse), from silent to 200%. Changes apply live. Run from the editor, they save into `default_bus_layout.tres`, so they can be committed and are also editable in the editor's bottom **Audio** tab; exported builds save them to user settings.
+- **Sound mix**: expand **Escape → Sound** for a Master slider and one slider per sound (fan quiet/loud loops, bearing grind, air blower motor, Dev blower air, screwdriver, clean jingle, GPU seating, monitor button, racing game, sticker peel, spudger scrape, IPA wipe, paste squeeze, bearing oil drop, unboxing, card set down, shop PC keys and mouse), from silent to 200%. Changes apply live. Run from the editor, they save into `default_bus_layout.tres`, so they can be committed and are also editable in the editor's bottom **Audio** tab; exported builds save them to user settings.
 - Service-rule evaluator, exercised against 1,024 checked-in expected decisions and used by the live cable/screw controller.
 
 ## Controls
@@ -47,7 +47,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 | Release/resume mouse | Tab or Escape; releasing also ends screw/blower holds |
 | Interact / pick up | Aim the crosshair and press E (or click); move within reach |
 | Shop computer | E or click on the beige PC by the front wall (screen, cabinet or keyboard). The camera settles on the CRT and the cursor is freed: click tabs and buttons on the screen, or press F1 / F2 / F3 for the job board, bench and ledger. Esc or Tab steps away. Set held parts down first. Sitting down types a quick burst on the clacky keyboard; page keys and stepping away clack too, and every mouse press and release clicks (recorded CC0 sounds, see [asset credits](ASSET_CREDITS.md)). |
-| Open the delivery box | E or click on the box on the repair desk; the card lifts out into its holder |
+| Open the delivery box | E or click on the box on the repair desk; the flaps open and the card slides out of its sleeve into its holder (recorded sounds, see [asset credits](ASSET_CREDITS.md)) |
 | Return a card | Portal **My bench** tab: **Return card to customer**. The card must be reassembled with its fan cable connected and set down. |
 | Inspect GPU | E on the card, including with a tool equipped; RMB + mouse rotates, F flips, wheel adjusts holding distance. With a part held, R opens focus; E on the mat places that part and keeps the equipped tool. |
 | Place / return held card | GPU and detached parts sit in the left hand. Aim at the desk: a green ring marks a clear placement and red marks a blocked spot. E places the part while keeping your tool; Q returns the carried card to its repair holder. |
@@ -83,21 +83,29 @@ Play opens on an empty bench with **$100**. The loop:
 
 1. **Take a job.** Walk to the shop computer, a beige 486 with a green-phosphor CRT on
    the desk by the front wall, and click its screen. The internal **BENCHWORKS REPAIR-NET**
-   portal has three pages (F1-F3): **Job board** (open
-   requests: customer, complaint in their own words, and pay), **My bench** (the
-   accepted card, its status and the return button) and **Ledger** (balance and
-   returned jobs). **Accept job** puts the request on your bench.
+   portal has three pages (F1-F3): **Job board** (open requests), **My bench** (the
+   accepted card, its status, the customer's running bill and the return button) and
+   **Ledger** (balance, customer rating and returned jobs). The header shows the shop
+   clock. **Accept** puts the request on your bench. Requests come from two kinds of client
+   (see [Clients, bills and ratings](#clients-bills-and-ratings)):
+   - **Techs** have already diagnosed the card. They describe the symptoms, pay a posted
+     price, and tag the box with the faults they found.
+   - **Customers** only leave a note such as "fix it". You diagnose the card and bill them,
+     and they rate you.
 2. **Unbox it.** A branded retail box drops onto the repair desk, between the card holder
-   and the screw tray. One click breaks the seal, opens the hinged lid and lifts the
+   and the screw tray. Its lid carries the paperwork, handwritten: a tech's fault tag in
+   marker (green tag for one fault, yellow tag for two, red card for three or more, signed),
+   or a customer's yellow sticky note in ballpoint. One click breaks the seal, opens the hinged lid and lifts the
    card out of its foam cradle and silver anti-static sleeve into the holder. The open,
    empty package slides to a clear spot beside the mat and stays until the job is returned.
-3. **Diagnose and repair** with the existing tools. The complaint describes symptoms
-   only. Runs hot, roars and shows coloured sparkles: dust. Slows down after warming
-   up, with no artifacts: dried paste. Grinding: the fan bearing.
+3. **Diagnose and repair** with the existing tools. A tech's symptoms and tag teach the
+   signs: runs hot, roars and shows coloured sparkles: dust. Slows down after warming
+   up, with no artifacts: dried paste. Grinding: the fan bearing. A customer's note says
+   nothing useful, so you diagnose the card yourself.
 4. **Return it** from **My bench** once it is reassembled, with its fan cable
    connected, and set down. The courier takes it. If nothing is wrong with the card,
-   the customer pays the listed amount. Otherwise they report what is still wrong
-   and pay nothing. This includes problems you caused, such as refitting the
+   a tech pays the posted price and a customer pays your bill and rates you. Otherwise
+   they report what is still wrong and pay nothing (a customer also gives one star). This includes problems you caused, such as refitting the
    heatsink over too little paste.
 
 The bench holds **one card** at a time (`MAX_QUEUE` in `scripts/repair_jobs.gd`). The
@@ -125,9 +133,39 @@ r = (1 + √37) / 18 ≈ 0.3935 puts three faults at exactly 10 in 100:
 Which faults is uniform. Adding a fault type keeps the same *r*, so many-fault cards
 get rarer still (with four types: 62.1 / 24.5 / 9.6 / 3.8%). Every card has at least
 one fault, and everything not rolled starts healthy: clean, freshly pasted, oiled.
-Pay is a $20 diagnosis fee plus $40 for dust, $60 for paste and $45 for the bearing.
+A tech pays $40 for dust, $60 for paste and $45 for the bearing they diagnosed.
 Progress lives in memory only; there is no save yet. Spending money, more bench
 slots and unlocking the boxed thermal camera are not implemented yet.
+
+### Clients, bills and ratings
+
+Half of all requests come from techs (`TECH_SHARE`). The opening board always starts with one,
+so the first card arrives tagged with its faults, which acts as a soft tutorial. Techs do not
+rate the shop yet.
+
+**Shop clock.** Play time runs at a quarter of a shop minute per second (15 shop minutes per
+real minute) from 09:00 on day 1. The portal header shows it.
+
+**Customer bills** are itemised on **My bench** while you work:
+
+- a $20 diagnosis fee;
+- labour from unboxing to return, billed in started quarter hours at the shop's **labour
+  rate** ($40/h by default; the **-**/**+** buttons beside the bill change it in $5 steps,
+  from $10 to $150);
+- the card's **bill of materials**: everything used on it, at catalogue prices. For now that
+  is consumables: thermal paste per gram from the syringe, one IPA pad per fresh pad
+  (paste faces) or per shaft-wipe press, and one oil drop per drop. The catalogue in
+  `scripts/bill_of_materials.gd` is ready for spare parts once they exist.
+
+The customer pays the total in whole dollars.
+
+**Ratings.** A customer starts at five stars and loses up to three for lateness. They wait from
+acceptance to return, and the board shows how long they will wait (a base hour plus 45 minutes
+per hidden fault plus some slack). They lose another star at 1.5x the due time, at 2x and beyond.
+They also lose up to three for price compared with what they consider fair: the diagnosis fee
+plus the fault prices a tech would pay. Bills up to 1.2x fair cost nothing, then a star each at
+1.5x, 2x and beyond. The minimum is one star. The ledger shows each customer's stars and the
+shop's average; the queue display shows the average too. Ratings do not affect jobs yet.
 
 ## Thermal investigation loop
 
@@ -218,6 +256,8 @@ Sounds: drop a seamless loop at `assets/sounds/spudger_scrape.wav` and/or
 `assets/sounds/ipa_wipe.wav` (16-bit PCM WAV). Each loops over its whole length while its
 tool is on the face, louder with stroke speed and removal, fading out on release. Without
 the file the tool is silent. Each has its own mixer slider (**Spudger scrape**, **IPA wipe**).
+The paste syringe loops recorded toothpaste squeezes (`assets/sounds/paste_squeeze.wav`,
+**Paste squeeze** slider) for as long as it is held on the die.
 
 A single central dot of the right amount leaves the corners dry (about 92% contact).
 An X of the same volume reaches them (about 95%). Too little paste leaves most of the
@@ -237,9 +277,11 @@ is supplied). The fix happens in focus on the detached fan:
 2. **Pull the rotor**: click the hub. The rotor lifts out and rests face down beside the
    housing with its shaft up; the bearing boss and its three struts are exposed.
 3. **IPA wipe** on the shaft: hold and drag along it. The wipe wraps round the thin
-   shaft, so a stroke cleans every side; it clears with a jingle at about 95%.
+   shaft, so a stroke cleans every side, with the same IPA wipe loop as the paste faces;
+   it clears with a jingle at about 95%.
 4. **Fan oiler** (last tool-roll pocket) on the bearing: hold for drops, the first
-   shortly after pressing and then one every 0.4 s. One or two drops is enough.
+   shortly after pressing and then one every 0.4 s, each with a dropper squirt. One or
+   two drops is enough.
 5. **Refit the rotor**: click it. The sticker presses back on with it. A clean, oiled
    bearing spins quietly; a skipped step leaves it grinding, and the notice says which.
 
@@ -304,7 +346,8 @@ For request-to-owner navigation, see [the task router](../AGENTS.md#task-router)
 | `scripts/thermal_camera.gd`, `shaders/thermal_surface.gdshader`, `scenes/thermal_camera.tscn` | Pickup instrument, separate depth-tested thermal world, display, spot readout and fixed palette. |
 | `scripts/gpu_inspection.gd` | Whole-GPU inspection state and exact home-transform restoration. |
 | `scripts/repair_status.gd` | Debug-only repair status rows (job and rolled faults, dust, paste, bearing, assembly, test run) for the Escape-menu overlay. |
-| `scripts/repair_jobs.gd` | Job offers, fault-count odds and rolling, complaints, the one-card queue, delivery and unboxing, per-job fault setup, return checks and payment. |
+| `scripts/repair_jobs.gd` | Job offers from techs and customers, fault-count odds and rolling, the one-card queue, delivery with box paperwork and unboxing, per-job fault setup, shop clock, bill of materials recording, customer bills at the labour rate, ratings, return checks and payment. |
+| `scripts/bill_of_materials.gd` | Per-job bill of materials: catalogue (consumables now, spare parts later), quantities and costs in cents. |
 | `scenes/shop_computer.tscn`, `scripts/shop_computer.gd`, `shaders/crt_screen.gdshader` | Retro shop PC (CRT, beige 486 cabinet, keyboard, ball mouse); green-phosphor portal page in a SubViewport drawn through the curved CRT shader, camera settle and in-world click routing that follows the glass curvature. |
 | `scenes/job_queue_monitor.tscn`, `scripts/job_queue_monitor.gd` | Job-queue display on a floor stand behind the repair desk. |
 | `scripts/screen_ui.gd` | Shared helpers for pages drawn on in-world screens. |

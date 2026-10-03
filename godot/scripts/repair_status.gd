@@ -22,12 +22,12 @@ static func connector(edge: Node) -> Dictionary:
 		"torn": "Torn finger (contact 24, fan side) · lanes lost, link x4"}[edge.state]
 	return row("Edge connector", FAULT, detail + " · %d dropout%s" % [edge.drops, "" if edge.drops == 1 else "s"])
 
-## The rolled faults, which play only hints at through the customer's complaint.
+## The rolled faults: a tech's tag names them, a customer's note only hints.
 static func job(jobs: Node) -> Dictionary:
 	var active: Dictionary = jobs.active()
 	if active.is_empty(): return row("Job", INFO, "No card on the bench · balance $%d" % jobs.balance)
-	return row("Job", INFO, "#%d %s · %s · faults: %s · pays $%d" % [active.id, active.customer,
-		"in the box" if active.state == "boxed" else "on the bench", ", ".join(active.faults), active.pay])
+	return row("Job", INFO, "#%d %s (%s) · %s · faults: %s · %s" % [active.id, active.customer, active.source,
+		"in the box" if active.state == "boxed" else "on the bench", ", ".join(active.faults), jobs.value_text(active)])
 
 static func row(label: String, state: String, detail: String) -> Dictionary:
 	return {"label": label, "state": state, "detail": detail}

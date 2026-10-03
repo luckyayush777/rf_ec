@@ -8,6 +8,8 @@ extends Node
 signal changed
 signal opened_changed
 signal notice(text: String)
+## Material used up, for the job's bill of materials (bill_of_materials.gd item ids).
+signal consumed(item: String, quantity: float)
 
 ## Openings inside the detached fan, in order; service_rules.check_opening evaluates them.
 ## Small parts can be handled with bare hands or while holding a light tool.
@@ -46,8 +48,15 @@ const MOTION_TIME := 0.45
 ## The supplied peel recording is a quiet crackle; the slow peel lasts as long as it does.
 const PEEL_SOUND = preload("res://assets/sounds/gpu_sounds/sticker_peel_gpu_use.wav")
 const PEEL_GAIN_DB := 15.0
+## The shaft wipe shares the paste faces' IPA wipe loop; each oil drop plays one dropper squirt.
+const WIPE_RECORDING := "res://assets/sounds/ipa_wipe.wav"
+const OIL_SOUND = preload("res://assets/sounds/oil_drop.wav")
+const OIL_GAIN_DB := -8.0
+## Gunk lifted per second at which the wipe loop reaches full loudness.
+const FULL_WIPE := 4.0
 const SHADER = preload("res://shaders/shaft_gunk.gdshader")
 const AudioMix = preload("res://scripts/audio_mix.gd")
+const ContactLoop = preload("res://scripts/contact_loop.gd")
 
 var bench: Node3D
 var debug_wipe_speed := 1.0
@@ -73,10 +82,14 @@ var moving := false
 var working := false
 var work_kind := ""
 var drip_time := 0.0
+## Whether this press's IPA pad has lifted gunk yet; each press uses a fresh pad.
+var pad_used := false
 var last_denial := ""
 var denial_time := 0.0
 var jingle: AudioStreamPlayer
 var peel_audio: AudioStreamPlayer
+var wipe_sound: AudioStreamPlayer
+var oil_audio: AudioStreamPlayer
 var muted := false
 
 func configure(world: Node3D) -> void:
@@ -140,6 +153,14 @@ func configure(world: Node3D) -> void:
 	peel_audio.volume_db = PEEL_GAIN_DB
 	peel_audio.bus = AudioMix.STICKER_PEEL
 	add_child(peel_audio)
+	wipe_sound = ContactLoop.new("ShaftWipeSound", WIPE_RECORDING, AudioMix.IPA_WIPE)
+	add_child(wipe_sound)
+	oil_audio = AudioStreamPlayer.new()
+	oil_audio.name = "OilDropSound"
+	oil_audio.stream = OIL_SOUND
+	oil_audio.volume_db = OIL_GAIN_DB
+	oil_audio.bus = AudioMix.OIL_DROP
+	add_child(oil_audio)
 	bench.service.assembly_seated.connect(func(id: String):
 		# A fan mounted with only its sticker peeled gets the sticker pressed back on.
 		if id == "fan-assembly" and "hub-label" in opened: close_all())
@@ -301,6 +322,7 @@ func begin() -> bool:
 	if not WORK.has(tool): return false
 	working = true
 	work_kind = WORK[tool]
+	pad_used = false
 	# The first drop falls shortly after the press.
 	drip_time = DROP_INTERVAL * 0.6
 	return true
@@ -334,6 +356,10 @@ func wipe(local: Vector3, delta: float) -> bool:
 		var before := gunk[j]
 		gunk[j] = maxf(0.0, gunk[j] - 2.2 * delta * minf(1.0, falloff * 1.6))
 		removed += before - gunk[j]
+	wipe_sound.set_contact(0.4 + 0.6 * clampf(removed / maxf(delta, 0.001) / FULL_WIPE, 0.0, 1.0))
+	if removed > 0.0 and not pad_used:
+		pad_used = true
+		consumed.emit("ipa-pad", 1.0)
 	if total_gunk() <= CLEAN_THRESHOLD * initial_gunk:
 		gunk.fill(0.0)
 		shaft_clean = true
@@ -346,6 +372,10 @@ func drip(delta: float) -> bool:
 	if drip_time < DROP_INTERVAL: return false
 	drip_time -= DROP_INTERVAL
 	oil_drops += 1
+	consumed.emit("bearing-oil", 1.0)
+	if not muted:
+		oil_audio.pitch_scale = randf_range(0.92, 1.08)
+		oil_audio.play()
 	notice.emit("A drop of oil in the bearing." if oil_drops == 1 else
 		"Two drops. That's enough; refit the rotor." if oil_drops == 2 else
 		"Plenty already. Extra oil only flings onto the blades.")
@@ -360,9 +390,11 @@ func deny(reason: String) -> void:
 
 func set_muted(value: bool) -> void:
 	muted = value
+	wipe_sound.set_muted(value)
 	if muted:
 		jingle.stop()
 		peel_audio.stop()
+		oil_audio.stop()
 
 func debug_dry() -> bool:
 	if not OS.is_debug_build() or moving: return false
@@ -390,5 +422,5 @@ func set_dry() -> void:
 	close_all()
 
 func _exit_tree() -> void:
-	for player in [jingle, peel_audio]:
+	for player in [jingle, peel_audio, wipe_sound, oil_audio]:
 		if player != null: player.stop()

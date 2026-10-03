@@ -405,6 +405,7 @@ func place_assembly(point: Vector3, obstacles: Array) -> bool:
 	var part: Node3D = contract.objects[held_part]
 	animate_assembly(part, placement.destination, func():
 		held_part = ""
+		world.inspection.play_set_down()
 		changed.emit()
 		notice.emit("Assembly on the table. Click it to pick it up, or use Refit to mount it."))
 	return true

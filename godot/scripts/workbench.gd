@@ -190,6 +190,8 @@ func _ready() -> void:
 		bearing.set_muted(service.muted)
 		testing_station.set_muted(service.muted)
 		test_monitor.set_muted(service.muted)
+		inspection.set_muted(service.muted)
+		delivery_box.set_muted(service.muted)
 		computer.set_muted(service.muted))
 	inspection.changed.connect(refresh_ui)
 	tools.changed.connect(refresh_ui)
@@ -310,7 +312,9 @@ func refresh_ui() -> void:
 	if service.busy or tools.busy: return
 	if not camera_rig.legacy_test_mode and not gpu.visible:
 		hud.set_status("Unboxing the card..." if jobs.busy else
-			"The customer's card has arrived. Click the box on the repair desk to open it." if not jobs.active().is_empty() else
+			("%s's card has arrived. Click the box on the repair desk to open it; %s." % [jobs.active().customer,
+				"the tech's tag on the lid lists the faults they found" if jobs.is_tech(jobs.active()) else "the customer left a note on the lid"])
+				if not jobs.active().is_empty() else
 			"No card on the bench. Take a repair job on the shop computer by the front wall.")
 		return
 	if not camera_rig.legacy_test_mode:
