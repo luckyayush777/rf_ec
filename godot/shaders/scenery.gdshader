@@ -14,6 +14,7 @@ uniform float haze_amount = 0.7;
 uniform float valley_mist = 0.8;
 uniform float detail_strength = 1.0;
 uniform float facet_strength = 0.0;
+uniform float wind_strength = 0.0;
 
 varying vec3 world_position;
 varying vec3 world_normal;
@@ -28,6 +29,9 @@ float noise2(vec2 p) {
 }
 
 void vertex() {
+	// Only foliage vertices carry wind weight; trunks, terrain and the yard stay planted.
+	VERTEX.x += sin(TIME * 0.85 + VERTEX.z * 0.23) * wind_strength * COLOR.a;
+	VERTEX.z += sin(TIME * 0.65 + VERTEX.x * 0.17) * wind_strength * 0.5 * COLOR.a;
 	world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }

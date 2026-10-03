@@ -1,6 +1,6 @@
 extends Node3D
 ## The mountain view out of the right-wall window: a yard with a stone parapet on the edge of
-## a mountain valley somewhere in central China. The yard and parapet form the foreground;
+## a mountain valley somewhere in central China. Pines, shrubs, yard and parapet form the foreground;
 ## connected mountain slopes with sculpted rock shelves and gullies form two overlapping ranges. The distant ridgelines
 ## and sky are drawn by direction inside a sky dome (`sky_backdrop.gdshader`). All outdoor
 ## materials are lit by `day_cycle.gd` through `apply`, not by
@@ -9,6 +9,7 @@ extends Node3D
 
 const SKY_SHADER = preload("res://shaders/sky_backdrop.gdshader")
 const SCENERY_SHADER = preload("res://shaders/scenery.gdshader")
+const Vegetation = preload("res://scripts/outdoor_vegetation.gd")
 ## Centred on the window; with the first-person far plane at `first_person.FAR` every part of
 ## the dome seen through the window stays inside the view distance.
 const DOME_CENTRE := Vector3(34.0, 0.0, -7.0)
@@ -48,6 +49,7 @@ var scenery_material: ShaderMaterial
 var mountain_materials: Array[ShaderMaterial] = []
 var dome: MeshInstance3D
 var near: MeshInstance3D
+var vegetation: Node3D
 var rng := RandomNumberGenerator.new()
 var vertices := PackedVector3Array()
 var normals := PackedVector3Array()
@@ -89,13 +91,17 @@ func _ready() -> void:
 		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	build_range("BackMountains", BACK_RIDGE, 195.0, 0.62)
 	build_range("FrontMountains", FRONT_RIDGE, 139.0, 0.28)
+	vegetation = Vegetation.new()
+	vegetation.name = "Vegetation"
+	add_child(vegetation)
+	vegetation.build(get_node("FrontMountains"), get_node("BackMountains"))
 
 ## Lighting for the time of day, from `day_cycle.gd`.
 func apply(state: Dictionary) -> void:
 	for key in ["sun_dir", "moon_dir", "light_dir", "light_color", "zenith_color", "horizon_color", "haze_color",
 			"ambient_color", "night", "sun_visible", "cloud_shift"]:
 		sky_material.set_shader_parameter(key, state[key])
-	for material in [scenery_material] + mountain_materials:
+	for material in [scenery_material] + mountain_materials + vegetation.materials:
 		for key in ["light_dir", "light_color", "ambient_color", "haze_color"]:
 			material.set_shader_parameter(key, state[key])
 		material.set_shader_parameter("ground_color", state.ambient_color.darkened(0.55))

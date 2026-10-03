@@ -64,6 +64,29 @@ func check_mountain_geometry(scenery: Node3D) -> void:
 		expect(outside == 0, "%s had %d vertices outside the sky dome" % [name, outside])
 		expect(folded == 0, "%s had %d folded or degenerate terrain triangles" % [name, folded])
 
+## Plants must sit on the yard or actual terrain, and their crowns must fit inside the sky.
+func check_vegetation_geometry(scenery: Node3D) -> void:
+	var plants: Node3D = scenery.vegetation
+	expect(plants.tree_roots.size() > 0 and plants.shrub_roots.size() > 0 and plants.ledge_roots.size() > 0,
+		"The outside has no yard trees, shrubs or mountain plants")
+	for root_position in plants.tree_roots + plants.shrub_roots:
+		expect(is_equal_approx(root_position.y, scenery.YARD_TOP), "A yard plant was not grounded")
+		expect(root_position.z < -13.0 or root_position.z > -1.0, "A yard plant blocks the central path")
+	var terrain_points := {}
+	for name in ["FrontMountains", "BackMountains"]:
+		var arrays: Array = scenery.get_node(name).mesh.surface_get_arrays(0)
+		for point in arrays[Mesh.ARRAY_VERTEX]: terrain_points[point] = true
+	for root_position in plants.ledge_roots:
+		expect(terrain_points.has(root_position), "A mountain plant root missed the terrain surface")
+	for name in ["YardPlants", "CliffPlants"]:
+		var mesh: MeshInstance3D = plants.get_node(name)
+		var arrays := mesh.mesh.surface_get_arrays(0)
+		var outside := 0
+		for point in arrays[Mesh.ARRAY_VERTEX]:
+			# Includes space for the maximum shader wind displacement.
+			if point.distance_to(scenery.DOME_CENTRE) + 0.2 >= scenery.DOME_RADIUS: outside += 1
+		expect(outside == 0, "%s had %d vertices outside the sky dome" % [name, outside])
+
 func run() -> void:
 	var Jobs = preload("res://scripts/repair_jobs.gd")
 	var DayCycle = preload("res://scripts/day_cycle.gd")
@@ -86,6 +109,7 @@ func run() -> void:
 	day.dark_time = 0.3
 	expect(day != null and hatch != null and bench.scenery != null, "First-person play had no day cycle, delivery hatch or scenery")
 	check_mountain_geometry(bench.scenery)
+	check_vegetation_geometry(bench.scenery)
 	expect(is_equal_approx(Jobs.SHOP_MINUTES_PER_SECOND * 60.0 * 24.0, Jobs.CLOSING_MINUTE - Jobs.OPENING_MINUTE),
 		"The 09:00-21:00 day did not last 24 real minutes")
 
