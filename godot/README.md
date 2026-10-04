@@ -7,7 +7,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 ## Implemented
 
 - **Repair jobs**: play opens on an empty bench. Take a job on the shop computer's internal portal; a few seconds later the parcel comes in through the delivery hatch under the window. Carry it to the repair desk, open it, diagnose and fix the card, then return it from the portal to get paid. See [Repair jobs](#repair-jobs).
-- **The view outside and the time of day**: the shop sits on a ledge high in the mountains of central China. A three-bay window in the right wall looks past windswept pines, shrub clusters and a stone parapet into a valley framed by detailed stylized mountains, steep rock faces and hazy distant ridges. The sky follows the shop clock: morning, a western sunset straight out of the window, then a night of stars, moon and village lights in the valley. Afternoon sun throws a window-shaped patch into the room; at night the room dims and the workshop lamps turn warmer. Leaving through the front door ends the day. See [Day and night](#day-and-night).
+- **The view outside and the time of day**: the shop sits at the top of a flower meadow in a cozy alpine valley. A three-bay window in the right wall looks past soft pines and a wooden fence, down to a lake and a village on the far shore, over pine-forested hills to snow-capped mountains and a hazy skyline. The sky follows the shop clock: morning, a western sunset straight out of the window, then a night of stars, moon and lit village windows. Afternoon sun throws a window-shaped patch into the room; at night the room dims and the workshop lamps turn warmer. Leaving through the front door ends the day. See [Day and night](#day-and-night).
 - Rounded, stylized 710 / 2GB DDR3 GPU with rounded fins and larger capacitors/screw heads, retaining its original component hierarchy and 12 separate worn-pad residue meshes. Delivered cards use one of three consistent brand palettes: **Lotac** (teal, cream and orange), **Vsus** (navy and mint), or **CSI** (charcoal, plum and red). Each brand has matching printed retail packaging; components, specifications and repair behaviour are shared.
 - Imported workshop interior with a brick back wall, painted side wall, tiled floor, a delivery window in the right wall, background instrument bench, oscilloscope, labelled parts bins, soldering station, stool and trolley. The runtime is enclosed for first-person play; the editor keeps a cutaway overview. The props are scenery. See [room authoring](../models/shop-interior.md).
 - Native, editable repair-desk scene with mat, holder jaws, tray, canvas tool roll, simplified lamp/spare-parts props, and floor.
@@ -184,17 +184,17 @@ of hour keys (`KEYS`). Inside, the morning keeps the room's authored lighting; f
 afternoon a sunbeam comes through the window, and at night the ambient and fill light drop
 while the workshop key light dims only a little and turns warmer, so repairs stay readable.
 
-The view is built in `scripts/outdoor_scenery.gd`. The yard, stepping stones, boulders and
-parapet are real geometry, as are two connected mountain ranges. Their authored ridgelines
-(`FRONT_RIDGE` and `BACK_RIDGE`) descend through irregular shoulders into shared foothills.
-The front range has 248,832 triangles and the rear has 72,576: 321,408 in total, using
-the active GPU model (131,404 triangles) as the visual detail reference. This geometry shapes
-smaller summit breaks, gullies, branching subsidiary ridges, rock outcrops and selective shelves. Interpolated normals with a partial face-normal blend
-soften the facets, following the rounded GPU art; broad slope-based rock/green colours
-keep the mountains stylized without photographic surface grain. The rear range fades into cooler haze. Windswept pines frame the window, with shrubs clustered around yard rocks and smaller plants on mountain ledges. `scripts/outdoor_vegetation.gd` builds tapered trunks, forked branches and uneven foliage pads, merged into two meshes. Ledge roots use the final terrain vertices; the central path stays clear. Foliage sways gently while trunks stay fixed, and all plants follow the day/night lighting and haze.
-The distant ridgelines, valley forest and mist, sun, moon, stars, clouds and village lights
-are drawn by view direction inside a sky dome (`shaders/sky_backdrop.gdshader`), so they sit
-at infinity. Mountain geometry stays inside that dome without extending the camera far plane.
+The landscape is a static model authored in Blender, `models/outdoor-scenery.blend`, exported
+to `assets/outdoor-scenery.glb` (see [outdoor scenery authoring](../models/outdoor-scenery.md)).
+Near to far: the lawn yard with stepping stones, boulders, soft clump-canopy pines and round
+broadleaf trees; a rustic fence and gate; a wildflower meadow and dirt path falling to a lake
+with a pier and rowboats; a village on terraces up the far shore with a church; pine-forested
+hills; and a snow-capped range. Colours are painted into vertex colours.
+`scripts/outdoor_scenery.gd` gives each mesh its material: soft two-tone light from the sun or
+moon, distance haze that keeps the valley clear and fades the range toward the sky, gently
+swaying foliage, a water shader with sky reflection and sun glint, and village windows that
+glow at night. A skyline of three distant ridge layers, the sun, moon, stars and puffy clouds
+are drawn by view direction inside a sky dome (`shaders/sky_backdrop.gdshader`).
 None of it collides or takes clicks.
 
 ## Thermal investigation loop
@@ -362,8 +362,7 @@ For request-to-owner navigation, see [the task router](../AGENTS.md#task-router)
 | `scripts/gpu_bearing.gd`, `shaders/shaft_gunk.gdshader` | Fan sleeve bearing: runtime bearing boss, struts and shaft, hub-sticker peel, rotor pull/refit, shaft gunk wipe, oil drops and the dry/serviced state. |
 | `scenes/shop_interior.tscn`, `scripts/shop_interior.gd` | Imported workshop shell and props, editor-visible layout conversion and cutaway visibility; in play, the right-wall window (wall pieces, frame, glazing, hatch counter) and the clickable front door. |
 | `scripts/delivery_window.gd` | The delivery hatch: roller shutter, synthesized rattle, and the parcel's arrival onto the counter a few seconds after a job is accepted. |
-| `scripts/outdoor_scenery.gd`, `shaders/scenery.gdshader`, `shaders/sky_backdrop.gdshader` | The mountain view: yard and two connected detailed, stylized mountain ranges; sky dome with distant ridgelines, sky, sun, moon, stars, clouds and valley. |
-| `scripts/outdoor_vegetation.gd` | Yard pines and shrubs, terrain-grounded ledge plants, merged geometry and gentle foliage wind. |
+| `scripts/outdoor_scenery.gd`, `shaders/scenery.gdshader`, `shaders/water.gdshader`, `shaders/sky_backdrop.gdshader` | The alpine valley view: loads the Blender landscape (`assets/outdoor-scenery.glb`), assigns its materials and day/night lighting; sky dome with skyline, sky, sun, moon, stars and clouds. |
 | `scripts/day_cycle.gd` | Time of day from the shop clock: sky and scenery lighting, the window sunbeam, room dimming at night, and the end-of-day fade to 09:00 the next morning. |
 | `scripts/workbench.gd` | Startup, controller wiring, input arbitration, desk alignment, placement obstacles and jaw motion. |
 | `scripts/bench_closeup.gd`, `scripts/tool_roll.gd` | Live GPU/tool-bag viewing windows, isolated mesh proxies, mouse picking, orbit/zoom and segmented fabric animation. |

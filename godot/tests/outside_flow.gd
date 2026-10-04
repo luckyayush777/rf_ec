@@ -44,48 +44,41 @@ func at_time(bench: Node3D, hours: float) -> void:
 	bench.day_cycle.update()
 	for frame in range(3): await process_frame
 
-## A folded radial strip renders dark seams at intersections, even with valid mesh arrays.
-## Check real generated triangles and the full dome bounds, including the hidden back slopes.
-func check_mountain_geometry(scenery: Node3D) -> void:
-	for name in ["FrontMountains", "BackMountains"]:
-		var mountain: MeshInstance3D = scenery.get_node(name)
-		var arrays := mountain.mesh.surface_get_arrays(0)
-		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-		var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+## The Blender landscape: every part inside the sky dome, a terrain that never folds over
+## itself (a fold renders dark seams), a flat lawn outside the window, snow on the range, and
+## the village windows glowing after dark.
+func check_landscape(scenery: Node3D) -> void:
+	for name in ["Terrain", "Lake", "Forest", "Foliage", "YardBark", "Fence", "VillageWalls", "VillageRoofs", "WindowLights"]:
+		expect(scenery.meshes.has(name), "The landscape has no " + name)
+	for name in scenery.meshes:
 		var outside := 0
-		var folded := 0
-		for vertex in vertices:
-			if vertex.distance_to(scenery.DOME_CENTRE) >= scenery.DOME_RADIUS: outside += 1
-		for index in range(0, indices.size(), 3):
-			var a := vertices[indices[index]]
-			var b := vertices[indices[index + 1]]
-			var c := vertices[indices[index + 2]]
-			if (b - a).cross(c - a).y <= 0.0: folded += 1
+		for vertex in scenery.meshes[name].mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
+			# Includes space for the maximum foliage wind displacement.
+			if vertex.distance_to(scenery.DOME_CENTRE) + 0.2 >= scenery.DOME_RADIUS: outside += 1
 		expect(outside == 0, "%s had %d vertices outside the sky dome" % [name, outside])
-		expect(folded == 0, "%s had %d folded or degenerate terrain triangles" % [name, folded])
-
-## Plants must sit on the yard or actual terrain, and their crowns must fit inside the sky.
-func check_vegetation_geometry(scenery: Node3D) -> void:
-	var plants: Node3D = scenery.vegetation
-	expect(plants.tree_roots.size() > 0 and plants.shrub_roots.size() > 0 and plants.ledge_roots.size() > 0,
-		"The outside has no yard trees, shrubs or mountain plants")
-	for root_position in plants.tree_roots + plants.shrub_roots:
-		expect(is_equal_approx(root_position.y, scenery.YARD_TOP), "A yard plant was not grounded")
-		expect(root_position.z < -13.0 or root_position.z > -1.0, "A yard plant blocks the central path")
-	var terrain_points := {}
-	for name in ["FrontMountains", "BackMountains"]:
-		var arrays: Array = scenery.get_node(name).mesh.surface_get_arrays(0)
-		for point in arrays[Mesh.ARRAY_VERTEX]: terrain_points[point] = true
-	for root_position in plants.ledge_roots:
-		expect(terrain_points.has(root_position), "A mountain plant root missed the terrain surface")
-	for name in ["YardPlants", "CliffPlants"]:
-		var mesh: MeshInstance3D = plants.get_node(name)
-		var arrays := mesh.mesh.surface_get_arrays(0)
-		var outside := 0
-		for point in arrays[Mesh.ARRAY_VERTEX]:
-			# Includes space for the maximum shader wind displacement.
-			if point.distance_to(scenery.DOME_CENTRE) + 0.2 >= scenery.DOME_RADIUS: outside += 1
-		expect(outside == 0, "%s had %d vertices outside the sky dome" % [name, outside])
+	var arrays: Array = scenery.meshes["Terrain"].mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	var up := 0
+	var down := 0
+	for index in range(0, indices.size(), 3):
+		var a := vertices[indices[index]]
+		var turn := (vertices[indices[index + 1]] - a).cross(vertices[indices[index + 2]] - a).y
+		if turn > 0.0: up += 1
+		elif turn < 0.0: down += 1
+	expect(mini(up, down) == 0 and up + down == indices.size() / 3, "The terrain had %d folded or degenerate triangles" % (indices.size() / 3 - maxi(up, down)))
+	var lawn := 0
+	var bumps := 0
+	var snow := 0
+	var colors: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
+	for index in vertices.size():
+		var vertex := vertices[index]
+		if vertex.x > 36.0 and vertex.x < 75.0 and absf(vertex.z + 7.0) < 30.0:
+			lawn += 1
+			if absf(vertex.y - scenery.YARD_TOP) > 0.02: bumps += 1
+		if vertex.y > 90.0 and colors[index].r > 0.8 and colors[index].b > 0.8: snow += 1
+	expect(lawn > 0 and bumps == 0, "The lawn outside the window was not flat (%d of %d points off)" % [bumps, lawn])
+	expect(snow > 0, "No snow on the mountains")
 
 func run() -> void:
 	var Jobs = preload("res://scripts/repair_jobs.gd")
@@ -108,8 +101,7 @@ func run() -> void:
 	day.fade_time = 0.25
 	day.dark_time = 0.3
 	expect(day != null and hatch != null and bench.scenery != null, "First-person play had no day cycle, delivery hatch or scenery")
-	check_mountain_geometry(bench.scenery)
-	check_vegetation_geometry(bench.scenery)
+	check_landscape(bench.scenery)
 	expect(is_equal_approx(Jobs.SHOP_MINUTES_PER_SECOND * 60.0 * 24.0, Jobs.CLOSING_MINUTE - Jobs.OPENING_MINUTE),
 		"The 09:00-21:00 day did not last 24 real minutes")
 
@@ -148,6 +140,8 @@ func run() -> void:
 	expect(day.state.night > 0.9 and day.state.daylight < 0.01 and day.state.sun_beam == 0.0, "It was not night at 22:30")
 	expect(environment.ambient_light_energy < 0.45 and bench.get_node("FillLight").light_energy < 0.2, "The room did not dim at night")
 	expect(bench.get_node("KeyLight").light_energy > 1.3 and bench.get_node("KeyLight").light_energy < 1.8, "The workshop lamps went out or did not dim at night")
+	var lights: ShaderMaterial = bench.scenery.meshes["WindowLights"].material_override
+	expect(lights.get_shader_parameter("glow") == 1.0 and lights.get_shader_parameter("night") > 0.9, "The village windows did not light up at night")
 	await capture("outside-night")
 	await at_time(bench, 9.0)
 	var fresh = load("res://scenes/workbench.tscn").instantiate()

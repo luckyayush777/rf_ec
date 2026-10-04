@@ -3,7 +3,7 @@ extends "res://scripts/orbit_camera.gd"
 const REACH := 11.0
 const SPEED := 10.0
 ## Far enough for the sky dome and near scenery beyond the right-wall window.
-const FAR := 320.0
+const FAR := 1000.0
 const SPAWN := Vector3(-3, -4.35, 9)
 const SPAWN_PITCH := -0.22
 var legacy_test_mode := false

@@ -10,7 +10,7 @@ ASSETS = REPO / 'godot/assets'
 
 
 def main():
-    sources = ['models/gpu.glb', 'models/repair-shop.glb', 'models/shop-interior.glb']
+    sources = ['models/gpu.glb', 'models/repair-shop.glb', 'models/shop-interior.glb', 'models/outdoor-scenery.glb']
     # Audio is authored directly in Godot; retain its hashes in the manifest.
     audio = ['godot/assets/manual-screwdriver.wav', 'godot/assets/cleaning-complete.ogg']
     hashes = {}
