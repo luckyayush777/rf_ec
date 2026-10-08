@@ -148,7 +148,7 @@ Use the PC and press **F4** for **Bench Supply**, or click its Shop tab. Scroll 
 
 - Tools: air blower $35 (already owned), screwdriver $30, spudger $12, IPA kit $18, paste syringe $25, fan oiler $20, loupe $45, thermal camera $350, and Dev blower $500 in development builds. Hand tools fill their roll pockets; the thermal camera goes on its bench stand. Consumable refills are included for now.
 - Equipment: testing station $400 (table, board and monitor together) and queue display $120. After buying, click **PLACE**, look at a clear floor spot, press **R** to rotate and **E / left click** to confirm a green footprint. **Q / Escape** cancels; the item stays owned. Use **MOVE** on the same shop page to rearrange it later. The door, hatch, other furniture and the station's working aisle must remain clear. Empty the station and free your hands before moving equipment.
-- Workshop: lighting $150 and paint/bench refinishing $250 improve the starter room.
+- Workshop: lighting $150 and paint/bench refinishing $250 improve the starter room. **Shop expansion** ($600 per slot, two slots) knocks through the back wall, on the left as you face the delivery window: each slot adds a 2 m strip across the full room width, with its own ceiling lamp, where equipment can be placed.
 
 Start with the **$25 exterior fan clean**; it needs only the blower and always replenishes. Full repairs need their listed service tools and a placed test station. Customer diagnosis also needs the thermal camera. Buying a station without placing it does not unlock its jobs.
 
@@ -350,7 +350,7 @@ and silent while the link is down.
 
 ## Pending gameplay
 
-Edge-connector repairs (cleaning, re-gluing, bodge wires) and rolling connector faults in jobs, paste thickness/mounting pressure, directional pad scraping, comparison view, further progression (more bench slots, expanded premises and saving), volumetric dust (shell layers or detachable felt clumps), fan wear from overspinning and general interaction highlights are pending. Outside, there is nothing to do yet beyond the view: the door only ends the day, parcels arrive by the hatch with no modelled courier, and there is no weather, seasons or night-time event. Imported pad remnants are geometry only. Replacement pads have no gameplay yet. The racing feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
+Edge-connector repairs (cleaning, re-gluing, bodge wires) and rolling connector faults in jobs, paste thickness/mounting pressure, directional pad scraping, comparison view, further progression (more bench slots, more expansion slots or shapes and saving), volumetric dust (shell layers or detachable felt clumps), fan wear from overspinning and general interaction highlights are pending. Outside, there is nothing to do yet beyond the view: the door only ends the day, parcels arrive by the hatch with no modelled courier, and there is no weather, seasons or night-time event. Imported pad remnants are geometry only. Replacement pads have no gameplay yet. The racing feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
 
 No deployment workflow or export preset is configured.
 

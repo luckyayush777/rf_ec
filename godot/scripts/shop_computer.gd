@@ -554,11 +554,12 @@ func build_shop() -> void:
 		var description := VBoxContainer.new()
 		description.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(description)
-		description.add_child(text("%s  /  $%d" % [item.name.to_upper(), item.price], 17, BRIGHT, true))
+		var stock: String = store.stock_text(id)
+		description.add_child(text("%s  /  $%d%s" % [item.name.to_upper(), item.price, "  /  " + stock if stock != "" else ""], 17, BRIGHT, true))
 		description.add_child(wrapped(item.description, 14, 480))
 		var owned: bool = store.owns(id)
 		var equipment: bool = store.equipment.has(id)
-		var label := "BUY" if not owned else "MOVE" if equipment and store.is_available(id) else "PLACE" if equipment else "OWNED"
+		var label := "BUY" if not owned else "MOVE" if equipment and store.is_available(id) else "PLACE" if equipment else "BUILT" if stock != "" else "OWNED"
 		var button := term_button(label, 16)
 		button.name = "Buy_" + id if not owned else "Place_" + id if equipment else "Owned_" + id
 		button.custom_minimum_size.x = 130

@@ -193,6 +193,27 @@ func run() -> void:
 	expect(shop.purchase("queue-display") and shop.begin_placement("queue-display"), "Could not purchase/place the queue display")
 	expect(not shop.preview_at(Vector3(25, -4.5, 2.3)), "Queue display could block the test station's working aisle")
 	expect(shop.preview_at(Vector3(14.5, -4.5, -14)) and shop.finish_placement(), "Queue display did not fit its floor spot")
+	# Shop expansion: the back wall, left of the delivery window, moves out one strip per slot.
+	var annex_spot := Vector3(20, -4.5, -22)
+	expect(shop.begin_placement("queue-display") and not shop.preview_at(annex_spot), "Equipment fit beyond the starter back wall")
+	shop.cancel_placement()
+	var back_wall: Node3D = bench.get_node("ShopInterior/StarterShell/StarterBackWall")
+	var wall_z := back_wall.global_position.z
+	expect(shop.purchase("shop-expansion") and shop.expansions == 1 and not shop.owns("shop-expansion"), "First expansion slot could not be bought")
+	expect(is_equal_approx(back_wall.global_position.z, wall_z - 10.0), "Expansion did not move the back wall")
+	await physics_frame
+	await physics_frame
+	expect(space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(18, 2, -12), Vector3(18, 2, -25), 1)).is_empty(), "The old back wall still blocked the expansion")
+	for line in [[Vector3(18, 2, -20), Vector3(18, 2, -30)], [Vector3(24, 0, -22), Vector3(24, -6, -22)],
+			[Vector3(20, 2, -22), Vector3(8, 2, -22)], [Vector3(20, 2, -22), Vector3(36, 2, -22)]]:
+		expect(not space.intersect_ray(PhysicsRayQueryParameters3D.create(line[0], line[1], 1)).is_empty(), "The expansion lost a wall or floor collision")
+	expect(shop.begin_placement("queue-display") and shop.preview_at(annex_spot) and shop.finish_placement(), "Equipment did not fit in the expansion")
+	await stand(bench, Vector3(16, -4.35, -6), Vector3(24, 2.5, -26))
+	await capture("progression-shop-expansion")
+	expect(shop.purchase("shop-expansion") and shop.owns("shop-expansion"), "Second expansion slot could not be bought")
+	expect(not shop.purchase("shop-expansion") and shop.expansions == 2, "More than the available expansion slots were built")
+	expect(shop.begin_placement("queue-display") and shop.preview_at(Vector3(20, -4.5, -32)) and not shop.preview_at(Vector3(20, -4.5, -38)), "The second slot did not extend the floor by one strip")
+	shop.cancel_placement()
 	await stand(bench, Vector3(19, -4.35, 6.5), Vector3(21, 0, -5))
 	await capture("progression-equipped-dim")
 	var dim: float = bench.day_cycle.environment.ambient_light_energy
@@ -207,8 +228,14 @@ func run() -> void:
 	await process_frame
 	await process_frame
 	await capture("progression-supply-equipment")
+	bench.computer.shop_section = "Workshop"
+	bench.computer.show_tab("shop")
+	await process_frame
+	await process_frame
+	expect(bench.computer.viewport.find_child("Place_shop-expansion", true, false) == null and bench.computer.viewport.find_child("Owned_shop-expansion", true, false) != null, "Fully built expansion still offered a purchase")
+	await capture("progression-supply-workshop")
 	bench.computer.leave()
 	bench.queue_free()
 	for frame in range(10): await process_frame
-	print("PASS: starter ownership, real website purchase, finite/unlimited wallet, finishable blower job, locks, equipment placement/cancel, rotated test station, tray and room upgrades" if failures.is_empty() else "FAIL: " + str(failures))
+	print("PASS: starter ownership, real website purchase, finite/unlimited wallet, finishable blower job, locks, equipment placement/cancel, rotated test station, tray, shop expansion and room upgrades" if failures.is_empty() else "FAIL: " + str(failures))
 	quit(0 if failures.is_empty() else 1)

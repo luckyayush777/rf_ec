@@ -4,6 +4,16 @@ const Contract = preload("res://scripts/asset_contract.gd")
 const Room = preload("res://scripts/shop_interior.gd")
 const FLOOR_Y := -4.5
 const FLOOR_AREA := Rect2(Vector2(10.5, -16.5), Vector2(22.0, 26.0))
+## Inner face of the back wall, on the left of the delivery window as you face it. Each
+## purchased expansion slot moves it back by one full-width strip of floor.
+const BACK_Z := -16.5
+const EXPANSION_DEPTH := 10.0
+const MAX_EXPANSIONS := 2
+
+## Usable floor for equipment with `expansions` slots built.
+static func floor_area(expansions: int) -> Rect2:
+	var depth := EXPANSION_DEPTH * expansions
+	return Rect2(FLOOR_AREA.position - Vector2(0, depth), FLOOR_AREA.size + Vector2(0, depth))
 
 static func prepare(bench: Node3D) -> void:
 	var desk: Node3D = bench.get_node("RepairDesk")
@@ -61,9 +71,11 @@ static func enclose(bench: Node3D) -> void:
 	shell.name = "StarterShell"
 	room.add_child(shell)
 	shell.global_transform = Transform3D.IDENTITY
+	# Shared by every plaster face, so refurbishing also covers later expansions.
 	var plaster := Room.flat(Color("655e4d"), 0.98)
 	var concrete := Room.flat(Color("444440"), 1.0)
 	var wood := Room.flat(Color("332c26"), 0.95)
+	for entry in [["plaster", plaster], ["concrete", concrete], ["wood", wood]]: shell.set_meta(entry[0], entry[1])
 	room.piece(shell, "StarterFloor", Vector3(10, -4.8, -17), Vector3(33.8, FLOOR_Y, 10), concrete)
 	room.piece(shell, "StarterLeftWall", Vector3(10, FLOOR_Y, -17), Vector3(10.5, 10.5, 10), plaster)
 	room.piece(shell, "StarterBackWall", Vector3(10, FLOOR_Y, -17), Vector3(33.8, 10.5, -16.5), plaster)
@@ -101,11 +113,43 @@ static func enclose(bench: Node3D) -> void:
 	for index in range(5):
 		room.add_block(shell, "WallWear", Vector3(0.008, 0.4 + index * 0.14, 2.4), Vector3(10.51, -2.2 + index * 0.36, -13 + index * 4.3), stain)
 
+## Knocks through the back wall for expansion slot `expansions` (1-based): one more strip of
+## floor, side walls and ceiling across the full room width. The back wall moves with its
+## existing collision; the new pieces get their own. A lintel and a lamp mark each strip.
+static func expand(bench: Node3D, expansions: int) -> void:
+	var room: Node3D = bench.get_node("ShopInterior")
+	var shell: Node3D = room.get_node("StarterShell")
+	var plaster: Material = shell.get_meta("plaster")
+	var wood: Material = shell.get_meta("wood")
+	# Outer faces of the back wall before and after this strip.
+	var near := BACK_Z - 0.5 - EXPANSION_DEPTH * (expansions - 1)
+	var far := near - EXPANSION_DEPTH
+	var pieces: Array[MeshInstance3D] = [
+		room.piece(shell, "AnnexFloor", Vector3(10, -4.8, far), Vector3(33.8, FLOOR_Y, near), shell.get_meta("concrete")),
+		room.piece(shell, "AnnexLeftWall", Vector3(10, FLOOR_Y, far), Vector3(10.5, 10.5, near), plaster),
+		room.piece(shell, "AnnexRightWall", Vector3(Room.WALL_X.x, FLOOR_Y, far), Vector3(Room.WALL_X.y, 10.5, near), plaster),
+		room.piece(shell, "AnnexCeiling", Vector3(10, 10.5, far), Vector3(33.8, 10.8, near), plaster)]
+	pieces[3].cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for piece in pieces: piece.create_trimesh_collision()
+	# Ceiling-high only, so it never blocks walking or equipment.
+	room.piece(shell, "AnnexLintel", Vector3(10.5, 9.6, near + 0.1), Vector3(33, 10.5, near + 0.6), wood)
+	room.piece(shell, "CeilingBeam", Vector3(10.5, 10, far + 5.0), Vector3(33, 10.5, far + 5.35), wood)
+	shell.get_node("StarterBackWall").position.z -= EXPANSION_DEPTH
+	var fixture: MeshInstance3D = room.add_block(shell, "AnnexLamp", Vector3(1.6, 0.18, 0.5), Vector3(21.75, 9.9, far + 5.6), Room.flat(Color("e9dcc0"), 0.4))
+	fixture.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var lamp := OmniLight3D.new()
+	lamp.name = "AnnexLight"
+	lamp.position = Vector3(0, -0.6, 0)
+	lamp.light_color = Color("ffe2b8")
+	lamp.light_energy = 1.2
+	lamp.omni_range = 16.0
+	fixture.add_child(lamp)
+
 static func refurbish(bench: Node3D) -> void:
 	var room: Node3D = bench.get_node("ShopInterior")
-	for name in ["StarterLeftWall", "StarterBackWall", "StarterFrontLeft", "StarterFrontRight", "StarterDoorHeader", "StarterCeiling",
-			"WallBelowWindow", "WallAboveWindow", "WallBackOfWindow", "WallFrontOfWindow"]:
-		room.find_child(name, true, false).material_override = Room.flat(Color("ada991"), 0.85)
+	var plaster: StandardMaterial3D = room.get_node("StarterShell").get_meta("plaster")
+	plaster.albedo_color = Color("ada991")
+	plaster.roughness = 0.85
 	for mesh in room.get_node("StarterShell").get_children():
 		if String(mesh.name).begins_with("FloorWear") or String(mesh.name).begins_with("WallWear"): mesh.hide()
 	bench.get_node("RepairDesk/Tabletop").material_override = Room.flat(Color("94704b"), 0.8)

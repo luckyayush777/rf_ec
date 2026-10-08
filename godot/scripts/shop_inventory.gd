@@ -17,7 +17,10 @@ const CATALOG := {
 	"test-station": {"name": "GPU testing station", "price": 400, "section": "Equipment", "description": "Test board, monitor and compact table. Place it to unlock repair and diagnosis work."},
 	"queue-display": {"name": "Job queue display", "price": 120, "section": "Equipment", "description": "Freestanding display for your current repair."},
 	"lighting": {"name": "Workshop lighting", "price": 150, "section": "Workshop", "description": "Upgrade the room lights for a brighter workday."},
-	"refurbishment": {"name": "Paint and bench refinish", "price": 250, "section": "Workshop", "description": "Fresh walls, a cleaned floor and a refinished worktop."}}
+	"refurbishment": {"name": "Paint and bench refinish", "price": 250, "section": "Workshop", "description": "Fresh walls, a cleaned floor and a refinished worktop."},
+	"shop-expansion": {"name": "Shop expansion", "price": 600, "section": "Workshop", "description": "Knock through the wall left of the delivery window for 2 m more floor to place equipment. Buy once per slot."}}
+## Bought repeatedly, one slot at a time, up to `Starter.MAX_EXPANSIONS`.
+const EXPANSION := "shop-expansion"
 const FAULT_TOOLS := {
 	"dust": ["air-blower", "screwdriver"],
 	"paste": ["screwdriver", "spudger", "ipa-wipe", "paste-syringe"],
@@ -25,6 +28,8 @@ const FAULT_TOOLS := {
 var bench: Node3D
 var jobs: Node
 var owned := {"air-blower": true}
+## Expansion slots built; the room and placement floor grow with each.
+var expansions := 0
 ## A real finite wallet still exists; the requested sandbox setting bypasses purchase costs.
 var unlimited_funds := true
 var purchases: Array[Dictionary] = []
@@ -66,8 +71,17 @@ func configure(world: Node3D, repair_jobs: Node) -> void:
 	bench.add_child(footprint)
 	footprint.hide()
 
+## For the expansion, true once every slot is built.
 func owns(id: String) -> bool:
+	if id == EXPANSION: return expansions >= Starter.MAX_EXPANSIONS
 	return owned.get(id, false)
+
+func floor_area() -> Rect2:
+	return Starter.floor_area(expansions)
+
+## Progress shown beside a repeatable item's name; empty for one-time purchases.
+func stock_text(id: String) -> String:
+	return "%d/%d BUILT" % [expansions, Starter.MAX_EXPANSIONS] if id == EXPANSION else ""
 
 func is_available(id: String) -> bool:
 	return owns(id) and (not equipment.has(id) or placed.get(id, false))
@@ -93,13 +107,19 @@ func purchase(id: String) -> bool:
 		notice.emit("Not enough money for %s." % item.name)
 		return false
 	if not unlimited_funds: jobs.balance -= item.price
-	owned[id] = true
-	purchases.push_front({"id": id, "name": item.name, "price": item.price, "paid": 0 if unlimited_funds else item.price})
+	var title: String = item.name
+	if id == EXPANSION:
+		expansions += 1
+		title += " %d/%d" % [expansions, Starter.MAX_EXPANSIONS]
+		Starter.expand(bench, expansions)
+	else: owned[id] = true
+	purchases.push_front({"id": id, "name": title, "price": item.price, "paid": 0 if unlimited_funds else item.price})
 	if id in bench.tools.TOOLS: bench.tools.set_locked(id, false)
 	if id == "thermal-camera": bench.tools.thermal_stand.show()
 	if id == "refurbishment": Starter.refurbish(bench)
 	if id == "lighting" and bench.day_cycle != null: bench.day_cycle.update()
-	notice.emit("Purchased %s. %s" % [item.name, "Choose PLACE on the shop page to arrange it." if equipment.has(id) else "Ready to use."])
+	var follow_up := "Choose PLACE on the shop page to arrange it." if equipment.has(id) else "The back wall moved out; place equipment in the new space." if id == EXPANSION else "Ready to use."
+	notice.emit("Purchased %s. %s" % [title, follow_up])
 	changed.emit()
 	jobs.changed.emit()
 	return true
@@ -151,7 +171,7 @@ func working_aisle(node: Node3D) -> Rect2:
 
 func valid_position(node: Node3D) -> bool:
 	var rect := room_rect(node).grow(0.25)
-	if not Starter.FLOOR_AREA.encloses(rect): return false
+	if not floor_area().encloses(rect): return false
 	var table: MeshInstance3D = bench.get_node("RepairDesk/Tabletop")
 	var bounds := table.global_transform * table.get_aabb()
 	var obstacles := [Rect2(Vector2(bounds.position.x, bounds.position.z), Vector2(bounds.size.x, bounds.size.z)),
@@ -163,7 +183,7 @@ func valid_position(node: Node3D) -> bool:
 	# Keep enough floor on the working side to stand at the monitor and PCIe slot.
 	if node == equipment["test-station"]:
 		var aisle := working_aisle(node)
-		if not Starter.FLOOR_AREA.encloses(aisle): return false
+		if not floor_area().encloses(aisle): return false
 		for obstacle in obstacles:
 			if aisle.intersects(obstacle): return false
 	var player: Vector3 = bench.camera_rig.body.global_position
