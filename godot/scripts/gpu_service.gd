@@ -192,7 +192,8 @@ func tray_slot(id: String, part: Node3D) -> Transform3D:
 	var desk: Node3D = world.get_node("RepairDesk")
 	var tray: MeshInstance3D = desk.get_node("Tray")
 	var floor_y: float = (tray.global_transform * tray.get_aabb()).end.y
-	var origin: Vector3 = desk.global_transform * Vector3(TRAY_FIRST_SLOT_X + index * TRAY_SLOT_SPACING, 0, TRAY_FAN_ROW_Z if fan else TRAY_COOLER_ROW_Z)
+	var origin: Vector3 = tray.global_transform * Vector3(TRAY_FIRST_SLOT_X + index * TRAY_SLOT_SPACING - 3.82, 0,
+		(TRAY_FAN_ROW_Z if fan else TRAY_COOLER_ROW_Z) - 3.7)
 	# Rest the lying screw on the tray floor.
 	origin.y = floor_y - (Transform3D(basis, Vector3.ZERO) * Contract.bounds_in(part)).position.y
 	return Transform3D(basis, origin)

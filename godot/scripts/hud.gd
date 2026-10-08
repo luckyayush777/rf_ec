@@ -610,9 +610,9 @@ func refresh(held: bool, moving: bool, tools: Node, service: Node, cleaning: Nod
 	toolbox_button.text = "Close toolbox" if tools.open else "Open toolbox"
 	toolbox_button.disabled = busy or station.installed
 	equip_button.visible = tools.equipped_tool == ""
-	equip_button.disabled = busy or station.installed
+	equip_button.disabled = busy or station.installed or "screwdriver" in tools.locked
 	dev_blower_button.visible = OS.is_debug_build() and tools.equipped_tool == ""
-	dev_blower_button.disabled = busy or station.installed
+	dev_blower_button.disabled = busy or station.installed or "dev-blower" in tools.locked
 	return_button.visible = tools.equipped_tool != ""
 	return_button.text = "Return " + tools.NAMES.get(tools.equipped_tool, "screwdriver")
 	return_button.disabled = busy or station.installed
@@ -677,7 +677,7 @@ func refresh_tool_menu(tools: Node, service: Node, selecting: bool) -> void:
 	for id in tool_buttons:
 		var button: Button = tool_buttons[id]
 		button.text = button.get_meta("label") + ("  [Equipped]" if tools.equipped_tool == id else "")
-		button.disabled = selecting or tools.busy or service.busy
+		button.disabled = selecting or tools.busy or service.busy or id in tools.locked
 	tool_close_button.disabled = selecting
 
 func hide_tool_menu() -> void:

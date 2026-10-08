@@ -16,6 +16,8 @@ var cleaning: Node
 var bearing: Node
 var home := Transform3D.IDENTITY
 var installed := false
+var available := true
+var equipment_yaw := 0.0
 var moving := false
 var motion: Tween
 var attach_audio: AudioStreamPlayer
@@ -243,6 +245,7 @@ func set_muted(value: bool) -> void:
 	update_fan_audio(installed and not moving)
 
 func can_attach() -> bool:
+	if not available: return false
 	if moving or inspection.moving or service.busy or tools.busy: return false
 	if service.held_part != "" or tools.equipped_tool != "": return false
 	if not service.removed.is_empty() or not service.cable_connected: return false
@@ -253,6 +256,9 @@ func toggle_gpu() -> bool:
 	return attach()
 
 func attach() -> bool:
+	if not available:
+		notice.emit("Buy and place a GPU testing station from the PC shop first.")
+		return false
 	if installed or moving: return false
 	if not gpu.visible:
 		notice.emit("No card on the bench. Accept a job on the shop computer.")
@@ -262,12 +268,13 @@ func attach() -> bool:
 		return false
 	var bounds: AABB = preload("res://scripts/asset_contract.gd").bounds_in(gpu)
 	inspection.held = false
-	var basis := Basis(Vector3.RIGHT, PI / 2.0).scaled(home.basis.get_scale())
+	var heading := Basis(Vector3.UP, equipment_yaw)
+	var basis := (heading * Basis(Vector3.RIGHT, PI / 2.0)).scaled(home.basis.get_scale())
 	var slot_center := board.global_transform * Vector3.ZERO
 	# Imported board origin is not guaranteed to be at the slot. Use the socket mesh.
 	var socket: Node3D = board.find_child("pcie-x16-socket", true, false)
 	if socket != null: slot_center = socket.global_position
-	var destination := Transform3D(basis, slot_center + Vector3(0.125, 0.475, 0.165) - basis * bounds.get_center())
+	var destination := Transform3D(basis, slot_center + heading * Vector3(0.125, 0.475, 0.165) - basis * bounds.get_center())
 	moving = true
 	changed.emit()
 	motion = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)

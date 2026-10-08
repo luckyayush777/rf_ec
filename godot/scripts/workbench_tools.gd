@@ -106,7 +106,8 @@ func set_locked(id: String, value: bool) -> void:
 	if value == (id in locked) or tool_location(id) == "held": return
 	if value: locked.append(id)
 	else: locked.erase(id)
-	tool_node(id).visible = not value
+	tool_node(id).set_meta("shop_locked", value)
+	tool_node(id).visible = not value and (id == "thermal-camera" or open)
 	changed.emit()
 
 func toggle_box() -> void:

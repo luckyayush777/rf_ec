@@ -84,6 +84,6 @@ func run() -> void:
 	await settle(bench)
 	expect(not bench.inspection.held, "Q with empty tool hand did not return the card")
 	bench.queue_free()
-	await process_frame
+	for frame in range(10): await process_frame
 	print("PASS: T opens the tool bag anywhere, swaps tools while holding a part and returns to the same close-up; Q returns the tool before the part" if failures.is_empty() else "FAIL: " + str(failures))
 	quit(0 if failures.is_empty() else 1)

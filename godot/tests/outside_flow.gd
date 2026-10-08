@@ -175,9 +175,19 @@ func run() -> void:
 	var waited := (Time.get_ticks_msec() - accepted_at) / 1000.0
 	expect(waited > 2.0 and waited < 3.2, "The shutter opened after %.2f s, not 2-3 s" % waited)
 	expect(hatch.audio.playing and hatch.audio.bus == &"Shutter", "The shutter made no sound on its channel")
+	expect(hatch.audio.stream == hatch.SHUTTER_OPEN and hatch.SHUTTER_OPEN != hatch.SHUTTER_CLOSE, "The shutter did not use a distinct opening recording")
+	for stream in [hatch.SHUTTER_OPEN, hatch.SHUTTER_CLOSE]:
+		expect(stream.loop_mode == AudioStreamWAV.LOOP_DISABLED and stream.get_length() >= hatch.SHUTTER_TIME and stream.get_length() < hatch.SHUTTER_TIME + 0.5, "A shutter recording loops or does not fit the motion and its short decay")
 	while hatch.state == "opening": await process_frame
 	await create_timer(0.2).timeout
 	await capture("outside-hatch-open")
+	while hatch.state == "sliding": await process_frame
+	expect(hatch.state == "closing" and hatch.audio.playing and hatch.audio.stream == hatch.SHUTTER_CLOSE, "The shutter did not play its closing recording as it descended")
+	hatch.set_muted(true)
+	expect(not hatch.audio.playing, "Muting did not stop the shutter recording")
+	hatch.play_shutter(hatch.SHUTTER_CLOSE)
+	expect(not hatch.audio.playing, "A shutter recording played while muted")
+	hatch.set_muted(false)
 	while hatch.busy(): await process_frame
 	expect(box.location == "sill" and box.visible and box.get_meta("action") == "parcel", "The parcel did not land on the hatch counter")
 	expect(box.global_transform.origin.distance_to(hatch.sill_transform().origin) < 0.01, "The parcel was not on the counter")

@@ -138,6 +138,10 @@ func update() -> void:
 	fill.light_color = FILL_NIGHT.lerp(fill_day, daylight)
 	key_light.light_energy = lerpf(KEY_ENERGY.x, KEY_ENERGY.y, daylight)
 	key_light.light_color = KEY_NIGHT.lerp(key_day, daylight)
+	if bench.progression_enabled and (bench.shop == null or not bench.shop.owns("lighting")):
+		environment.ambient_light_energy *= 0.42
+		fill.light_energy *= 0.25
+		key_light.light_energy *= 0.3
 	# The sun only reaches in through the west window in the afternoon.
 	var entry := clampf(sun.x * 3.0, 0.0, 1.0) * clampf(sun.y * 6.0, 0.0, 1.0)
 	var window := Vector3((Room.WALL_X.x + Room.WALL_X.y) * 0.5, (Room.SILL_Y + Room.WINDOW_TOP) * 0.5,

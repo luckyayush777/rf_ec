@@ -100,7 +100,12 @@ func configure(world: Node3D, delivery_box: Node3D, empty_bench: bool) -> void:
 	bench = world
 	box = delivery_box
 	rng.randomize()
-	for index in range(OFFER_COUNT): offers.append(make_job([], "tech" if index == 0 else ""))
+	if bench.progression_enabled:
+		offers.append(make_exterior_job())
+		offers.append(make_job(["paste"], "tech"))
+		offers.append(make_job(["bearing"], "customer"))
+	else:
+		for index in range(OFFER_COUNT): offers.append(make_job([], "tech" if index == 0 else ""))
 	if empty_bench:
 		bench.gpu.visible = false
 	else:
@@ -221,6 +226,19 @@ func active() -> Dictionary:
 func bench_full() -> bool:
 	return queue.size() >= MAX_QUEUE
 
+## A steady source of work that needs only the starter blower. Internal surfaces are clean.
+func make_exterior_job() -> Dictionary:
+	var job := make_job(["dust"], "tech")
+	job.exterior_clean = true
+	job.pay = 25
+	job.complaint = "Exterior fan clean only. Internals checked: no disassembly needed. Blow the dust off the fan and return it."
+	return job
+
+func missing_equipment(job: Dictionary) -> Array[String]:
+	var missing: Array[String] = []
+	if bench.shop != null: missing.assign(bench.shop.missing_for(job))
+	return missing
+
 func accept(id: int) -> bool:
 	if bench_full():
 		notice.emit("The bench is full. Return the current card before taking another job.")
@@ -228,10 +246,14 @@ func accept(id: int) -> bool:
 	for index in range(offers.size()):
 		if offers[index].id != id: continue
 		var job: Dictionary = offers[index]
+		var missing := missing_equipment(job)
+		if not missing.is_empty():
+			notice.emit("Job locked. Required: %s. Visit the PC shop." % ", ".join(missing))
+			return false
 		job.state = "boxed"
 		job.accepted_at = shop_minutes
 		queue.append(job)
-		offers[index] = make_job()
+		offers[index] = make_exterior_job() if job.get("exterior_clean", false) else make_job()
 		last_refusal = ""
 		var tech := is_tech(job)
 		box.deliver("JOB #%d  /  %s\n710  /  2GB DDR3\nANTI-STATIC PACKED" % [job.id, job.customer], job.brand,
@@ -253,7 +275,7 @@ func unbox() -> void:
 	changed.emit()
 	await box.open()
 	bench.gpu_style.apply_brand(job.brand)
-	apply_faults(job.faults)
+	apply_faults(job.faults, job.get("exterior_clean", false))
 	var gpu: Node3D = bench.gpu
 	var home: Transform3D = gpu.get_parent().global_transform * bench.inspection.home
 	var bounds: AABB = home * preload("res://scripts/asset_contract.gd").bounds_in(gpu)
@@ -278,8 +300,8 @@ func unbox() -> void:
 	changed.emit()
 
 ## Lays out the card's faults; everything not rolled starts healthy.
-func apply_faults(faults: Array) -> void:
-	bench.cleaning.reset_dust("dust" in faults)
+func apply_faults(faults: Array, exterior_only := false) -> void:
+	bench.cleaning.reset_dust("dust" in faults, exterior_only)
 	if "paste" in faults: bench.paste.reset_dried()
 	else: bench.paste.set_fresh()
 	if "bearing" in faults: bench.bearing.set_dry()

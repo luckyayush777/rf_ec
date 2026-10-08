@@ -25,6 +25,7 @@ SUITES = {
     'connector': ['edge_connector_flow'],
     'walking': ['first_person_flow'],
     'outside': ['outside_flow'],
+    'progression': ['progression_flow'],
 }
 
 

@@ -41,3 +41,10 @@ License: https://creativecommons.org/licenses/by/4.0/
 `assets/shop-interior.glb` is the repository-authored workshop, exported from `models/shop-interior.blend`. Visual references and export instructions are recorded in `models/shop-interior.md`; no third-party model or photo textures are embedded.
 
 `assets/fonts/PermanentMarker-Regular.ttf` is **Permanent Marker** by Font Diner, licensed under the Apache License 2.0 (`assets/fonts/LICENSE-PermanentMarker.txt`). Techs write fault tags with it. `assets/fonts/Caveat-Variable.ttf` is **Caveat** by The Caveat Project Authors, licensed under the SIL Open Font License 1.1 (`assets/fonts/OFL-Caveat.txt`). Customer notes and tech signatures use it. Both come from the Google Fonts repository (https://github.com/google/fonts).
+
+`assets/sounds/shutter_open.wav` and `assets/sounds/shutter_close.wav` are shortened excerpts of **Electric shutter, opening** and **Electric shutter, closing** by **Joseph SARDIN / BigSoundBank (LaSonotheque)**, licensed **CC0 1.0**. They play once at the start of each delivery-hatch movement, on the `Shutter` mixer channel. The stop/impact falls near the end of the 0.9 s animation, followed by a short natural decay.
+
+- Opening source: https://bigsoundbank.com/electric-shutter-opening-s1498.html (download: https://bigsoundbank.com/UPLOAD/mp3/1498.mp3); excerpt 27.10-28.15 s.
+- Closing source: https://bigsoundbank.com/electric-shutter-closing-s1497.html (download: https://bigsoundbank.com/UPLOAD/mp3/1497.mp3); excerpt 25.20-26.45 s.
+- Processing: decoded to mono 44.1 kHz, second-order 100 Hz high-pass, 8 ms fade-in and 40 ms fade-out, each peak-normalised to -2 dBFS, then stored as 16-bit PCM WAV (1.05 s opening, 1.25 s closing). Runtime trim is -6 dB; neither file loops.
+- License: https://creativecommons.org/publicdomain/zero/1.0/

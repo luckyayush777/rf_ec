@@ -270,7 +270,7 @@ func mask_mass(data: PackedByteArray, weights: Array[float]) -> float:
 
 ## A new card on the bench: lay a fresh randomized coat of dust, or start it clean. A clean
 ## card counts every part as done without the jingle.
-func reset_dust(dusty: bool) -> void:
+func reset_dust(dusty: bool, exterior_only: bool = false) -> void:
 	end()
 	set_highlight(false)
 	celebrated = false
@@ -279,16 +279,21 @@ func reset_dust(dusty: bool) -> void:
 	blower_elapsed = -1.0
 	auto_highlight_shown = false
 	for surface in surfaces:
-		var data: PackedByteArray = make_dust_mask(surface.coverage, dust_rng, surface.affinity, surface.texels) if dusty else PackedByteArray()
-		if not dusty: data.resize(WIDTH * HEIGHT)
+		var dirty: bool = dusty and (not exterior_only or surface.owner == "fan-assembly")
+		var data: PackedByteArray = make_dust_mask(surface.coverage, dust_rng, surface.affinity, surface.texels) if dirty else PackedByteArray()
+		if not dirty: data.resize(WIDTH * HEIGHT)
 		surface.data = data
-		if dusty: surface.mass = mask_mass(data, surface.weights)
-		surface.remaining = surface.mass if dusty else 0.0
+		if dirty: surface.mass = mask_mass(data, surface.weights)
+		surface.remaining = surface.mass if dirty else 0.0
 		surface.texture.update(Image.create_from_data(WIDTH, HEIGHT, false, Image.FORMAT_L8, data))
 	if not dusty:
 		for owner in ["board", "fan-assembly", "cooler-assembly"]: completed_parts[owner] = true
 		completed_count = 3
 		celebrated = true
+	elif exterior_only:
+		completed_parts["board"] = true
+		completed_parts["cooler-assembly"] = true
+		completed_count = 2
 	changed.emit()
 
 ## Seamless clump/fibre noise shared by every dust overlay.

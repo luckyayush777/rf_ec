@@ -3,7 +3,7 @@ extends Node3D
 ## Its tube shows the internal repair portal, a native Control page in a SubViewport drawn as
 ## green phosphor through crt_screen.gdshader. Using it eases the camera square onto the tube
 ## and frees the cursor; mouse events are cast onto the screen plane, bent through the same
-## glass curvature as the shader, and pushed into the page. F1-F3 switch pages; Esc or Tab
+## glass curvature as the shader, and pushed into the page. F1-F4 switch pages; Esc or Tab
 ## steps away.
 signal used(active: bool)
 
@@ -29,7 +29,7 @@ const PHOSPHOR := Color("#46f27e")
 const BRIGHT := Color("#c6ffd8")
 const DIM := Color("#23824a")
 const FAINT := Color("#0e3a1e")
-const PAGE_KEYS := {KEY_F1: "board", KEY_F2: "bench", KEY_F3: "ledger"}
+const PAGE_KEYS := {KEY_F1: "board", KEY_F2: "bench", KEY_F3: "ledger", KEY_F4: "shop"}
 
 @onready var screen: MeshInstance3D = $Screen
 var viewport: SubViewport
@@ -38,6 +38,8 @@ var jobs: Node
 var in_use := false
 var motion: Tween
 var tab := "board"
+var shop_section := "Tools"
+var page_scroll: ScrollContainer
 var mono: Font
 var mono_bold: Font
 var credit_label: Label
@@ -239,7 +241,7 @@ func add_cord(points: Array, material: Material) -> void:
 func _process(delta: float) -> void:
 	blink += delta
 	if prompt_label != null:
-		prompt_label.text = "C:\\BENCH\\JOBS>" + ("_" if fmod(blink, 1.06) < 0.53 else " ")
+		prompt_label.text = "http://bench-supply.local/shop" if tab == "shop" else "C:\\BENCH\\JOBS>" + ("_" if fmod(blink, 1.06) < 0.53 else " ")
 	if jobs != null and clock_label != null:
 		clock_label.text = jobs.clock_text(jobs.shop_minutes)
 		var stamp := floori(jobs.shop_minutes / BILL_REFRESH)
@@ -312,8 +314,8 @@ func build_page() -> void:
 	margin.add_child(column)
 	var header := HBoxContainer.new()
 	column.add_child(header)
-	header.add_child(text("BENCHWORKS REPAIR-NET", 24, BRIGHT, true))
-	var version := text(" v2.1", 16, DIM)
+	header.add_child(text("BENCHWORKS", 23, BRIGHT, true))
+	var version := text(" REPAIR-NET", 14, DIM)
 	version.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	version.size_flags_vertical = Control.SIZE_SHRINK_END
 	header.add_child(version)
@@ -324,32 +326,37 @@ func build_page() -> void:
 	var credit := PanelContainer.new()
 	credit.add_theme_stylebox_override("panel", frame(PHOSPHOR, PHOSPHOR, 10, 2))
 	header.add_child(credit)
-	credit_label = text("", 20, BG, true)
+	credit_label = text("", 17, BG, true)
 	credit.add_child(credit_label)
 	rule(column, PHOSPHOR, true)
 	var tab_row := HBoxContainer.new()
 	tab_row.add_theme_constant_override("separation", 10)
 	column.add_child(tab_row)
-	for entry in [["board", "F1 JOB BOARD"], ["bench", "F2 MY BENCH"], ["ledger", "F3 LEDGER"]]:
-		var button := term_button(entry[1])
+	for entry in [["board", "F1 JOBS"], ["bench", "F2 BENCH"], ["ledger", "F3 LEDGER"], ["shop", "F4 SHOP"]]:
+		var button := term_button(entry[1], 16)
 		var id: String = entry[0]
 		button.pressed.connect(func(): show_tab(id))
 		tab_row.add_child(button)
 		tab_buttons[id] = button
 	content = VBoxContainer.new()
-	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override("separation", 8)
-	column.add_child(content)
+	page_scroll = ScrollContainer.new()
+	page_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	page_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	column.add_child(page_scroll)
+	page_scroll.add_child(content)
 	rule(column, DIM)
 	var footer := HBoxContainer.new()
 	column.add_child(footer)
 	prompt_label = text("C:\\BENCH\\JOBS>_", 16)
 	prompt_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	footer.add_child(prompt_label)
-	footer.add_child(text("ESC LEAVE   F1-F3 PAGES", 15, DIM))
+	footer.add_child(text("SCROLL   ESC LEAVE   F1-F4", 14, DIM))
 
 func show_tab(id: String) -> void:
 	tab = id
+	page_scroll.scroll_vertical = 0
 	floppy_time = 0.45
 	$FloppyLED.material_override = led_on.green
 	# Rebuild after the click finishes; the pressed button is replaced.
@@ -357,8 +364,8 @@ func show_tab(id: String) -> void:
 
 func refresh() -> void:
 	if jobs == null or content == null: return
-	credit_label.text = "CREDIT $%d" % jobs.balance
-	tab_buttons.bench.text = "F2 MY BENCH %d/%d" % [jobs.queue.size(), jobs.MAX_QUEUE]
+	credit_label.text = bench.shop.money_text() if bench.shop != null else "$%d" % jobs.balance
+	tab_buttons.bench.text = "F2 BENCH %d/%d" % [jobs.queue.size(), jobs.MAX_QUEUE]
 	for id in tab_buttons:
 		var selected: bool = id == tab
 		tab_buttons[id].add_theme_stylebox_override("normal", frame(PHOSPHOR if selected else BG, PHOSPHOR if selected else DIM))
@@ -368,6 +375,7 @@ func refresh() -> void:
 		"board": build_board()
 		"bench": build_bench()
 		"ledger": build_ledger()
+		"shop": build_shop()
 
 func card(border: Color = DIM, parent: Control = null) -> VBoxContainer:
 	var panel := PanelContainer.new()
@@ -389,6 +397,7 @@ func build_board() -> void:
 	content.add_child(text("TECHS PAY THE POSTED PRICE. CUSTOMERS PAY YOUR BILL AND RATE YOU.", 13, DIM))
 	for offer in jobs.offers:
 		var tech: bool = jobs.is_tech(offer)
+		var missing: Array = jobs.missing_equipment(offer)
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 14)
 		card().add_child(row)
@@ -396,7 +405,9 @@ func build_board() -> void:
 		details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(details)
 		details.add_child(text("#%d  %s  %s" % [offer.id, ("TECH " if tech else "") + offer.customer.to_upper(), offer.model.to_upper()], 14, DIM))
-		details.add_child(wrapped("> " + offer.complaint if tech else "> NOTE: \"%s\"" % offer.complaint, 15, 520))
+		details.add_child(wrapped("> " + offer.complaint if tech else "> NOTE: \"%s\"" % offer.complaint, 15, 470))
+		if offer.get("exterior_clean", false): details.add_child(text("STARTER CLEANING / BLOWER ONLY", 13, BRIGHT))
+		if not missing.is_empty(): details.add_child(wrapped("NEEDS: " + ", ".join(missing).to_upper(), 13, 470, BRIGHT))
 		if tech:
 			details.add_child(text("DIAGNOSED: %d FAULT%s TAGGED ON THE BOX" % [offer.faults.size(), "" if offer.faults.size() == 1 else "S"], 13, DIM))
 		var side := VBoxContainer.new()
@@ -410,8 +421,8 @@ func build_board() -> void:
 			var due := text("WITHIN " + jobs.duration_text(offer.due).to_upper(), 13, DIM)
 			due.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			side.add_child(due)
-		var accept := term_button("BENCH FULL" if jobs.bench_full() else "ACCEPT", 16)
-		accept.disabled = jobs.bench_full()
+		var accept := term_button("LOCKED" if not missing.is_empty() else "BENCH FULL" if jobs.bench_full() else "ACCEPT", 16)
+		accept.disabled = jobs.bench_full() or not missing.is_empty()
 		accept.name = "Accept%d" % offer.id
 		var id: int = offer.id
 		accept.pressed.connect(func():
@@ -499,7 +510,7 @@ func bill_row(label: String, amount: String, color: Color) -> HBoxContainer:
 func build_ledger() -> void:
 	content.add_child(text("LEDGER", 20, BRIGHT, true))
 	var rating: Vector2 = jobs.shop_rating()
-	content.add_child(text("BALANCE  $%d     CUSTOMER RATING  %s" % [jobs.balance,
+	content.add_child(text("BALANCE  %s     CUSTOMER RATING  %s" % [bench.shop.money_text() if bench.shop != null else "$%d" % jobs.balance,
 		"NONE YET" if rating.y == 0 else "%.1f/5 FROM %d" % [rating.x, rating.y]], 20, BRIGHT, true))
 	if jobs.ledger.is_empty():
 		content.add_child(text("NO RETURNED JOBS YET.", 16, DIM))
@@ -510,6 +521,52 @@ func build_ledger() -> void:
 		content.add_child(ledger_row(["#%d" % entry.id, ("TECH " if entry.source == "tech" else "") + entry.customer.to_upper(),
 			"FIXED" if entry.paid else "UNFIXED", "+$%d" % entry.amount, "N/A" if entry.stars == 0 else jobs.stars_text(entry.stars)],
 			PHOSPHOR if entry.paid else DIM))
+
+func build_shop() -> void:
+	prompt_label.text = "http://bench-supply.local/shop"
+	content.add_child(text("BENCH SUPPLY / WORKSHOP STORE", 20, BRIGHT, true))
+	if bench.shop == null:
+		content.add_child(text("The supply store is available in a new progression game.", 16))
+		return
+	var store: Node = bench.shop
+	var navigation := HBoxContainer.new()
+	content.add_child(navigation)
+	for section in ["Tools", "Equipment", "Workshop"]:
+		var button := term_button(section.to_upper(), 15)
+		button.disabled = section == shop_section
+		button.pressed.connect(func():
+			shop_section = section
+			page_scroll.scroll_vertical = 0
+			refresh.call_deferred())
+		navigation.add_child(button)
+	var funds := CheckButton.new()
+	funds.name = "UnlimitedFunds"
+	funds.text = "Unlimited funds"
+	funds.button_pressed = store.unlimited_funds
+	funds.add_theme_color_override("font_color", PHOSPHOR)
+	funds.toggled.connect(store.set_unlimited)
+	navigation.add_child(funds)
+	content.add_child(wrapped("Tools fill the roll. Equipment waits in storage until placed. Purchases last for this session.", 14, 680, DIM))
+	for id in store.catalog_ids(shop_section):
+		var item: Dictionary = store.CATALOG[id]
+		var row := HBoxContainer.new()
+		card().add_child(row)
+		var description := VBoxContainer.new()
+		description.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(description)
+		description.add_child(text("%s  /  $%d" % [item.name.to_upper(), item.price], 17, BRIGHT, true))
+		description.add_child(wrapped(item.description, 14, 480))
+		var owned: bool = store.owns(id)
+		var equipment: bool = store.equipment.has(id)
+		var label := "BUY" if not owned else "MOVE" if equipment and store.is_available(id) else "PLACE" if equipment else "OWNED"
+		var button := term_button(label, 16)
+		button.name = "Buy_" + id if not owned else "Place_" + id if equipment else "Owned_" + id
+		button.custom_minimum_size.x = 130
+		button.disabled = owned and not equipment or not owned and not store.unlimited_funds and jobs.balance < item.price
+		button.pressed.connect(func():
+			if store.owns(id) and equipment: store.begin_placement(id)
+			else: store.purchase(id))
+		row.add_child(button)
 
 func ledger_row(cells: Array, color: Color) -> HBoxContainer:
 	var row := HBoxContainer.new()

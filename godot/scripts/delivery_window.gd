@@ -7,6 +7,8 @@ signal arrived
 
 const Room = preload("res://scripts/shop_interior.gd")
 const AudioMix = preload("res://scripts/audio_mix.gd")
+const SHUTTER_OPEN = preload("res://assets/sounds/shutter_open.wav")
+const SHUTTER_CLOSE = preload("res://assets/sounds/shutter_close.wav")
 ## Seconds from accepting the job until the shutter starts to open.
 const ARRIVAL_DELAY := 2.5
 const SHUTTER_TIME := 0.9
@@ -15,7 +17,6 @@ const SLAT_HEIGHT := 0.26
 ## The shutter runs just outside the wall face, the parcel starts on the outer ledge.
 const SHUTTER_X := 34.08
 const OUTSIDE_X := 37.0
-const SHUTTER_RATE := 22050
 
 ## Shortened by tests that are not about the arrival itself.
 var arrival_delay := ARRIVAL_DELAY
@@ -67,7 +68,7 @@ func configure(world: Node3D, parcel: Node3D) -> void:
 	add_child(ledge)
 	audio = AudioStreamPlayer.new()
 	audio.name = "ShutterSound"
-	audio.stream = rattle()
+	audio.stream = SHUTTER_OPEN
 	audio.volume_db = -6.0
 	audio.bus = AudioMix.SHUTTER
 	add_child(audio)
@@ -91,6 +92,7 @@ func set_opening(amount: float) -> void:
 ## Called when a job is accepted: the parcel waits outside until the delay has passed.
 func receive() -> void:
 	if motion != null: motion.kill()
+	audio.stop()
 	var outside := sill_transform()
 	outside.origin.x = OUTSIDE_X
 	box.hold_outside(outside)
@@ -105,7 +107,7 @@ func _process(delta: float) -> void:
 
 func bring_in() -> void:
 	state = "opening"
-	play_rattle()
+	play_shutter(SHUTTER_OPEN)
 	motion = create_tween()
 	motion.tween_method(set_opening, 0.0, 1.0, SHUTTER_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	motion.tween_callback(func():
@@ -117,7 +119,7 @@ func bring_in() -> void:
 		if bench != null: bench.inspection.play_set_down()
 		state = "closing"
 		arrived.emit()
-		play_rattle())
+		play_shutter(SHUTTER_CLOSE))
 	motion.tween_method(set_opening, 1.0, 0.0, SHUTTER_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	motion.tween_callback(func(): state = "")
 
@@ -125,7 +127,9 @@ func bring_in() -> void:
 func busy() -> bool:
 	return state != ""
 
-func play_rattle() -> void:
+func play_shutter(stream: AudioStream) -> void:
+	audio.stop()
+	audio.stream = stream
 	if not muted: audio.play()
 
 func set_muted(value: bool) -> void:
@@ -134,28 +138,3 @@ func set_muted(value: bool) -> void:
 
 func _exit_tree() -> void:
 	if audio != null: audio.stop()
-
-## A roller shutter: a quick train of slat clacks over a low sheet-metal rumble.
-static func rattle() -> AudioStreamWAV:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 4410
-	var count := int(SHUTTER_TIME * SHUTTER_RATE)
-	var data := PackedByteArray()
-	data.resize(count * 2)
-	# Fifteen slat clacks a second.
-	var clack_every := 1470
-	var rumble := 0.0
-	for index in range(count):
-		var t := float(index) / SHUTTER_RATE
-		var envelope := minf(t / 0.05, 1.0) * minf((SHUTTER_TIME - t) / 0.15, 1.0)
-		rumble = rumble * 0.985 + rng.randf_range(-1.0, 1.0) * 0.015
-		var since := float(index % clack_every) / SHUTTER_RATE
-		var clack := rng.randf_range(-1.0, 1.0) * exp(-since * 140.0) * 0.55 + sin(since * TAU * 900.0) * exp(-since * 90.0) * 0.25
-		var sample := clampf((rumble * 6.0 + clack) * envelope, -1.0, 1.0)
-		data.encode_s16(index * 2, int(sample * 32000.0))
-	var stream := AudioStreamWAV.new()
-	stream.format = AudioStreamWAV.FORMAT_16_BITS
-	stream.mix_rate = SHUTTER_RATE
-	stream.stereo = false
-	stream.data = data
-	return stream

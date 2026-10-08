@@ -13,6 +13,8 @@ const GpuStyle = preload("res://scripts/gpu_style.gd")
 const DeliveryWindow = preload("res://scripts/delivery_window.gd")
 const DayCycle = preload("res://scripts/day_cycle.gd")
 const OutdoorScenery = preload("res://scripts/outdoor_scenery.gd")
+const ShopInventory = preload("res://scripts/shop_inventory.gd")
+const StarterShop = preload("res://scripts/starter_shop.gd")
 ## The parcel rides low in both hands, tilted so its lid (and paperwork) faces the player.
 ## Drawn a little smaller and close, so it neither fills the view nor sinks into the desk.
 ## (0.8 scale, tilted 0.45 rad about X.)
@@ -34,10 +36,13 @@ const CAPTURE_SIZE := Vector2i(1280, 800)
 @onready var computer: Node3D = $ShopComputer
 @onready var queue_monitor: Node3D = $JobQueueMonitor
 @onready var delivery_box: Node3D = $DeliveryBox
-## Product play (the workbench as the running scene) opens on an empty bench with the job
-## loop and the thermal camera still boxed. Scripts that instantiate the workbench (tests) get
-## the original three-fault card as a walk-in job unless they set this before adding it.
+## Product play opens an empty starter shop with the job loop and supply store.
+## Fixtures get the original three-fault walk-in card unless they opt into the job loop
+## or progression before adding the scene.
 var job_flow := false
+## Normal play uses progression; fixtures can opt in before adding the scene to the tree.
+var progression_enabled := false
+var shop: Node
 var jobs: Node
 var asset_contract: Dictionary
 var service_rules: RefCounted
@@ -71,6 +76,8 @@ func _ready() -> void:
 	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
 		get_window().size = CAPTURE_SIZE
 	AudioMix.ensure_buses()
+	progression_enabled = progression_enabled or get_tree().current_scene == self
+	job_flow = job_flow or progression_enabled
 	gpu.name = "gpu"
 	asset_contract = Contract.bind_parts(gpu)
 	gpu_style = GpuStyle.new()
@@ -99,6 +106,7 @@ func _ready() -> void:
 	table_bounds = tabletop.global_transform * tabletop.get_aabb()
 	var board: Node3D = testing_desk.find_child("gpu-testing-board", true, false)
 	board.scale *= Vector3(0.67, 0.5, 0.67)
+	if progression_enabled: StarterShop.prepare(self)
 	# Scale the holder around its authored card center, keeping it on the mat.
 	var card_center: Vector3 = $RepairDesk.to_local(gpu.global_transform * Contract.bounds_in(gpu).get_center())
 	var holder_shift := Vector3(card_center.x + 2.3, 0, card_center.z - 0.7)
@@ -111,6 +119,7 @@ func _ready() -> void:
 	if camera_rig.legacy_test_mode: camera_rig.select_view("repair")
 	else:
 		$ShopInterior.enclose_room()
+		if progression_enabled: StarterShop.enclose(self)
 		camera_rig.build_collisions(self)
 	inspection.configure(gpu, camera_rig.camera, Contract.bounds_in(gpu))
 	inspection.can_interact = func(): return gpu.visible and not service.busy and service.held_part == "" and not tools.busy and not testing_station.installed and not testing_station.moving and (inspection.held or near_node(gpu))
@@ -160,6 +169,12 @@ func _ready() -> void:
 	jobs.name = "Jobs"
 	add_child(jobs)
 	jobs.configure(self, delivery_box, job_flow)
+	if progression_enabled:
+		shop = ShopInventory.new()
+		shop.name = "ShopInventory"
+		add_child(shop)
+		shop.configure(self, jobs)
+		shop.notice.connect(hud.set_status)
 	# After the picker: none of the outdoor view takes clicks.
 	if not camera_rig.legacy_test_mode:
 		scenery = OutdoorScenery.new()
@@ -177,7 +192,7 @@ func _ready() -> void:
 		day_cycle.notice.connect(hud.set_status)
 	computer.configure(self, jobs)
 	queue_monitor.configure(jobs)
-	if job_flow: tools.set_locked("thermal-camera", true)
+	if job_flow and not progression_enabled: tools.set_locked("thermal-camera", true)
 	else: $ThermalCameraBox.visible = false
 	jobs.notice.connect(hud.set_status)
 	jobs.changed.connect(refresh_ui)
@@ -270,7 +285,7 @@ func interaction_hit(point: Vector2) -> Dictionary:
 	return hit
 
 func ready_for_action() -> bool:
-	return not inspection.moving and not tools.busy and not service.busy and not testing_station.moving and (jobs == null or not jobs.busy) and (day_cycle == null or not day_cycle.busy)
+	return (shop == null or shop.placement_id == "") and not inspection.moving and not tools.busy and not service.busy and not testing_station.moving and (jobs == null or not jobs.busy) and (day_cycle == null or not day_cycle.busy)
 
 func select_view(view: String) -> void:
 	if not camera_rig.legacy_test_mode: return
@@ -344,7 +359,7 @@ func refresh_ui() -> void:
 	if not camera_rig.legacy_test_mode and not gpu.visible:
 		var customer: String = jobs.active().get("customer", "")
 		hud.set_status("Unboxing the card..." if jobs.busy else
-			"No card on the bench. Take a repair job on the shop computer by the front wall." if jobs.active().is_empty() else
+			("Start with a blower-only cleaning job on the PC. F4 opens the tool and equipment shop." if progression_enabled else "No card on the bench. Take a repair job on the shop computer by the front wall.") if jobs.active().is_empty() else
 			"%s's parcel is on its way. Listen for the shutter on the delivery hatch under the window." % customer if delivery_box.location == "outside" else
 			"%s's parcel is on the delivery hatch counter under the window. Click it to carry it to the repair desk." % customer if delivery_box.location == "sill" else
 			"Carry the parcel to the repair desk, aim at a clear spot and press E or click to set it down. Q puts it back on the hatch." if delivery_box.location == "held" else
@@ -393,6 +408,10 @@ func cancel_press() -> void:
 	service_press = false
 
 func _unhandled_input(event: InputEvent) -> void:
+	if shop != null and shop.placement_id != "":
+		shop.handle_input(event)
+		get_viewport().set_input_as_handled()
+		return
 	if closeup != null and closeup.mode != "": return
 	if computer.in_use:
 		computer.handle_input(event)
@@ -583,7 +602,7 @@ func park_delivery_box() -> void:
 func placement_obstacles(exclude_id: String = "") -> Array:
 	var boxes: Array = [] if exclude_id == "gpu" else [gpu.global_transform * Contract.bounds_in(gpu)]
 	for node in $RepairDesk.get_children():
-		if node is MeshInstance3D and node.get_meta("action", "") != "desk" and node.name != "Floor":
+		if node is MeshInstance3D and node.is_visible_in_tree() and node.get_meta("action", "") != "desk" and node.name != "Floor":
 			boxes.append(node.global_transform * node.get_aabb())
 	boxes.append($RepairDesk/Toolbox.global_transform * Contract.bounds_in($RepairDesk/Toolbox))
 	for id in service.removed:
@@ -597,7 +616,7 @@ func placement_obstacles(exclude_id: String = "") -> Array:
 	for carton in [delivery_box, $ThermalCameraBox]:
 		if carton == delivery_box and exclude_id == "delivery_box": continue
 		if carton.visible: boxes.append(carton.global_transform * Contract.bounds_in(carton))
-	if tools.thermal_location != "held":
+	if tools.thermal_location != "held" and tools.thermal_camera.is_visible_in_tree():
 		boxes.append(tools.thermal_camera.global_transform * Contract.bounds_in(tools.thermal_camera))
 	return boxes
 
@@ -619,6 +638,11 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT and is_instance_valid(service): cancel_press()
 
 func _process(delta: float) -> void:
+	if shop != null and shop.placement_id != "":
+		camera_rig.walking_enabled = true
+		if placement_marker != null: placement_marker.hide()
+		hud.interaction_hint.text = "E / click: place    R: rotate    Q: cancel"
+		return
 	update_placement_marker()
 	status_elapsed += delta
 	if hud.repair_panel.visible and status_elapsed >= 0.25:
@@ -807,6 +831,9 @@ func open_service_view(hit: Dictionary) -> bool:
 func select_tool(id: String) -> void:
 	if not tool_menu_open or tool_selection_busy or not ready_for_action(): return
 	if id != "" and id not in tools.TOOLS: return
+	if id in tools.locked:
+		hud.set_status("Buy this tool from the PC shop first.")
+		return
 	tool_selection_busy = true
 	hud.refresh_tool_menu(tools, service, true)
 	if tools.equipped_tool != id:

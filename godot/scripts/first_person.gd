@@ -7,6 +7,7 @@ const FAR := 1000.0
 const SPAWN := Vector3(-3, -4.35, 9)
 const SPAWN_PITCH := -0.22
 var legacy_test_mode := false
+var spawn_position := SPAWN
 var body: CharacterBody3D
 var look_pitch := -0.22
 var look_yaw := 0.0
@@ -43,7 +44,7 @@ func _ready() -> void:
 ## Back at the starting spot by the bench, looking at it (a new day).
 func respawn() -> void:
 	if body == null: return
-	body.global_position = SPAWN
+	body.global_position = spawn_position
 	body.velocity = Vector3.ZERO
 	look_yaw = 0.0
 	look_pitch = SPAWN_PITCH

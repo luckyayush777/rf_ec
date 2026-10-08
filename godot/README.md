@@ -15,11 +15,11 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 - Native LCD test monitor with a physical power button, status LED and a visible signal cable to the testing board. The assembled GPU seats in the board and returns to its repair holder; the monitor runs a deterministic pseudo-3D racing demo whose simulated rate follows the card's core clock. The clock holds 1905 MHz below 70 degrees C and drops in 15 MHz bins to 600 MHz at the 105 degrees C limit (60 FPS at full clock, down to 8 FPS fully throttled); a throttling card also stutters with uneven frame pacing and hitches. Hot VRAM does not slow the feed; it shows memory errors as sparkling pixels, garbage blocks and torn rows. The monitor lists the lap time, core **MHZ** and **GPU °C**. The game plays through the monitor speakers: an engine whose pitch follows the car's speed, road roar, tyre squeal in tight bends and a whoosh when passing. Its sound breaks up with the card: at low frame rates the engine pitch moves in steps, a hitched frame loops the last fraction of a second into a stuttering buzz, and hot VRAM adds crackles. Attachment and power-on sounds are included.
 - The test-board GPU fan spins with its hub label while the housing stays fixed. Dustier cards run faster and blend in `loud_gpu.wav`; clean cards settle to `ambient_gpu.wav`. Speed and sound ease toward the current cleanliness, including live debug cleaning. Removing the card stops the loops and spins the rotor down to its authored pose. Monitor power controls only the display; the seated card keeps running. These are simulated cooling responses, not measured RPM or temperature.
 - First-person-only play: WASD walking, captured mouse-look, capsule collision against the room/desks, a centred interaction prompt and distance-limited picking. Tab/Escape releases the mouse; focus loss pauses active holds. Orbit poses remain only for existing automated service fixtures.
-- Handheld thermal camera on the repair desk. In play it is still **sealed in its box** for now, so it cannot be picked up; automated fixtures keep it on its stand. It has a live low-resolution display and RMB viewfinder. Both display the aimed surface temperature in degrees C, its name, and a spot crosshair. The fixed 20-100 degrees C palette shows visible surface heat at 9 Hz, with a spot readout and an approximation warning for reflective metal. Separate memory/core/cooler temperatures warm under test-board power and cool gradually when disconnected. Internal fan/heatsink dust is the main fault. Existing front/rear memory packages have native U1-U10 / VRAM markings.
+- Handheld thermal camera on the repair desk. Buy it for **$350** from the PC shop; it appears on its stand at the right rear of the bench. It has a live low-resolution display and RMB viewfinder. Both display the aimed surface temperature in degrees C, its name, and a spot crosshair. The fixed 20-100 degrees C palette shows visible surface heat at 9 Hz, with a spot readout and an approximation warning for reflective metal. Separate memory/core/cooler temperatures warm under test-board power and cool gradually when disconnected. Internal fan/heatsink dust is the main fault. Existing front/rear memory packages have native U1-U10 / VRAM markings.
 - Surface picking, animated whole-GPU lift/set-down, independent inspection rotation/zoom, and flip.
 - Holder jaws open during inspection and close when the GPU returns.
 - Metadata adapter that validates named parts and original parent relationships, records original transforms, and creates service definitions.
-- Animated canvas tool bag pulled toward the front of the bench, clear of the screw tray, with eight stitched pockets and retaining straps; the air blower and then the jeweller's loupe fill the last pockets. Clicking it opens a large live 3D view over the blurred room and unrolls the fabric; click a visible tool or its keyboard-accessible label. Switching returns the previous tool, and closing rolls the bag shut. When unboxed, the thermal camera stays on its stand and is also selectable from the footer; while boxed, its button is hidden.
+- Animated canvas tool bag pulled toward the front of the bench, clear of the screw tray, with eight stitched pockets and retaining straps; the air blower and then the jeweller's loupe fill the last pockets. Clicking it opens a large live 3D view over the blurred room and unrolls the fabric; click a visible tool or its keyboard-accessible label. Switching returns the previous tool, and closing rolls the bag shut. Purchased tools fill the empty pockets. The thermal camera stays on its stand and is also selectable from the footer after purchase.
 - Screwdriver equip/return, automatic toolbox opening, and desk placement/retrieval with footprint and obstacle checks. Inspection can continue with the screwdriver equipped.
 - The tools share rounded shapes, charcoal grips, ivory accents and beveled edges, with individual colours for the blowers, spudger, IPA bottle, paste syringe, fan oiler and thermal camera. Working tips and proportions are retained. The syringe has a finger rest and graduation marks, the wipe has folded edges, and the scraper/wipe shown on the paste face match the kit. See [tool-kit authoring](../models/tool-kit.md) and [screwdriver authoring](../models/screwdriver.md).
 - Fan cable unplug/reconnect with plug animation and wire deformation. Cable handling requires empty hands; cooler screws require the cable unplugged.
@@ -47,7 +47,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 | Walk / look | WASD / mouse; no third-person view or camera presets |
 | Release/resume mouse | Tab or Escape; releasing also ends screw/blower holds |
 | Interact / pick up | Aim the crosshair and press E (or click); move within reach |
-| Shop computer | E or click on the beige PC by the front wall (screen, cabinet or keyboard). The camera settles on the CRT and the cursor is freed: click tabs and buttons on the screen, or press F1 / F2 / F3 for the job board, bench and ledger. Esc or Tab steps away. Set held parts down first. Sitting down types a quick burst on the clacky keyboard; page keys and stepping away clack too, and every mouse press and release clicks (recorded CC0 sounds, see [asset credits](ASSET_CREDITS.md)). |
+| Shop computer | E or click on the beige PC by the front wall (screen, cabinet or keyboard). The camera settles on the CRT and the cursor is freed: click tabs and buttons on the screen, or press F1 / F2 / F3 / F4 for the job board, bench, ledger and supply shop. Esc or Tab steps away. Set held parts down first. Sitting down types a quick burst on the clacky keyboard; page keys and stepping away clack too, and every mouse press and release clicks (recorded CC0 sounds, see [asset credits](ASSET_CREDITS.md)). |
 | Fetch a parcel | E or click on the parcel on the delivery hatch counter under the window (empty hands: set parts down and return the tool first). It is carried in both hands: aim at a clear spot on the repair desk (green ring) and press E or click to set it down; Q puts it back on the hatch. |
 | Open the delivery box | E or click on the box on the repair desk; the flaps open and the card slides out of its sleeve into its holder (recorded sounds, see [asset credits](ASSET_CREDITS.md)) |
 | End the day | E or click on the front door (EXIT sign). Set held parts down first. The screen fades and the shop opens again at 09:00 the next day, with you back by the bench. |
@@ -67,7 +67,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 | Lift assembly | E on fan/heatsink after removing its cable/screw dependencies |
 | Rotate / place / refit assembly | RMB + mouse / E on clear repair tabletop / Q; cooler refits before fan |
 | Clean dust | Equip the air blower, click a part for focus, hold LMB and sweep the jet over exposed surfaces; remove assemblies to reach internal dust. Debug builds also have the wide-footprint Dev blower. |
-| Thermal camera | Boxed in play for now. When unboxed: E on the orange camera on the repair desk; hold RMB for its larger viewfinder |
+| Thermal camera | After buying it from F4 Shop: E on the orange camera on the repair desk; hold RMB for its larger viewfinder |
 | Repaste | With the heatsink removed, equip spudger / IPA wipe / paste syringe and click the GPU or detached heatsink. Hold LMB on the framed die or base to scrape, wipe or squeeze. See [Repasting](#repasting). |
 | Oil the fan bearing | In focus on the detached fan: click the hub sticker, then the hub to pull the rotor. Hold LMB along the shaft with the IPA wipe, then on the bearing with the fan oiler. Click the rotor to refit it. See [Fan bearing](#fan-bearing). |
 | Place / retrieve a tool | E on clear repair tabletop / E on placed tool |
@@ -82,14 +82,14 @@ pickup objects. There is no jumping or free physics throwing.
 
 ## Repair jobs
 
-Play opens on an empty bench with **$100**. The loop:
+Play opens in a small, worn workshop with an empty bench and an air blower. **Unlimited funds is enabled** for this prototype; turn it off on the PC shop page to use the $100 starting wallet and job earnings. The loop:
 
 1. **Take a job.** Walk to the shop computer, a beige 486 with a green-phosphor CRT on
    the desk by the front wall, and click its screen. The internal **BENCHWORKS REPAIR-NET**
-   portal has three pages (F1-F3): **Job board** (open requests), **My bench** (the
+   portal has four pages (F1-F4): **Job board** (open requests), **My bench** (the
    accepted card, its status, the customer's running bill and the return button) and
-   **Ledger** (balance, customer rating and returned jobs). The header shows the shop
-   clock. **Accept** puts the request on your bench. Requests come from two kinds of client
+   **Ledger** (balance, customer rating and returned jobs), and **Shop** (tools, equipment and room upgrades). The header shows the shop
+   clock. **Accept** puts the request on your bench. Locked requests list the equipment you need; buy tools and place a test station to unlock them. Requests come from two kinds of client
    (see [Clients, bills and ratings](#clients-bills-and-ratings)):
    - **Techs** have already diagnosed the card. They describe the symptoms, pay a posted
      price, and tag the box with the faults they found.
@@ -97,7 +97,8 @@ Play opens on an empty bench with **$100**. The loop:
      and they rate you.
 2. **Fetch and unbox it.** About 2.5 seconds after you accept, the roller shutter on the
    delivery hatch under the right-wall window rattles up, a branded retail box slides in
-   onto the counter and the shutter comes back down. Carry the box to the repair desk and
+   onto the counter and the shutter comes back down, with distinct recorded sounds for each
+   direction (see [asset credits](ASSET_CREDITS.md)). Carry the box to the repair desk and
    set it down on a clear spot (see [Controls](#controls)). Its lid carries the paperwork, handwritten: a tech's fault tag in
    marker (green tag for one fault, yellow tag for two, red card for three or more, signed),
    or a customer's yellow sticky note in ballpoint. One click breaks the seal, opens the hinged lid and lifts the
@@ -114,7 +115,7 @@ Play opens on an empty bench with **$100**. The loop:
    heatsink over too little paste.
 
 The bench holds **one card** at a time (`MAX_QUEUE` in `scripts/repair_jobs.gd`). The
-**job-queue display**, on a stand behind the repair desk, shows each slot with its
+**job-queue display**, available for $120 in the PC shop, shows each slot with its
 customer, branded model, pay, status (in the box / on the bench) and complaint, plus the balance and
 the last result.
 
@@ -139,8 +140,17 @@ Which faults is uniform. Adding a fault type keeps the same *r*, so many-fault c
 get rarer still (with four types: 62.1 / 24.5 / 9.6 / 3.8%). Every card has at least
 one fault, and everything not rolled starts healthy: clean, freshly pasted, oiled.
 A tech pays $40 for dust, $60 for paste and $45 for the bearing they diagnosed.
-Progress lives in memory only; there is no save yet. Spending money, more bench
-slots and unlocking the boxed thermal camera are not implemented yet.
+An exterior-fan-cleaning referral always remains available for $25 and needs only the air blower; its internal surfaces start clean. The initial board also shows locked repaste and customer bearing work. Progress, purchases and equipment positions live in memory only; there is no save yet. More bench slots are pending.
+
+### Buying and arranging equipment
+
+Use the PC and press **F4** for **Bench Supply**, or click its Shop tab. Scroll the page; Tools, Equipment and Workshop select departments. **Unlimited funds** starts on. Switch it off to have purchases subtract from your wallet. Prices are provisional and purchases last until you close the game.
+
+- Tools: air blower $35 (already owned), screwdriver $30, spudger $12, IPA kit $18, paste syringe $25, fan oiler $20, loupe $45, thermal camera $350, and Dev blower $500 in development builds. Hand tools fill their roll pockets; the thermal camera goes on its bench stand. Consumable refills are included for now.
+- Equipment: testing station $400 (table, board and monitor together) and queue display $120. After buying, click **PLACE**, look at a clear floor spot, press **R** to rotate and **E / left click** to confirm a green footprint. **Q / Escape** cancels; the item stays owned. Use **MOVE** on the same shop page to rearrange it later. The door, hatch, other furniture and the station's working aisle must remain clear. Empty the station and free your hands before moving equipment.
+- Workshop: lighting $150 and paint/bench refinishing $250 improve the starter room.
+
+Start with the **$25 exterior fan clean**; it needs only the blower and always replenishes. Full repairs need their listed service tools and a placed test station. Customer diagnosis also needs the thermal camera. Buying a station without placing it does not unlock its jobs.
 
 ### Clients, bills and ratings
 
@@ -180,7 +190,7 @@ shop's average; the queue display shows the average too. Ratings do not affect j
 The shop clock drives the light (`scripts/day_cycle.gd`). The sun rises at 06:00 behind the
 shop, crosses the south and sets at 19:30 out of the west-facing window; the moon and stars
 take over after dusk. The sky, haze, clouds and the lighting on the scenery follow a table
-of hour keys (`KEYS`). Inside, the morning keeps the room's authored lighting; from early
+of hour keys (`KEYS`). The starter room dims the normal ambient, fill and key lights until the lighting upgrade is purchased, while its bench lamp keeps the work readable. With the upgrade, the morning uses the room's authored lighting; from early
 afternoon a sunbeam comes through the window, and at night the ambient and fill light drop
 while the workshop key light dims only a little and turns warmer, so repairs stay readable.
 
@@ -200,8 +210,8 @@ None of it collides or takes clicks.
 ## Thermal investigation loop
 
 Seat the dirty, assembled GPU in the test board and give it about 6 seconds to
-warm. While the thermal camera is boxed, read the monitor's **GPU °C**, MHZ and
-artifacts. With the camera unboxed (automated fixtures), take the orange thermal camera and walk around to the exposed rear VRAM
+warm. Before buying the thermal camera, read the monitor's **GPU °C**, MHZ and
+artifacts. After purchasing it, take the orange thermal camera and walk around to the exposed rear VRAM
 packages. Hold RMB and note their surface readings and the fixed colour scale.
 Front memory covered by the cooler is occluded, just as it is in the ordinary view.
 
@@ -340,7 +350,7 @@ and silent while the link is down.
 
 ## Pending gameplay
 
-Edge-connector repairs (cleaning, re-gluing, bodge wires) and rolling connector faults in jobs, paste thickness/mounting pressure, directional pad scraping, comparison view, spending and progression (purchases, more bench slots, unboxing the thermal camera, saving), volumetric dust (shell layers or detachable felt clumps), fan wear from overspinning and general interaction highlights are pending. Outside, there is nothing to do yet beyond the view: the door only ends the day, parcels arrive by the hatch with no modelled courier, and there is no weather, seasons or night-time event. Imported pad remnants are geometry only. Replacement pads have no gameplay yet. The racing feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
+Edge-connector repairs (cleaning, re-gluing, bodge wires) and rolling connector faults in jobs, paste thickness/mounting pressure, directional pad scraping, comparison view, further progression (more bench slots, expanded premises and saving), volumetric dust (shell layers or detachable felt clumps), fan wear from overspinning and general interaction highlights are pending. Outside, there is nothing to do yet beyond the view: the door only ends the day, parcels arrive by the hatch with no modelled courier, and there is no weather, seasons or night-time event. Imported pad remnants are geometry only. Replacement pads have no gameplay yet. The racing feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
 
 No deployment workflow or export preset is configured.
 
@@ -361,7 +371,7 @@ For request-to-owner navigation, see [the task router](../AGENTS.md#task-router)
 | `scripts/testing_station.gd` | PCIe fixture interaction, GPU transfer, rocking the seated card (wiggle test), monitor connection, signal cable, fan animation (powered or air-blown), cleanliness-driven fan audio and dry-bearing grind. |
 | `scripts/gpu_bearing.gd`, `shaders/shaft_gunk.gdshader` | Fan sleeve bearing: runtime bearing boss, struts and shaft, hub-sticker peel, rotor pull/refit, shaft gunk wipe, oil drops and the dry/serviced state. |
 | `scenes/shop_interior.tscn`, `scripts/shop_interior.gd` | Imported workshop shell and props, editor-visible layout conversion and cutaway visibility; in play, the right-wall window (wall pieces, frame, glazing, hatch counter) and the clickable front door. |
-| `scripts/delivery_window.gd` | The delivery hatch: roller shutter, synthesized rattle, and the parcel's arrival onto the counter a few seconds after a job is accepted. |
+| `scripts/delivery_window.gd` | The delivery hatch: roller shutter, recorded opening and closing sounds, and the parcel's arrival onto the counter a few seconds after a job is accepted. |
 | `scripts/outdoor_scenery.gd`, `shaders/scenery.gdshader`, `shaders/water.gdshader`, `shaders/sky_backdrop.gdshader` | The alpine valley view: loads the Blender landscape (`assets/outdoor-scenery.glb`), assigns its materials and day/night lighting; sky dome with skyline, sky, sun, moon, stars and clouds. |
 | `scripts/day_cycle.gd` | Time of day from the shop clock: sky and scenery lighting, the window sunbeam, room dimming at night, and the end-of-day fade to 09:00 the next morning. |
 | `scripts/workbench.gd` | Startup, controller wiring, input arbitration, desk alignment, placement obstacles and jaw motion. |

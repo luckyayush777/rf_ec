@@ -95,4 +95,4 @@ func set_opening(value: float) -> void:
 		if tool != null and tool.has_meta("roll_home"):
 			var open_home: Transform3D = tool.get_meta("roll_home")
 			tool.position.x = open_home.origin.x + LEFT_EDGE * (1 - value)
-			tool.visible = value > POCKETS[tool_name][3] and (tool_name != "DevBlower" or OS.is_debug_build())
+			tool.visible = not tool.get_meta("shop_locked", false) and value > POCKETS[tool_name][3] and (tool_name != "DevBlower" or OS.is_debug_build())
