@@ -15,6 +15,7 @@ const DayCycle = preload("res://scripts/day_cycle.gd")
 const OutdoorScenery = preload("res://scripts/outdoor_scenery.gd")
 const ShopInventory = preload("res://scripts/shop_inventory.gd")
 const StarterShop = preload("res://scripts/starter_shop.gd")
+const BuildView = preload("res://scripts/build_view.gd")
 ## The parcel rides low in both hands, tilted so its lid (and paperwork) faces the player.
 ## Drawn a little smaller and close, so it neither fills the view nor sinks into the desk.
 ## (0.8 scale, tilted 0.45 rad about X.)
@@ -43,6 +44,8 @@ var job_flow := false
 ## Normal play uses progression; fixtures can opt in before adding the scene to the tree.
 var progression_enabled := false
 var shop: Node
+## Progression play only: the top-down floor plan for expansions and equipment (B).
+var build_view: Node
 var jobs: Node
 var asset_contract: Dictionary
 var service_rules: RefCounted
@@ -175,6 +178,12 @@ func _ready() -> void:
 		add_child(shop)
 		shop.configure(self, jobs)
 		shop.notice.connect(hud.set_status)
+		if not camera_rig.legacy_test_mode:
+			build_view = BuildView.new()
+			build_view.name = "BuildView"
+			add_child(build_view)
+			build_view.configure(self)
+			hud.build_hint = true
 	# After the picker: none of the outdoor view takes clicks.
 	if not camera_rig.legacy_test_mode:
 		scenery = OutdoorScenery.new()
@@ -190,6 +199,10 @@ func _ready() -> void:
 		add_child(day_cycle)
 		day_cycle.configure(self, jobs, scenery)
 		day_cycle.notice.connect(hud.set_status)
+		hud.debug_light_changed.connect(day_cycle.set_light_scale)
+		hud.show_light_level(day_cycle.light_scale)
+		# Like repair speeds, a saved light level applies to play, not to fixtures.
+		if get_tree().current_scene == self: hud.load_light_level()
 	computer.configure(self, jobs)
 	queue_monitor.configure(jobs)
 	if job_flow and not progression_enabled: tools.set_locked("thermal-camera", true)
@@ -286,7 +299,11 @@ func interaction_hit(point: Vector2) -> Dictionary:
 	return hit
 
 func ready_for_action() -> bool:
-	return (shop == null or shop.placement_id == "") and not inspection.moving and not tools.busy and not service.busy and not testing_station.moving and (jobs == null or not jobs.busy) and (day_cycle == null or not day_cycle.busy)
+	return (build_view == null or not build_view.active) and settled()
+
+## Nothing on the bench is mid-motion: no lift, tool, screw, test-board slide, job step or day change.
+func settled() -> bool:
+	return not inspection.moving and not tools.busy and not service.busy and not testing_station.moving and (jobs == null or not jobs.busy) and (day_cycle == null or not day_cycle.busy)
 
 func select_view(view: String) -> void:
 	if not camera_rig.legacy_test_mode: return
@@ -356,7 +373,8 @@ func refit_assembly() -> void:
 func refresh_ui() -> void:
 	hud.refresh(inspection.held, inspection.moving, tools, service, cleaning, testing_station)
 	hud.refresh_tool_menu(tools, service, tool_selection_busy)
-	if service.busy or tools.busy: return
+	# Build view keeps the status line for its own notices; leaving it refreshes the room's.
+	if service.busy or tools.busy or (build_view != null and build_view.active): return
 	if not camera_rig.legacy_test_mode and not gpu.visible:
 		var customer: String = jobs.active().get("customer", "")
 		hud.set_status("Unboxing the card..." if jobs.busy else
@@ -410,8 +428,8 @@ func cancel_press() -> void:
 	service_press = false
 
 func _unhandled_input(event: InputEvent) -> void:
-	if shop != null and shop.placement_id != "":
-		shop.handle_input(event)
+	if build_view != null and build_view.active:
+		build_view.handle_input(event)
 		get_viewport().set_input_as_handled()
 		return
 	if closeup != null and closeup.mode != "": return
@@ -571,6 +589,20 @@ func set_down_parcel_at_aim(center: Vector2) -> void:
 	if hit.get("action", "") == "desk": set_down_parcel(hit.point)
 	else: hud.set_status("Set the parcel down on the repair desk.")
 
+## Build view moved the repair desk by `delta` (world space): the card, the thermal camera's
+## stand and a box on the desk ride along, and the spots kept relative to the desk follow.
+func carry_with_desk(delta: Transform3D) -> void:
+	for node in [gpu, $ThermalCameraStand, $ThermalCameraBox]:
+		node.global_transform = delta * node.global_transform
+	if delivery_box.location == "desk":
+		delivery_box.global_transform = delta * delivery_box.global_transform
+		delivery_box.rest = delivery_box.transform
+	var holder: Transform3D = (gpu.get_parent() as Node3D).global_transform
+	inspection.home = holder.affine_inverse() * delta * holder * inspection.home
+	testing_station.home = delta * testing_station.home
+	parcel_spot = delta * parcel_spot
+	camera_rig.spawn_position = delta * camera_rig.spawn_position
+
 func carrying_empty_box() -> bool:
 	return carrying_parcel() and delivery_box.parked
 
@@ -698,10 +730,9 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT and is_instance_valid(service): cancel_press()
 
 func _process(delta: float) -> void:
-	if shop != null and shop.placement_id != "":
-		camera_rig.walking_enabled = true
+	if build_view != null and build_view.active:
+		camera_rig.walking_enabled = false
 		if placement_marker != null: placement_marker.hide()
-		hud.interaction_hint.text = "E / click: place    R: rotate    Q: cancel"
 		return
 	update_placement_marker()
 	status_elapsed += delta
@@ -787,6 +818,11 @@ func first_person_input(event: InputEvent) -> void:
 				KEY_M: hud.mute_requested.emit()
 			return
 		match event.physical_keycode:
+			KEY_B:
+				if build_view != null:
+					cancel_press()
+					thermal_viewer.aiming = false
+					build_view.open()
 			KEY_E:
 				if (inspection.held or service.held_part != "") and interaction_hit(center).get("action") == "desk": activate(center, true)
 				elif (inspection.held or service.held_part != "") and tools.equipped_tool != "" and ready_for_action(): closeup.show_view("service", focused_held_part())

@@ -49,12 +49,12 @@ func run() -> void:
 	await process_frame
 	await process_frame
 	await process_frame
-	expect(hud.menu_sections.size() == 5 and hud.menu_sections.values().all(func(panel): return not panel.is_visible_in_tree()), "Menu did not start with five collapsed subpanels")
+	expect(hud.menu_sections.size() == 6 and hud.menu_sections.values().all(func(panel): return not panel.is_visible_in_tree()), "Menu did not start with six collapsed subpanels")
 	expect(hud.cleaning_panel.get_global_rect().end.y <= root.get_visible_rect().end.y, "Menu extends below the window")
 	await capture("debug-menu-collapsed")
 	await click_header(hud.menu_section_buttons.sound)
 	expect(hud.audio_panel.is_visible_in_tree() and hud.audio_sliders.size() == mix.CHANNELS.size(), "Sound header did not show one slider per channel")
-	expect(not hud.menu_sections.speeds.is_visible_in_tree() and not hud.menu_sections.faults.is_visible_in_tree(), "Opening Sound also opened unrelated controls")
+	expect(not hud.menu_sections.speeds.is_visible_in_tree() and not hud.menu_sections.faults.is_visible_in_tree() and not hud.menu_sections.lighting.is_visible_in_tree(), "Opening Sound also opened unrelated controls")
 	await capture("audio-mix")
 	var fan_loud: HSlider = hud.audio_sliders[&"FanLoud"]
 	fan_loud.value = 50

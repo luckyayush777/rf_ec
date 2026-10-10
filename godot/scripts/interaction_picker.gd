@@ -11,13 +11,18 @@ func configure(scene: Node3D, card: Node3D, view_camera: Camera3D, service: Node
 	camera = view_camera
 	gpu = card
 	is_removed = func(id: String): return id in service.removed
-	for mesh in scene.find_children("*", "MeshInstance3D", true, false):
-		if mesh is Label3D or mesh.mesh == null: continue
-		entries.append({"node": mesh, "source": mesh.mesh, "triangles": mesh.mesh.generate_triangle_mesh()})
+	add_meshes(scene)
 	for id in service.fan_screws + service.cooler_screws:
 		targets.append({"node": service.contract.objects[id], "id": id, "action": "screw", "radius": 0.14})
 		targets.append({"node": service.screw_seats[id], "id": id, "action": "screw_hole", "radius": 0.14})
 	targets.append({"node": service.contract.objects["fan-plug"], "id": "fan-plug", "action": "cable", "radius": 0.18})
+
+## Forgets freed meshes and caches those under `root`, for room pieces rebuilt during play.
+func add_meshes(root: Node) -> void:
+	entries = entries.filter(func(entry: Dictionary): return is_instance_valid(entry.node))
+	for mesh in root.find_children("*", "MeshInstance3D", true, false):
+		if mesh is Label3D or mesh.mesh == null: continue
+		entries.append({"node": mesh, "source": mesh.mesh, "triangles": mesh.mesh.generate_triangle_mesh()})
 
 func action_for(node: Node3D) -> Dictionary:
 	var current: Node = node

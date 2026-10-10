@@ -125,7 +125,12 @@ func run() -> void:
 		return Vector3(environment.ambient_light_energy, bench.get_node("FillLight").light_energy, bench.get_node("KeyLight").light_energy)
 	await at_time(bench, 9.0)
 	var morning: Vector3 = room_light.call()
-	expect(day.state.daylight > 0.99 and is_equal_approx(morning.x, authored.ambient_light_energy), "The morning room light changed from the authored values")
+	expect(day.state.daylight > 0.99 and is_equal_approx(morning.x, authored.ambient_light_energy * day.DEFAULT_LIGHT * day.AMBIENT_TRIM), "The morning room light was not the toned-down authored rig")
+	# The debug Lighting slider scales the room and the outdoor light together.
+	var outdoor_light: Color = day.state.light_color
+	day.set_light_scale(day.DEFAULT_LIGHT * 1.5)
+	expect(room_light.call().is_equal_approx(morning * 1.5) and day.state.light_color.r > outdoor_light.r * 1.4, "The scene light level did not scale room and outdoor light")
+	day.set_light_scale(day.DEFAULT_LIGHT)
 	expect(bench.find_child("WindowSunbeam", true, false) == null and bench.find_children("*", "SpotLight3D", true, false).is_empty(),
 		"Daylight was still simulated through the window")
 	expect(bench.find_children("*", "OmniLight3D", true, false).all(func(lamp): return lamp.light_energy < 0.5), "A lamp lit the room unevenly")

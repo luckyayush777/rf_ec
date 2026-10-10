@@ -3,6 +3,11 @@ const AudioMix = preload("res://scripts/audio_mix.gd")
 const RepairStatus = preload("res://scripts/repair_status.gd")
 const DEBUG_SETTINGS := "user://bench_debug.cfg"
 const REPAIR_SPEED_SETTINGS := "user://bench_repair_speeds.cfg"
+const LIGHT_SETTINGS := "user://bench_lighting.cfg"
+## The debug Lighting slider's range; `day_cycle.gd` clamps to the same.
+const LIGHT_RANGE := Vector2(0.2, 1.6)
+## Frames-per-second readout, top right, refreshed this often (seconds).
+const FPS_REFRESH := 0.25
 const REPAIR_SPEEDS := [["dust", "Dust clearing"], ["wipe", "IPA wiping"], ["scrape", "Paste scraping"]]
 const MIN_REPAIR_SPEED := 0.1
 const MAX_REPAIR_SPEED := 20.0
@@ -34,6 +39,7 @@ signal debug_oil_bearing_requested
 signal debug_connector_requested
 signal debug_advance_clock_requested
 signal debug_repair_speed_changed(id: String, multiplier: float)
+signal debug_light_changed(level: float)
 
 var inspect_button: Button
 var flip_button: Button
@@ -72,6 +78,13 @@ var reticle: Label
 var interaction_hint: Label
 var notice_label: Label
 var fps_mode := false
+## Progression play: the first-person hint mentions build view (B).
+var build_hint := false
+var light_slider: HSlider
+var light_value: Label
+var light_settings_path := LIGHT_SETTINGS
+var fps_label: Label
+var fps_elapsed := 0.0
 var tool_overlay: ColorRect
 var tool_buttons: Dictionary = {}
 var tool_close_button: Button
@@ -239,6 +252,8 @@ func _ready() -> void:
 	repair_toggle.visible = OS.is_debug_build()
 	cleaning_column.add_child(repair_toggle)
 	build_repair_speed_controls(build_menu_section("speeds", "Repair speeds", true))
+	build_light_controls(build_menu_section("lighting", "Lighting", true))
+	build_fps_counter()
 	status_label = Label.new()
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status_label.text = "Loading workbench..."
@@ -354,6 +369,81 @@ func save_repair_speeds() -> void:
 	for entry in REPAIR_SPEEDS:
 		settings.set_value("speeds", entry[0], repair_speed_sliders[entry[0]].value)
 	settings.save(repair_speed_settings_path)
+
+## Debug whole-scene light level: room lights and the light on the outdoor view together.
+func build_light_controls(parent: Control) -> void:
+	var row := HBoxContainer.new()
+	parent.add_child(row)
+	var label := Label.new()
+	label.text = "Scene light"
+	label.custom_minimum_size.x = 140
+	row.add_child(label)
+	light_slider = HSlider.new()
+	light_slider.name = "SceneLight"
+	light_slider.min_value = LIGHT_RANGE.x
+	light_slider.max_value = LIGHT_RANGE.y
+	light_slider.step = 0.05
+	light_slider.value = 1.0
+	light_slider.focus_mode = Control.FOCUS_NONE
+	light_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	light_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	light_slider.custom_minimum_size.x = 180
+	row.add_child(light_slider)
+	light_value = Label.new()
+	light_value.custom_minimum_size.x = 58
+	light_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(light_value)
+	light_slider.value_changed.connect(func(value: float):
+		light_value.text = "%.2fx" % value
+		debug_light_changed.emit(value)
+		var settings := ConfigFile.new()
+		settings.set_value("lighting", "scene", value)
+		settings.save(light_settings_path))
+	var hint := Label.new()
+	hint.text = "Scales the room lights and the view outside. Saved between runs."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.add_theme_font_size_override("font_size", 13)
+	parent.add_child(hint)
+
+## Shows the level in use without saving or re-applying it.
+func show_light_level(value: float) -> void:
+	light_slider.set_value_no_signal(value)
+	light_value.text = "%.2fx" % light_slider.value
+
+## Applies a saved level, if any (play only; fixtures keep the default).
+func load_light_level() -> void:
+	var settings := ConfigFile.new()
+	if not OS.is_debug_build() or settings.load(light_settings_path) != OK: return
+	var value: Variant = settings.get_value("lighting", "scene", light_slider.value)
+	if not (value is float or value is int): return
+	show_light_level(clampf(float(value), LIGHT_RANGE.x, LIGHT_RANGE.y))
+	debug_light_changed.emit(light_slider.value)
+
+## Top-right frame-rate readout, above every other layer (build view, closeups, day fades).
+func build_fps_counter() -> void:
+	var layer := CanvasLayer.new()
+	layer.name = "FpsCounter"
+	layer.layer = 60
+	add_child(layer)
+	fps_label = Label.new()
+	fps_label.name = "Fps"
+	fps_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	fps_label.add_theme_font_size_override("font_size", 15)
+	fps_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	fps_label.add_theme_constant_override("outline_size", 4)
+	fps_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	fps_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	fps_label.offset_right = -10
+	fps_label.offset_top = 4
+	layer.add_child(fps_label)
+	fps_label.text = "-- FPS"
+
+func _process(delta: float) -> void:
+	fps_elapsed += delta
+	if fps_label == null or fps_elapsed < FPS_REFRESH: return
+	fps_elapsed = 0.0
+	fps_label.text = "%d FPS" % Engine.get_frames_per_second()
 
 ## Escape-menu mixer: one slider per sound channel plus Master. Changes apply live and save shortly after.
 func build_audio_panel() -> void:
@@ -580,7 +670,7 @@ func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Nod
 	if tools.equipped_tool != "": prompt += "   |   Q: return tool"
 	elif inspection.held or service.held_part != "": prompt += "   |   Q: return/refit"
 	if tools.equipped_tool == "thermal-camera": prompt += "   |   Hold RMB: thermal view"
-	interaction_hint.text = (prompt + "\nWASD: move   Mouse: look   E: interact   Tab/Esc: release mouse") if captured else "Mouse released — Tab/Esc to resume"
+	interaction_hint.text = (prompt + "\nWASD: move   Mouse: look   E: interact   " + ("B: build view   " if build_hint else "") + "Tab/Esc: release mouse") if captured else "Mouse released — Tab/Esc to resume"
 
 ## At the shop computer the cursor works the screen; the pause menu, reticle and hints stay
 ## away (the portal's own footer says how to step away).

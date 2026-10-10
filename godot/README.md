@@ -30,7 +30,9 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 - Focus cleaning: hold LMB and sweep over visible dust; RMB drag or Flip part exposes the backplate. Only the selected part and its live dust masks appear in focus; the progress bar tracks that part. A large Return tool area puts the equipped tool away and leaves the card view open.
 - Shop **air blower** (electric duster) in the tool bag's last pocket. It works in focus: hold LMB and sweep its narrow jet. Thick felt lifts quickly in clumps; the last thin film clings and needs steady air. Air also carries a little way past the aimed surface into faces turned toward it, such as fin gaps or the fins under the fan. Cleaned dust leaves as a soft cloud with falling flakes. Its motor (a synthesized placeholder until `assets/sounds/air_blower.wav` is supplied) winds up on the trigger and coasts down after release. Blowing on an idle fan's rotor freewheels it, then it coasts to a stop; a dry bearing grinds while it spins, and the rotor cannot be serviced until it stops.
 - Development-only **Dev blower** in the toolbox. Its nozzle follows the crosshair and must point at a visible part to remove dust. Holding the trigger plays the supplied air recording, with its steady section looped. The Tab menu shows overall and per-part cleanliness. At 98% cleanliness, that part's remaining dust clears and its jingle plays once (unless sound is muted).
-- The Escape menu opens with collapsed sections: **Dust & diagnostics**, **Assembly**, **Fault setup**, **Repair speeds**, and **Sound**. Click a header to expand or collapse its subpanel; expanded groups scroll inside the menu when needed. The four debug sections appear only in debug builds.
+- The Escape menu opens with collapsed sections: **Dust & diagnostics**, **Assembly**, **Fault setup**, **Repair speeds**, **Lighting** and **Sound**. Click a header to expand or collapse its subpanel; expanded groups scroll inside the menu when needed. The five debug sections appear only in debug builds.
+- **Lighting (debug)**: **Escape → Lighting → Scene light** scales the room lights and the light on the view outside together, from 0.2x to 1.6x. Play starts at 0.75x of the authored rig. The level persists in `user://bench_lighting.cfg`; automated fixtures ignore it.
+- The frame rate shows in the top-right corner.
 - Debug builds have **Clean GPU** and **Advance clock 1 h** (to look at the evening and night sky) under **Dust & diagnostics** and **Disassemble GPU** / **Reassemble GPU** under **Assembly**. Clean GPU clears every dust mask; a connected test monitor recovers as the card cools (dried paste still throttles it). Disassemble GPU unplugs the cable, moves all eight screws into their tray rows, and lays the heatsink and fan out on the mat just left of the card; normal refitting still works afterward. Disassembly is available when the GPU is set down and off the test board.
 - Low-density dust remains visible until its mask is fully erased. In debug builds, the bottom **highlight dust** button toggles a magenta view of remaining dust through parts. If dust remains 30 seconds after equipping the Dev blower, this view turns on automatically. Rotate, flip or remove parts to expose dust before cleaning it.
 - Pointer release, Escape and window focus loss pause active screw turns. Tool/cable/inspection changes are blocked during active service animations.
@@ -47,6 +49,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 | Walk / look | WASD / mouse; no third-person view or camera presets |
 | Release/resume mouse | Tab or Escape; releasing also ends screw/blower holds |
 | Interact / pick up | Aim the crosshair and press E (or click); move within reach |
+| Build view | B with empty hands: top-down floor plan for expansions and arranging or stashing equipment; B to leave. See [Build view](#build-view). |
 | Shop computer | E or click on the beige PC by the front wall (screen, cabinet or keyboard). The camera settles on the CRT and the cursor is freed: click tabs and buttons on the screen, or press F1 / F2 / F3 / F4 for the job board, bench, ledger and supply shop. Esc or Tab steps away. Set held parts down first. Sitting down types a quick burst on the clacky keyboard; page keys and stepping away clack too, and every mouse press and release clicks (recorded CC0 sounds, see [asset credits](ASSET_CREDITS.md)). |
 | Fetch a parcel | E or click on the parcel on the delivery hatch counter under the window (empty hands: set parts down and return the tool first). It is carried in both hands: aim at a clear spot on the repair desk (green ring) and press E or click to set it down; Q puts it back on the hatch. |
 | Open the delivery box | E or click on the box on the repair desk; the flaps open and the card slides out of its sleeve into its holder (recorded sounds, see [asset credits](ASSET_CREDITS.md)) |
@@ -147,8 +150,18 @@ An exterior-fan-cleaning referral always remains available for $25 and needs onl
 Use the PC and press **F4** for **Bench Supply**, or click its Shop tab. Scroll the page; Tools, Equipment and Workshop select departments. **Unlimited funds** starts on. Switch it off to have purchases subtract from your wallet. Prices are provisional and purchases last until you close the game.
 
 - Tools: air blower $35 (already owned), screwdriver $30, spudger $12, IPA kit $18, paste syringe $25, fan oiler $20, loupe $45, thermal camera $350, and Dev blower $500 in development builds. Hand tools fill their roll pockets; the thermal camera goes on its bench stand. Consumable refills are included for now.
-- Equipment: testing station $400 (table, board and monitor together) and queue display $120. After buying, click **PLACE**, look at a clear floor spot, press **R** to rotate and **E / left click** to confirm a green footprint. **Q / Escape** cancels; the item stays owned. Use **MOVE** on the same shop page to rearrange it later. The door, hatch, other furniture and the station's working aisle must remain clear. Empty the station and free your hands before moving equipment.
-- Workshop: lighting $150 and paint/bench refinishing $250 improve the starter room. **Shop expansion** ($600 per slot, two slots) knocks through the back wall, on the left as you face the delivery window: each slot adds a 2 m strip across the full room width, with its own ceiling lamp, where equipment can be placed.
+Every item has a card with a product shot; hover a card to turn the item on its turntable.
+
+- Equipment: testing station $400 (table, board and monitor together) and queue display $120. Bought equipment waits in storage. **PLACE** (or **MOVE** once placed) opens build view holding it.
+- Workshop: lighting $150 and paint/bench refinishing $250 improve the starter room. **Shop expansion** ($600 each, three squares) is bought in build view: **BUILD** opens it ready to plop one down.
+
+### Build view
+
+Press **B** with empty hands (or use BUILD / PLACE / MOVE on the website) to look straight down on the shop's floor plan. Ceilings hide, the cursor is free and a grid marks the buildable lot; the amber dot is you.
+
+- **Expansions:** click **PLOP DOWN EXPANSION** in the side panel. A 5.2 x 5.2 m square (as wide as the starter room is long) follows the mouse, snapping flush against the existing floor behind or left of the shop and to its corners. Green means it fits; click to buy and build it. The wall between is knocked through under a lintel, and the new floor has its own walls, ceiling and lamp. Squares stay behind the front wall and left of the window, one row deep behind the shop.
+- **Equipment:** click a placed piece (or **MOVE** in the panel) to pick it up. The repair desk and shop computer move the same way but stay in the shop (no stash); clear the desk first (card refitted, tools put away, test station empty) and everything on it rides along. Each workstation keeps standing room clear in front of it. Move the mouse to a clear spot, **R** rotates and click places it on a green footprint. **X** (or **STASH**) puts it back in storage; stored pieces are listed with **PLACE**. The door, hatch, other furniture, you and the station's working aisle must remain clear. Empty the test station before moving it.
+- **WASD** / middle drag pans, the wheel zooms, **Esc**, **Q** or right-click steps back, and **B** returns to first person.
 
 Start with the **$25 exterior fan clean**; it needs only the blower and always replenishes. Full repairs need their listed service tools and a placed test station. Customer diagnosis also needs the thermal camera. Buying a station without placing it does not unlock its jobs.
 
@@ -190,9 +203,8 @@ shop's average; the queue display shows the average too. Ratings do not affect j
 The shop clock drives the light (`scripts/day_cycle.gd`). The sun rises at 06:00 behind the
 shop, crosses the south and sets at 19:30 out of the west-facing window; the moon and stars
 take over after dusk. The sky, haze, clouds and the lighting on the scenery follow a table
-of hour keys (`KEYS`). The starter room dims the normal ambient, fill and key lights until the lighting upgrade is purchased, while its bench lamp keeps the work readable. With the upgrade, the morning uses the room's authored lighting; from early
-afternoon a sunbeam comes through the window, and at night the ambient and fill light drop
-while the workshop key light dims only a little and turns warmer, so repairs stay readable.
+of hour keys (`KEYS`). The workshop is lit evenly by its own lights at every hour, toned down to
+the Scene light level (0.75x by default); the lighting upgrade brightens it a little.
 
 The landscape is a static model authored in Blender, `models/outdoor-scenery.blend`, exported
 to `assets/outdoor-scenery.glb` (see [outdoor scenery authoring](../models/outdoor-scenery.md)).

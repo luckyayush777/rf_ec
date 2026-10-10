@@ -4,6 +4,7 @@ var bench: Node3D
 var viewport: SubViewport
 var camera: Camera3D
 var proxies: Array[Dictionary] = []
+var ambient: ShaderMaterial
 var panel: PanelContainer
 var readout: Label
 var spot_temperature: Label
@@ -13,6 +14,23 @@ var aiming := false
 var elapsed := 0.0
 var latest_reading: Dictionary = {}
 var last_update_frame := -1
+
+## Drops proxies of freed meshes and mirrors the meshes under `root`, for room pieces rebuilt
+## during play.
+func add_meshes(root: Node) -> void:
+	var kept: Array[Dictionary] = []
+	for entry in proxies:
+		if is_instance_valid(entry.source): kept.append(entry)
+		else: entry.proxy.queue_free()
+	proxies = kept
+	for source in root.find_children("*", "MeshInstance3D", true, false):
+		if source.mesh == null or source is Label3D or is_ancestor_of(source): continue
+		var proxy := MeshInstance3D.new()
+		proxy.mesh = source.mesh
+		var material := ambient.duplicate() as ShaderMaterial if bench.gpu.is_ancestor_of(source) else ambient
+		proxy.material_override = material
+		viewport.add_child(proxy)
+		proxies.append({"source": source, "proxy": proxy, "material": material, "heated": bench.gpu.is_ancestor_of(source)})
 
 func configure(world: Node3D) -> void:
 	bench = world
@@ -57,16 +75,9 @@ func configure(world: Node3D) -> void:
 	spot_cross.add_theme_color_override("font_outline_color", Color.BLACK)
 	spot_cross.add_theme_constant_override("outline_size", 4)
 	screen_ui.add_child(spot_cross)
-	var ambient := ShaderMaterial.new()
+	ambient = ShaderMaterial.new()
 	ambient.shader = preload("res://shaders/thermal_surface.gdshader")
-	for source in bench.find_children("*", "MeshInstance3D", true, false):
-		if source.mesh == null or source is Label3D or is_ancestor_of(source): continue
-		var proxy := MeshInstance3D.new()
-		proxy.mesh = source.mesh
-		var material := ambient.duplicate() as ShaderMaterial if bench.gpu.is_ancestor_of(source) else ambient
-		proxy.material_override = material
-		viewport.add_child(proxy)
-		proxies.append({"source": source, "proxy": proxy, "material": material, "heated": bench.gpu.is_ancestor_of(source)})
+	add_meshes(bench)
 	screen_material = StandardMaterial3D.new()
 	screen_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	screen_material.albedo_texture = viewport.get_texture()

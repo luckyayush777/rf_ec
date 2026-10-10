@@ -25,6 +25,13 @@ const KEYS := [
 	[24.0, "0b1424", "1b2840", "1a2538", "8fa3d1", 0.22, "1e2a40", 1.0]]
 ## The purchased workshop lighting scales the scene's authored room light by this much.
 const LIGHTING_UPGRADE := 1.2
+## Whole-scene light level: the room's lights and the light on the outdoor view together. The
+## authored rig washed the room out, so play starts toned down; the Escape menu's debug
+## Lighting slider changes it (`set_light_scale`).
+const DEFAULT_LIGHT := 0.75
+const LIGHT_RANGE := Vector2(0.2, 1.6)
+## Ambient light is cut a little further than the lamps, so surfaces keep their shading.
+const AMBIENT_TRIM := 0.8
 const FADE_TIME := 0.7
 const DARK_TIME := 1.2
 
@@ -34,8 +41,11 @@ var scenery: Node3D
 var environment: Environment
 var fill: DirectionalLight3D
 var key_light: DirectionalLight3D
-## The scene's authored ambient, fill and key energies.
+var bounce: DirectionalLight3D
+## The scene's authored ambient, fill and key energies, and the bounce light's.
 var base_energy := Vector3.ZERO
+var base_bounce := 0.0
+var light_scale := DEFAULT_LIGHT
 var overlay: CanvasLayer
 var curtain: ColorRect
 var title: Label
@@ -57,7 +67,9 @@ func configure(world: Node3D, shop_jobs: Node, outdoor: Node3D) -> void:
 	environment = world_environment.environment
 	fill = bench.get_node("FillLight")
 	key_light = bench.get_node("KeyLight")
+	bounce = bench.get_node("BounceLight")
 	base_energy = Vector3(environment.ambient_light_energy, fill.light_energy, key_light.light_energy)
+	base_bounce = bounce.light_energy
 	overlay = CanvasLayer.new()
 	overlay.name = "DayTransition"
 	overlay.layer = 20
@@ -78,6 +90,10 @@ func configure(world: Node3D, shop_jobs: Node, outdoor: Node3D) -> void:
 	update()
 
 func _process(_delta: float) -> void:
+	update()
+
+func set_light_scale(value: float) -> void:
+	light_scale = clampf(value, LIGHT_RANGE.x, LIGHT_RANGE.y)
 	update()
 
 func hour() -> float:
@@ -110,16 +126,20 @@ func update() -> void:
 	var moon := Vector3(-sun.x, -sun.y * 0.85 + 0.1, 0.35).normalized()
 	var daylight := smoothstep(-0.1, 0.25, sun.y)
 	var light: Color = key[4]
-	var strength: float = key[5]
+	var strength: float = key[5] * light_scale
+	var ambient: Color = key[6]
+	ambient = Color(ambient.r * light_scale, ambient.g * light_scale, ambient.b * light_scale)
 	state = {"hour": now, "sun_dir": sun, "moon_dir": moon, "light_dir": sun if sun.y > 0.0 else moon,
 		"light_color": light * strength, "zenith_color": key[1], "horizon_color": key[2], "haze_color": key[3],
-		"ambient_color": key[6], "night": key[7], "sun_visible": smoothstep(-0.03, 0.02, sun.y),
+		"ambient_color": ambient, "night": key[7], "sun_visible": smoothstep(-0.03, 0.02, sun.y),
 		"cloud_shift": jobs.shop_minutes * 0.004, "daylight": daylight}
 	scenery.apply(state)
-	var room := base_energy * (LIGHTING_UPGRADE if bench.shop != null and bench.shop.owns("lighting") else 1.0)
-	environment.ambient_light_energy = room.x
+	var level := light_scale * (LIGHTING_UPGRADE if bench.shop != null and bench.shop.owns("lighting") else 1.0)
+	var room := base_energy * level
+	environment.ambient_light_energy = room.x * AMBIENT_TRIM
 	fill.light_energy = room.y
 	key_light.light_energy = room.z
+	bounce.light_energy = base_bounce * level
 	# Closing time is a reminder, not a lock-out.
 	var minute := fmod(jobs.shop_minutes, 1440.0)
 	if last_minute >= 0.0 and last_minute < Jobs.CLOSING_MINUTE and minute >= Jobs.CLOSING_MINUTE:

@@ -11,6 +11,10 @@ const UI = preload("res://scripts/screen_ui.gd")
 const CRT = preload("res://shaders/crt_screen.gdshader")
 const AudioMix = preload("res://scripts/audio_mix.gd")
 const Materials = preload("res://scripts/bill_of_materials.gd")
+const Previews = preload("res://scripts/shop_previews.gd")
+## Supply catalog: three product cards per row, each with its turntable shot.
+const CARD_WIDTH := 232
+const SHOT_SIZE := Vector2(214, 125)
 ## Recorded keystrokes (unicaegames, CC0) and mouse buttons (Kenney, CC0); see ASSET_CREDITS.md.
 const KEY_SOUNDS := 12
 const KEY_SOUND_PATH := "res://assets/sounds/pc/keypress-%03d.wav"
@@ -63,6 +67,8 @@ var typing: Tween
 ## Counted for tests: every keystroke and mouse button the PC has sounded.
 var keystrokes := 0
 var mouse_clicks := 0
+## Product shots for the supply catalog; progression play only.
+var previews: Node
 
 func _ready() -> void:
 	for node in [screen, $Housing, $Keyboard, $Cabinet]:
@@ -78,6 +84,12 @@ func _ready() -> void:
 func configure(world: Node3D, repair_jobs: Node) -> void:
 	bench = world
 	jobs = repair_jobs
+	if bench.shop != null:
+		# Beside the computer, not under it: the PC's own bounds must not include the models.
+		previews = Previews.new()
+		previews.name = "CatalogPreviews"
+		bench.add_child(previews)
+		previews.build(bench.shop)
 	# Deferred: a page button's own click can change the jobs, and its page is rebuilt.
 	jobs.changed.connect(func(): refresh.call_deferred())
 	refresh()
@@ -524,12 +536,29 @@ func build_ledger() -> void:
 
 func build_shop() -> void:
 	prompt_label.text = "http://bench-supply.local/shop"
-	content.add_child(text("BENCH SUPPLY / WORKSHOP STORE", 20, BRIGHT, true))
+	var heading := HBoxContainer.new()
+	content.add_child(heading)
+	var title := text("BENCH SUPPLY CO. / CATALOG", 20, BRIGHT, true)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	heading.add_child(title)
 	if bench.shop == null:
 		content.add_child(text("The supply store is available in a new progression game.", 16))
 		return
 	var store: Node = bench.shop
+	var funds := CheckButton.new()
+	funds.name = "UnlimitedFunds"
+	funds.text = "Unlimited funds"
+	funds.focus_mode = Control.FOCUS_NONE
+	funds.button_pressed = store.unlimited_funds
+	funds.add_theme_font_override("font", mono)
+	funds.add_theme_font_size_override("font_size", 14)
+	funds.add_theme_color_override("font_color", PHOSPHOR)
+	funds.add_theme_color_override("font_hover_color", BRIGHT)
+	funds.add_theme_color_override("font_pressed_color", PHOSPHOR)
+	funds.toggled.connect(store.set_unlimited)
+	heading.add_child(funds)
 	var navigation := HBoxContainer.new()
+	navigation.add_theme_constant_override("separation", 8)
 	content.add_child(navigation)
 	for section in ["Tools", "Equipment", "Workshop"]:
 		var button := term_button(section.to_upper(), 15)
@@ -539,35 +568,82 @@ func build_shop() -> void:
 			page_scroll.scroll_vertical = 0
 			refresh.call_deferred())
 		navigation.add_child(button)
-	var funds := CheckButton.new()
-	funds.name = "UnlimitedFunds"
-	funds.text = "Unlimited funds"
-	funds.button_pressed = store.unlimited_funds
-	funds.add_theme_color_override("font_color", PHOSPHOR)
-	funds.toggled.connect(store.set_unlimited)
-	navigation.add_child(funds)
-	content.add_child(wrapped("Tools fill the roll. Equipment waits in storage until placed. Purchases last for this session.", 14, 680, DIM))
-	for id in store.catalog_ids(shop_section):
-		var item: Dictionary = store.CATALOG[id]
-		var row := HBoxContainer.new()
-		card().add_child(row)
-		var description := VBoxContainer.new()
-		description.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(description)
-		var stock: String = store.stock_text(id)
-		description.add_child(text("%s  /  $%d%s" % [item.name.to_upper(), item.price, "  /  " + stock if stock != "" else ""], 17, BRIGHT, true))
-		description.add_child(wrapped(item.description, 14, 480))
-		var owned: bool = store.owns(id)
-		var equipment: bool = store.equipment.has(id)
-		var label := "BUY" if not owned else "MOVE" if equipment and store.is_available(id) else "PLACE" if equipment else "BUILT" if stock != "" else "OWNED"
-		var button := term_button(label, 16)
-		button.name = "Buy_" + id if not owned else "Place_" + id if equipment else "Owned_" + id
-		button.custom_minimum_size.x = 130
-		button.disabled = owned and not equipment or not owned and not store.unlimited_funds and jobs.balance < item.price
-		button.pressed.connect(func():
-			if store.owns(id) and equipment: store.begin_placement(id)
-			else: store.purchase(id))
-		row.add_child(button)
+	var note := text("  EQUIPMENT AND EXPANSIONS: BUILD VIEW (B)", 13, DIM)
+	note.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	navigation.add_child(note)
+	var grid := GridContainer.new()
+	grid.name = "Catalog"
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 10)
+	content.add_child(grid)
+	for id in store.catalog_ids(shop_section): grid.add_child(product_card(store, id))
+
+## A catalog card: the item's turntable shot, name, price and status, a short blurb and its
+## button. Hovering the card turns the shot.
+func product_card(store: Node, id: String) -> PanelContainer:
+	var item: Dictionary = store.CATALOG[id]
+	var panel := PanelContainer.new()
+	panel.name = "Card_" + id
+	panel.custom_minimum_size.x = CARD_WIDTH
+	panel.mouse_filter = Control.MOUSE_FILTER_PASS
+	panel.add_theme_stylebox_override("panel", frame(BG, DIM, 8, 8))
+	var inner := VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 4)
+	panel.add_child(inner)
+	var window := PanelContainer.new()
+	window.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	window.add_theme_stylebox_override("panel", frame(Previews.BACKDROP, FAINT, 1, 1))
+	inner.add_child(window)
+	var shot := TextureRect.new()
+	shot.name = "Preview_" + id
+	shot.texture = previews.texture(id) if previews != null else null
+	shot.custom_minimum_size = SHOT_SIZE
+	shot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	shot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	shot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	window.add_child(shot)
+	var title := text(item.name.to_upper(), 14, BRIGHT, true)
+	title.clip_text = true
+	title.custom_minimum_size.x = SHOT_SIZE.x
+	inner.add_child(title)
+	var owned: bool = store.owns(id)
+	var status: String = store.stock_text(id)
+	if store.equipment.has(id) and owned: status = "IN THE SHOP" if store.is_available(id) else "IN STORAGE"
+	elif owned and status == "": status = "OWNED"
+	inner.add_child(text("$%d%s" % [item.price, "  /  " + status if status != "" else ""], 14, PHOSPHOR, true))
+	var blurb := wrapped(item.description, 12, SHOT_SIZE.x, DIM)
+	blurb.custom_minimum_size.y = 50
+	blurb.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	inner.add_child(blurb)
+	var button: Button
+	if id == store.EXPANSION:
+		button = term_button("BUILT" if owned else "BUILD", 15)
+		button.name = ("Owned_" if owned else "Build_") + id
+		button.disabled = owned or not store.can_afford(id)
+		button.pressed.connect(func(): open_build_view("expansion"))
+	elif not owned:
+		button = term_button("BUY", 15)
+		button.name = "Buy_" + id
+		button.disabled = not store.can_afford(id)
+		button.pressed.connect(func(): store.purchase(id))
+	elif store.equipment.has(id):
+		button = term_button("MOVE" if store.is_available(id) else "PLACE", 15)
+		button.name = "Place_" + id
+		button.pressed.connect(func(): open_build_view("", id))
+	else:
+		button = term_button("OWNED", 15)
+		button.name = "Owned_" + id
+		button.disabled = true
+	inner.add_child(button)
+	if previews != null:
+		panel.mouse_entered.connect(func(): previews.spin(id, true))
+		panel.mouse_exited.connect(func(): previews.spin(id, false))
+	return panel
+
+## Steps away from the desk into build view, offering a square or holding equipment `id`.
+func open_build_view(mode: String, id := "") -> void:
+	if bench.build_view != null: bench.build_view.open.call_deferred(mode, id)
 
 func ledger_row(cells: Array, color: Color) -> HBoxContainer:
 	var row := HBoxContainer.new()
@@ -607,6 +683,7 @@ func leave() -> void:
 	push_pointer(Vector2(-1, -1), InputEventMouseMotion.new())
 	if hidden_tool != null: hidden_tool.visible = true
 	hidden_tool = null
+	if previews != null: previews.spin(previews.spinning, false)
 	bench.camera_rig.set_captured(true)
 	blend_to(0.0)
 	used.emit(false)

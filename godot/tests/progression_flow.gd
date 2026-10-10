@@ -1,5 +1,6 @@
 extends SceneTree
 const Contract = preload("res://scripts/asset_contract.gd")
+const StarterShop = preload("res://scripts/starter_shop.gd")
 var failures: Array[String] = []
 func expect(value: bool, message: String) -> void:
 	if not value:
@@ -39,6 +40,20 @@ func click_page(bench: Node3D, name: String) -> void:
 		bench._unhandled_input(event)
 		await process_frame
 	await process_frame
+## Moves the build view's plan pointer over a floor point, as the mouse would.
+func aim(bench: Node3D, at: Vector3) -> void:
+	var event := InputEventMouseMotion.new()
+	event.position = bench.camera_rig.camera.unproject_position(at)
+	bench._unhandled_input(event)
+	await process_frame
+func plan_click(bench: Node3D, at: Vector3, button := MOUSE_BUTTON_LEFT) -> void:
+	await aim(bench, at)
+	var event := InputEventMouseButton.new()
+	event.button_index = button
+	event.pressed = true
+	event.position = bench.camera_rig.camera.unproject_position(at)
+	bench._unhandled_input(event)
+	await process_frame
 func run() -> void:
 	var bench = load("res://scenes/workbench.tscn").instantiate()
 	bench.progression_enabled = true
@@ -53,8 +68,15 @@ func run() -> void:
 	expect(shop.owned.keys() == ["air-blower"], "Starter shop owned more than the dusting tool")
 	expect(not bench.testing_station.available and not shop.equipment["test-station"].visible and not bench.queue_monitor.visible, "Unbought testing equipment was on the floor")
 	expect(not bench.testing_station.attach(), "The unowned test station could be used")
-	expect(bench.day_cycle.environment.ambient_light_energy > 0.6, "Starter room was not evenly lit")
+	expect(bench.day_cycle.environment.ambient_light_energy > 0.4, "Starter room was not evenly lit")
 	expect(bench.find_child("BenchTaskLight", true, false) == null, "A lamp pooled light over the starter bench")
+	# Frame rate top right; the debug Lighting slider drives the scene light level.
+	expect(bench.hud.fps_label != null and bench.hud.fps_label.is_visible_in_tree(), "There was no FPS counter")
+	bench.hud.light_settings_path = "user://test_bench_lighting.cfg"
+	bench.hud.light_slider.value = 1.2
+	expect(is_equal_approx(bench.day_cycle.light_scale, 1.2), "The Lighting slider did not change the scene light")
+	bench.hud.light_slider.value = bench.day_cycle.DEFAULT_LIGHT
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_bench_lighting.cfg"))
 	var table: MeshInstance3D = bench.get_node("RepairDesk/Tabletop")
 	var bounds := table.global_transform * table.get_aabb()
 	expect(bounds.size.x <= 12.01 and bounds.size.z <= 8.01, "Starter bench kept the oversized dimensions")
@@ -87,6 +109,12 @@ func run() -> void:
 	await process_frame
 	await process_frame
 	expect(bench.computer.tab == "shop", "F4 did not open the supply website")
+	# Every store item has a product shot; the tools' cards show theirs.
+	expect(bench.computer.previews != null and bench.computer.previews.views.size() == shop.CATALOG.size(), "Not every catalog item had a preview")
+	for id in shop.catalog_ids("Tools"):
+		var shot: TextureRect = bench.computer.viewport.find_child("Preview_" + id, true, false)
+		expect(shot != null and shot.texture != null, "Tool card had no preview: " + id)
+	expect(bench.computer.previews.views["test-station"].find_children("*", "SubViewport", true, false).is_empty(), "Station preview copied a live screen viewport")
 	await capture("progression-supply-tools")
 	var funds: int = jobs.balance
 	shop.set_unlimited(false)
@@ -144,34 +172,85 @@ func run() -> void:
 	expect(shop.purchase("test-station"), "Could not buy testing station")
 	expect(not jobs.missing_equipment(paste_job).is_empty(), "A stored station unlocked jobs before placement")
 	await stand(bench, Vector3(20, -4.35, 2), Vector3(26, 0, -10))
-	expect(shop.begin_placement("test-station"), "Could not begin equipment placement")
-	expect(not shop.preview_at(Vector3(18, -4.5, -5)) and not shop.finish_placement(), "Equipment could overlap the repair desk")
+	# Build view: B lifts the camera straight over the plan, frees the cursor and hides the ceiling.
+	var build: Node = bench.build_view
+	key(bench, KEY_B)
+	expect(build.active and not bench.camera_rig.captured and not bench.ready_for_action(), "B did not open build view")
+	await create_timer(0.65).timeout
+	expect(camera.global_basis.z.dot(Vector3.UP) > 0.99, "Build view did not look straight down")
+	var ceiling: Node3D = bench.get_node("ShopInterior/StarterShell/StarterCeiling")
+	expect(not ceiling.visible, "The ceiling covered the floor plan")
+	var stored: Button = build.list.find_child("Place_test-station", true, false)
+	expect(stored != null, "The stored station was not listed in build view")
+	if stored != null: stored.pressed.emit()
+	expect(shop.placement_id == "test-station", "Build view storage did not pick up the station")
+	await plan_click(bench, Vector3(18, -4.5, -5))
+	expect(not shop.placement_valid and shop.placement_id == "test-station", "Equipment could overlap the repair desk")
 	expect(not shop.place_audio.playing, "A rejected placement played the build thud")
-	expect(not shop.preview_at(Vector3(32, -4.5, -7)), "Equipment could block the delivery hatch")
+	await aim(bench, Vector3(32, -4.5, -7))
+	expect(not shop.placement_valid, "Equipment could block the delivery hatch")
 	key(bench, KEY_R)
-	expect(not shop.preview_at(Vector3(26.7, -4.5, -11.5)), "Station could face into an inaccessible window aisle")
+	await aim(bench, Vector3(26.7, -4.5, -11.5))
+	expect(not shop.placement_valid, "Station could face into an inaccessible window aisle")
 	key(bench, KEY_R)
-	expect(shop.preview_at(Vector3(25, -4.5, 6)), "The clear equipment spot was rejected: %s, yaw %s" % [shop.room_rect(shop.equipment["test-station"]), shop.equipment["test-station"].rotation.y])
-	# Capture a paused preview so the camera can show the intended position clearly.
-	shop.set_process(false)
-	await stand(bench, Vector3(23, -4.35, -1), Vector3(25, 0, 6))
-	bench.camera_rig.set_captured(false)
-	var resume := InputEventMouseButton.new()
-	resume.button_index = MOUSE_BUTTON_LEFT
-	resume.pressed = true
-	bench._unhandled_input(resume)
-	expect(bench.camera_rig.captured and shop.placement_id == "test-station", "Focus recovery accidentally placed equipment")
-	await capture("progression-equipment-placement")
-	expect(shop.finish_placement() and bench.testing_station.available, "Placed station remained unusable")
+	await aim(bench, Vector3(25, -4.5, 6))
+	expect(shop.placement_valid, "The clear equipment spot was rejected: %s, yaw %s" % [shop.room_rect(shop.equipment["test-station"]), shop.equipment["test-station"].rotation.y])
+	await capture("progression-build-view-placement")
+	await plan_click(bench, Vector3(25, -4.5, 6))
+	expect(shop.placement_id == "" and bench.testing_station.available, "Placed station remained unusable")
 	expect(shop.place_audio.playing and shop.place_audio.bus == &"BuildPlace", "Placing equipment made no build thud")
 	shop.place_audio.stop()
-	shop.set_process(true)
 	var station: Node3D = shop.equipment["test-station"]
 	var placed_pose := station.global_transform
-	expect(shop.begin_placement("test-station"), "Owned equipment could not be moved")
-	shop.preview_at(Vector3(25, -4.5, 5))
-	key(bench, KEY_Q)
+	# Clicking placed equipment picks it up; Esc puts it back where it was.
+	var middle: Vector2 = shop.room_rect(station).get_center()
+	await plan_click(bench, Vector3(middle.x, -4.5, middle.y))
+	expect(shop.placement_id == "test-station", "Owned equipment could not be moved")
+	await aim(bench, Vector3(25, -4.5, 5))
+	key(bench, KEY_ESCAPE)
 	expect(station.global_transform.is_equal_approx(placed_pose) and bench.testing_station.available, "Cancelling move lost the old position")
+	expect(build.active, "Cancelling a move left build view")
+	# The starting repair desk and PC move like bought equipment; what sits on the desk rides along.
+	var desk: Node3D = bench.get_node("RepairDesk")
+	var desk_pose := desk.global_transform
+	var desk_spot: Vector2 = shop.room_rect(desk).get_center()
+	var card_offset: Vector3 = desk.global_transform.affine_inverse() * bench.gpu.global_position
+	var stand_offset: Vector3 = desk.global_transform.affine_inverse() * bench.tools.thermal_stand.global_position
+	expect(not shop.stash("repair-desk") and shop.placed["repair-desk"], "The repair desk could be stashed")
+	await plan_click(bench, Vector3(desk_spot.x, -4.5, desk_spot.y))
+	expect(shop.placement_id == "repair-desk", "Clicking the repair desk did not pick it up")
+	await plan_click(bench, Vector3(desk_spot.x - 1.0, -4.5, desk_spot.y - 2.0))
+	expect(shop.placement_id == "" and desk.global_position.is_equal_approx(desk_pose.origin + Vector3(-1, 0, -2)), "The repair desk did not move: %s" % desk.global_position)
+	var card_home: Vector3 = (bench.gpu.get_parent() as Node3D).global_transform * bench.inspection.home.origin
+	expect((desk.global_transform.affine_inverse() * bench.gpu.global_position).is_equal_approx(card_offset) and
+		(desk.global_transform.affine_inverse() * card_home).is_equal_approx(card_offset) and
+		(desk.global_transform.affine_inverse() * bench.tools.thermal_stand.global_position).is_equal_approx(stand_offset), "The card or thermal stand did not ride with the desk")
+	# Turning the desk turns its riders; cancelling puts both back.
+	await plan_click(bench, Vector3(desk_spot.x - 1.0, -4.5, desk_spot.y - 2.0))
+	key(bench, KEY_R)
+	await aim(bench, Vector3(desk_spot.x - 1.0, -4.5, desk_spot.y - 2.0))
+	expect((desk.global_transform.affine_inverse() * bench.gpu.global_position).is_equal_approx(card_offset), "The card did not turn with the desk")
+	key(bench, KEY_ESCAPE)
+	await plan_click(bench, Vector3(desk_spot.x - 1.0, -4.5, desk_spot.y - 2.0))
+	await plan_click(bench, Vector3(desk_spot.x, -4.5, desk_spot.y))
+	expect(shop.placement_id == "" and desk.global_transform.is_equal_approx(desk_pose) and (desk.global_transform.affine_inverse() * bench.gpu.global_position).is_equal_approx(card_offset), "The repair desk did not return to its spot")
+	var computer_pose: Transform3D = bench.computer.global_transform
+	var computer_spot: Vector2 = shop.room_rect(bench.computer).get_center()
+	await plan_click(bench, Vector3(computer_spot.x, -4.5, computer_spot.y))
+	expect(shop.placement_id == "shop-computer", "Clicking the shop computer did not pick it up: hover %s, placing %s, rect %s" % [shop.placed_at(computer_spot), shop.placement_id, shop.room_rect(bench.computer)])
+	await plan_click(bench, Vector3(computer_spot.x, -4.5, -13.0))
+	expect(shop.placement_id == "" and is_equal_approx(bench.computer.global_position.z, computer_pose.origin.z - 13.0 - computer_spot.y), "The shop computer did not move: %s" % bench.computer.global_position)
+	await plan_click(bench, Vector3(computer_spot.x, -4.5, -13.0))
+	await plan_click(bench, Vector3(computer_spot.x, -4.5, computer_spot.y))
+	expect(shop.placement_id == "" and bench.computer.global_transform.is_equal_approx(computer_pose), "The shop computer did not return to its spot")
+	# The rest of the run works at the moved desk.
+	await plan_click(bench, Vector3(desk_spot.x, -4.5, desk_spot.y))
+	await plan_click(bench, Vector3(desk_spot.x - 1.0, -4.5, desk_spot.y - 2.0))
+	expect(shop.placement_id == "" and desk.global_position.is_equal_approx(desk_pose.origin + Vector3(-1, 0, -2)), "The repair desk could not be moved again")
+	key(bench, KEY_B)
+	expect(not build.active and bench.camera_rig.captured, "B did not leave build view")
+	await create_timer(0.65).timeout
+	expect(ceiling.visible and bench.ready_for_action(), "Leaving build view did not restore the room")
 	expect(jobs.missing_equipment(paste_job).is_empty() and jobs.accept(paste_job.id), "Equipped shop did not unlock repair jobs")
 	while bench.delivery_window.busy(): await process_frame
 	# The shifted tray must still catch every removed screw.
@@ -194,31 +273,69 @@ func run() -> void:
 	expect(not shop.begin_placement("test-station"), "Station could be moved with a card installed")
 	bench.testing_station.detach()
 	while bench.testing_station.moving: await process_frame
+	expect((desk.global_transform.affine_inverse() * bench.gpu.global_position).is_equal_approx(card_offset), "The tested card did not come back to the moved desk")
 	expect(shop.purchase("queue-display") and shop.begin_placement("queue-display"), "Could not purchase/place the queue display")
 	expect(not shop.preview_at(Vector3(25, -4.5, 2.3)), "Queue display could block the test station's working aisle")
 	expect(shop.preview_at(Vector3(14.5, -4.5, -14)) and shop.finish_placement(), "Queue display did not fit its floor spot")
-	# Shop expansion: the back wall, left of the delivery window, moves out one strip per slot.
-	var annex_spot := Vector3(20, -4.5, -22)
-	expect(shop.begin_placement("queue-display") and not shop.preview_at(annex_spot), "Equipment fit beyond the starter back wall")
+	# Shop expansion: in build view a square as wide as the starter room is long plops down flush
+	# against the floor; the wall between is knocked through.
+	expect(not shop.purchase("shop-expansion") and shop.expansions == 0, "An expansion was bought without being put down")
+	var annex_spot := Vector3(-3, -4.5, -5)
+	expect(shop.begin_placement("queue-display") and not shop.preview_at(annex_spot), "Equipment fit beyond the starter left wall")
 	shop.cancel_placement()
-	var back_wall: Node3D = bench.get_node("ShopInterior/StarterShell/StarterBackWall")
-	var wall_z := back_wall.global_position.z
-	expect(shop.purchase("shop-expansion") and shop.expansions == 1 and not shop.owns("shop-expansion"), "First expansion slot could not be bought")
+	await stand(bench, Vector3(20, -4.35, 2), Vector3(14, 0, -5))
+	expect(build.open("expansion") and build.mode == "expansion", "Build view did not offer an expansion")
+	await create_timer(0.65).timeout
+	var left_square := Rect2(-15.5, -16.5, 26, 26)
+	await aim(bench, Vector3(-2, -4.5, -3))
+	expect(build.square_valid and build.square.is_equal_approx(left_square), "The square did not snap flush to the left wall: %s" % build.square)
+	await aim(bench, Vector3(25, -4.5, 22))
+	expect(StarterShop.LOT.encloses(build.square), "A square was offered over the door or the window: %s" % build.square)
+	await aim(bench, Vector3(-2, -4.5, -3))
+	await capture("progression-build-view-expansion")
+	await plan_click(bench, Vector3(-2, -4.5, -3))
+	expect(shop.expansions == 1 and shop.expansion_squares[0].is_equal_approx(left_square), "Clicking did not build the square")
 	expect(shop.place_audio.playing and shop.place_audio.pitch_scale < 0.9, "The expansion was built without a heavier build thud")
-	expect(is_equal_approx(back_wall.global_position.z, wall_z - 10.0), "Expansion did not move the back wall")
+	expect(build.mode == "", "Build view kept offering squares after building one")
+	await create_timer(0.6).timeout
+	var plan: Node3D = bench.get_node("ShopInterior/StarterShell/Plan")
+	expect(not plan.get_node("ExpansionCeiling").visible, "The new square's ceiling covered the plan")
 	await physics_frame
 	await physics_frame
-	expect(space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(18, 2, -12), Vector3(18, 2, -25), 1)).is_empty(), "The old back wall still blocked the expansion")
-	for line in [[Vector3(18, 2, -20), Vector3(18, 2, -30)], [Vector3(24, 0, -22), Vector3(24, -6, -22)],
-			[Vector3(20, 2, -22), Vector3(8, 2, -22)], [Vector3(20, 2, -22), Vector3(36, 2, -22)]]:
-		expect(not space.intersect_ray(PhysicsRayQueryParameters3D.create(line[0], line[1], 1)).is_empty(), "The expansion lost a wall or floor collision")
+	expect(space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(18, 2, -5), Vector3(5, 2, -5), 1)).is_empty(), "The starter's left wall still blocked the expansion")
+	for line in [[Vector3(-3, 2, -5), Vector3(-20, 2, -5)], [Vector3(-3, 2, -5), Vector3(-3, 2, -22)], [Vector3(-3, 2, 0), Vector3(-3, 2, 14)],
+			[Vector3(-3, 0, -5), Vector3(-3, -6, -5)], [Vector3(18, 2, -12), Vector3(18, 2, -18)]]:
+		expect(not space.intersect_ray(PhysicsRayQueryParameters3D.create(line[0], line[1], 1)).is_empty(), "The expansion lost a wall or floor collision: %s" % [line])
 	expect(shop.begin_placement("queue-display") and shop.preview_at(annex_spot) and shop.finish_placement(), "Equipment did not fit in the expansion")
-	await stand(bench, Vector3(16, -4.35, -6), Vector3(24, 2.5, -26))
+	expect(not shop.build_expansion(Rect2(0, -10, 26, 26)), "An expansion overlapping the floor was built")
+	# Behind the starter room the square snaps to the window wall and opens onto both floors.
+	build.set_mode("expansion")
+	await aim(bench, Vector3(20, -4.5, -25))
+	expect(build.square.is_equal_approx(Rect2(7, -42.5, 26, 26)) and build.square_valid, "The back square did not snap to the window wall: %s" % build.square)
+	await plan_click(bench, Vector3(20, -4.5, -25))
+	await create_timer(0.6).timeout
+	build.set_mode("expansion")
+	await plan_click(bench, Vector3(-28, -4.5, -3))
+	await create_timer(0.6).timeout
+	expect(shop.expansions == 3 and shop.owns("shop-expansion"), "Three squares could not be built: %s" % [shop.expansion_squares])
+	build.set_mode("expansion")
+	expect(build.mode == "" and not shop.build_expansion(Rect2(-41.5, -42.5, 26, 26)), "More than the available expansions were built")
+	await physics_frame
+	await physics_frame
+	expect(space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(18, 2, -12), Vector3(18, 2, -25), 1)).is_empty(), "The starter's back wall still blocked the back square")
+	# Stashing returns placed equipment to storage, where build view can place it again.
+	expect(shop.stash("queue-display") and not bench.queue_monitor.visible and "queue-display" in shop.stored_ids(), "Equipment could not be stashed")
+	var again: Button = build.list.find_child("Place_queue-display", true, false)
+	expect(again != null, "Stashed equipment was not listed in storage")
+	if again != null: again.pressed.emit()
+	await plan_click(bench, Vector3(20, -4.5, -30))
+	expect(shop.placed.get("queue-display", false) and bench.queue_monitor.visible, "Stashed equipment could not be placed again")
+	await capture("progression-build-view-plan")
+	key(bench, KEY_B)
+	await create_timer(0.65).timeout
+	expect(ceiling.visible and bench.get_node("ShopInterior/StarterShell/Plan/ExpansionCeiling").visible, "Leaving build view left ceilings hidden")
+	await stand(bench, Vector3(20, -4.35, -2), Vector3(0, 2.5, -12))
 	await capture("progression-shop-expansion")
-	expect(shop.purchase("shop-expansion") and shop.owns("shop-expansion"), "Second expansion slot could not be bought")
-	expect(not shop.purchase("shop-expansion") and shop.expansions == 2, "More than the available expansion slots were built")
-	expect(shop.begin_placement("queue-display") and shop.preview_at(Vector3(20, -4.5, -32)) and not shop.preview_at(Vector3(20, -4.5, -38)), "The second slot did not extend the floor by one strip")
-	shop.cancel_placement()
 	await stand(bench, Vector3(19, -4.35, 6.5), Vector3(21, 0, -5))
 	await capture("progression-equipped-standard-light")
 	var standard: float = bench.day_cycle.environment.ambient_light_energy
@@ -242,5 +359,5 @@ func run() -> void:
 	bench.computer.leave()
 	bench.queue_free()
 	for frame in range(10): await process_frame
-	print("PASS: starter ownership, real website purchase, finite/unlimited wallet, finishable blower job, locks, equipment placement/cancel, rotated test station, tray, shop expansion and room upgrades" if failures.is_empty() else "FAIL: " + str(failures))
+	print("PASS: starter ownership, real website purchase, finite/unlimited wallet, finishable blower job, locks, equipment placement/cancel, rotated test station, tray, build view placement/stash, catalog previews, square shop expansions and room upgrades" if failures.is_empty() else "FAIL: " + str(failures))
 	quit(0 if failures.is_empty() else 1)
