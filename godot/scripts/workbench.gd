@@ -238,6 +238,7 @@ func _ready() -> void:
 		inspection.set_muted(service.muted)
 		delivery_box.set_muted(service.muted)
 		if delivery_window != null: delivery_window.set_muted(service.muted)
+		if shop != null: shop.set_muted(service.muted)
 		computer.set_muted(service.muted))
 	inspection.changed.connect(refresh_ui)
 	tools.changed.connect(refresh_ui)
@@ -367,7 +368,8 @@ func refresh_ui() -> void:
 				"the tech's tag on the lid lists the faults they found" if jobs.is_tech(jobs.active()) else "the customer left a note on the lid"])
 		return
 	if not camera_rig.legacy_test_mode:
-		hud.set_status("GPU powered on the test board. Watch the monitor; hold LMB on the card and move the mouse to rock it in its slot. E removes it." if testing_station.installed else
+		hud.set_status("Carrying the empty box. Aim at a clear patch of floor or desk and press E or click to set it down; Q puts it back." if carrying_empty_box() else
+			"GPU powered on the test board. Watch the monitor; hold LMB on the card and move the mouse to rock it in its slot. E removes it." if testing_station.installed else
 			"Part in left hand. E on the mat places it and keeps your tool; R opens focus, T the tool bag. RMB rotates and F flips." if inspection.held or service.held_part != "" else
 			"Thermal camera: hold RMB to scan visible surfaces. Q returns it to the stand." if tools.equipped_tool == "thermal-camera" else
 			"E picks up a part with the blower equipped. Click a part to rotate and clean it in focus." if tools.blower_equipped() else
@@ -478,6 +480,7 @@ func activate(screen_position: Vector2, pickup_with_tool: bool = false) -> void:
 		"computer": use_computer()
 		"delivery_box": jobs.unbox()
 		"parcel": pick_up_parcel()
+		"empty_box": pick_up_empty_box()
 		"exit_door": end_day()
 		"sealed_box": hud.set_status("The thermal camera is still sealed in its box. It stays packed for now.")
 		"monitor_power": test_monitor.toggle_power()
@@ -551,15 +554,72 @@ func set_down_parcel(point: Vector3) -> bool:
 		refresh_ui())
 	return true
 
-## Q while carrying: back onto the hatch counter.
+## Q while carrying: a parcel goes back onto the hatch counter, the empty box where it was lifted.
 func return_parcel() -> void:
-	if not carrying_parcel() or delivery_box.moving or delivery_window == null: return
+	if not carrying_parcel() or delivery_box.moving: return
+	if delivery_box.parked:
+		delivery_box.set_down(self, delivery_box.pickup_pose, "aside").connect(refresh_ui)
+		return
+	if delivery_window == null: return
 	delivery_box.set_down(self, delivery_window.sill_transform(), "sill").connect(refresh_ui)
 
 func set_down_parcel_at_aim(center: Vector2) -> void:
+	if carrying_empty_box():
+		set_down_empty_box(center)
+		return
 	var hit := interaction_hit(center)
 	if hit.get("action", "") == "desk": set_down_parcel(hit.point)
 	else: hud.set_status("Set the parcel down on the repair desk.")
+
+func carrying_empty_box() -> bool:
+	return carrying_parcel() and delivery_box.parked
+
+## Once the card is out, the empty box can be lifted off the desk and put to one side.
+func pick_up_empty_box() -> bool:
+	if not delivery_box.parked or delivery_box.location not in ["desk", "aside"] or delivery_box.moving or not ready_for_action(): return false
+	if inspection.held or service.held_part != "":
+		hud.set_status("Set the part down before moving the box.")
+		return false
+	if tools.equipped_tool != "":
+		hud.set_status("Return the tool (Q) before moving the box.")
+		return false
+	cancel_press()
+	thermal_viewer.aiming = false
+	delivery_box.carry(camera_rig.camera, PARCEL_POSE)
+	refresh_ui()
+	return true
+
+## Where the carried empty box would land for the aim at `center`: a clear spot on the repair
+## desk, or on the floor clear of walls and furniture. Empty when aiming at neither.
+func aside_placement(center: Vector2) -> Dictionary:
+	var hit := interaction_hit(center)
+	if hit.get("action", "") == "desk": return parcel_placement(hit.point)
+	var camera: Camera3D = camera_rig.camera
+	var origin := camera.project_ray_origin(center)
+	var ray := PhysicsRayQueryParameters3D.create(origin, origin + camera.project_ray_normal(center) * camera_rig.REACH, 1)
+	var floor_hit := get_world_3d().direct_space_state.intersect_ray(ray)
+	if floor_hit.is_empty() or floor_hit.normal.y < 0.9 or absf(floor_hit.position.y - StarterShop.FLOOR_Y) > 0.3: return {}
+	var at := Transform3D(Basis.IDENTITY, floor_hit.position + Vector3(0, 0.005, 0))
+	# Lifted just clear of the floor, so only walls and furniture count.
+	var footprint: AABB = at * Contract.bounds_in(delivery_box)
+	var shape := BoxShape3D.new()
+	shape.size = footprint.size - Vector3(0, 0.06, 0)
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = shape
+	query.collision_mask = 1
+	query.transform = Transform3D(Basis.IDENTITY, footprint.get_center() + Vector3(0, 0.03, 0))
+	return {"allowed": get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty(), "transform": at}
+
+func set_down_empty_box(center: Vector2) -> bool:
+	if not carrying_empty_box() or delivery_box.moving: return false
+	var placement := aside_placement(center)
+	if placement.is_empty() or not placement.allowed:
+		hud.set_status("No room for the box there. Aim at a clear patch of floor or desk.")
+		return false
+	delivery_box.set_down(self, placement.transform, "aside").connect(func():
+		inspection.play_set_down()
+		refresh_ui())
+	return true
 
 ## The front door: close up and skip to the next morning. Parts must be set down first.
 func end_day() -> void:
@@ -669,7 +729,7 @@ func _process(delta: float) -> void:
 		hover_elapsed = 0.0
 		if not camera_rig.legacy_test_mode:
 			var aimed := interaction_hit(get_viewport().get_visible_rect().size * 0.5)
-			hud.update_reticle(aimed, tools, inspection, service, camera_rig.captured, seated_card(aimed), delivery_box.location)
+			hud.update_reticle(aimed, tools, inspection, service, camera_rig.captured, seated_card(aimed), "empty" if carrying_empty_box() else delivery_box.location)
 			return
 		var over_ui: bool = get_viewport().gui_get_hovered_control() != null
 		var hit: Dictionary = {} if over_ui else picker.hit_at(get_viewport().get_mouse_position())
@@ -681,7 +741,15 @@ func update_placement_marker() -> void:
 	placement_marker.hide()
 	if carrying_parcel():
 		if not camera_rig.captured or delivery_box.moving: return
-		var aim := interaction_hit(get_viewport().get_visible_rect().size * 0.5)
+		var center := get_viewport().get_visible_rect().size * 0.5
+		if carrying_empty_box():
+			var spot := aside_placement(center)
+			if spot.is_empty(): return
+			placement_marker.global_position = spot.transform.origin + Vector3(0, 0.035, 0)
+			placement_material.albedo_color = Color("#71e6b0") if spot.allowed else Color("#e57c63")
+			placement_marker.show()
+			return
+		var aim := interaction_hit(center)
 		if aim.get("action") != "desk": return
 		placement_marker.global_position = aim.point + Vector3(0, 0.035, 0)
 		placement_material.albedo_color = Color("#71e6b0") if parcel_placement(aim.point).allowed else Color("#e57c63")

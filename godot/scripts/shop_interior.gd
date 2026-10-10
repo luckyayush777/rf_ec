@@ -36,9 +36,6 @@ func _ready() -> void:
 func enclose_room() -> void:
 	var shell := $Model.get_node("shop-interior/Room - hide for cutaway (front right ceiling)")
 	shell.visible = true
-	# Keep the existing broad workshop lighting; the ceiling does not eclipse it.
-	var ceiling: GeometryInstance3D = find_child("ceiling", true, false)
-	ceiling.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var door := MeshInstance3D.new()
 	door.name = "EntranceDoor"
 	var mesh := BoxMesh.new()
@@ -65,6 +62,13 @@ func enclose_room() -> void:
 	exit_sign.rotation.y = PI
 	door.add_child(exit_sign)
 	build_window()
+	# The room is lit evenly from above: walls and ceiling never shade the interior.
+	for group in $Model.get_node("shop-interior").get_children():
+		if String(group.name).begins_with("Room"): shadowless(group)
+
+static func shadowless(root: Node) -> void:
+	for mesh in root.find_children("*", "GeometryInstance3D", true, false):
+		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 ## Replaces the solid right wall with wall pieces around the window opening, then frames it:
 ## counter, hatch reveal, transom, glazing and a mullion. Built in world units under a node
@@ -98,7 +102,9 @@ func build_window() -> void:
 	# Mullions on the hatch's sides divide the three bays from sill to head.
 	for z in [HATCH_Z.x, HATCH_Z.y]:
 		piece(root, "Mullion", Vector3(x0 - 0.12, SILL_Y, z - 0.15), Vector3(x0 + 0.62, WINDOW_TOP, z + 0.15), frame)
-	# The counter the parcels slide onto, on three brackets.
+	# The wall and frame never shade the evenly lit room.
+	shadowless(root)
+	# The counter the parcels slide onto, on three brackets. Furniture: it shades the floor below.
 	piece(root, "HatchCounter", Vector3(x0 - COUNTER_DEPTH, SILL_Y - 0.3, WINDOW_Z.x - 0.4), Vector3(x1 - 0.1, SILL_Y, WINDOW_Z.y + 0.4), wood)
 	for z in [WINDOW_Z.x + 1.2, (HATCH_Z.x + HATCH_Z.y) * 0.5, WINDOW_Z.y - 1.2]:
 		piece(root, "CounterBracket", Vector3(x0 - 1.6, SILL_Y - 1.6, z - 0.12), Vector3(x0, SILL_Y - 0.3, z + 0.12), frame)
@@ -122,6 +128,7 @@ func build_window() -> void:
 	label.outline_size = 0
 	label.position = Vector3(x0 - 0.02, (WINDOW_TOP + 10.5) * 0.5, (HATCH_Z.x + HATCH_Z.y) * 0.5)
 	label.rotation.y = -PI * 0.5
+	label.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(label)
 
 func piece(parent: Node3D, piece_name: String, from: Vector3, to: Vector3, material: Material) -> MeshInstance3D:

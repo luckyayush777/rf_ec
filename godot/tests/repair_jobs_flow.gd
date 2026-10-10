@@ -44,6 +44,44 @@ func centre() -> Vector2:
 	return root.get_visible_rect().size * 0.5
 func page_control(bench: Node3D, control_name: String) -> Control:
 	return bench.computer.viewport.find_child(control_name, true, false)
+## The emptied box is lifted off the desk, set down on the floor and lifted again; Q puts it back.
+func move_empty_box(bench: Node3D) -> void:
+	var box: Node3D = bench.delivery_box
+	var Starter = preload("res://scripts/starter_shop.gd")
+	# In front of the desk, in reach of the parked box.
+	var player := Vector3(box.global_position.x, -4.43, 6.3)
+	await stand(bench, player, box.global_position + Vector3(0, 0.3, 0))
+	var aimed: Dictionary = bench.interaction_hit(centre())
+	expect(aimed.get("action") == "empty_box", "The empty box could not be aimed at (hit %s at %s, box at %s)" % [aimed.get("target"), aimed.get("point"), box.global_position])
+	await click_at(bench, centre())
+	expect(bench.carrying_empty_box(), "Clicking the empty box did not pick it up")
+	await create_timer(0.35).timeout
+	# The first clear patch of floor in reach beside the player.
+	var spot := {}
+	for offset in [Vector3(3, 0, 0), Vector3(-4, 0, 1), Vector3(0, 0, 4), Vector3(3, 0, 3), Vector3(-3, 0, 3)]:
+		await stand(bench, player, Vector3(player.x, Starter.FLOOR_Y, player.z) + offset)
+		spot = bench.aside_placement(centre())
+		if spot.get("allowed", false): break
+	expect(spot.get("allowed", false), "No clear floor spot beside the desk accepted the empty box")
+	await capture("jobs-empty-box-carried")
+	key(bench, KEY_E)
+	await create_timer(0.45).timeout
+	expect(box.location == "aside" and not box.moving and box.get_meta("action") == "empty_box", "The empty box was not set down aside")
+	var down := PhysicsRayQueryParameters3D.create(box.global_position + Vector3(0, 1, 0), box.global_position + Vector3(0, -2, 0), 1)
+	var floor_hit := bench.get_world_3d().direct_space_state.intersect_ray(down)
+	expect(not floor_hit.is_empty() and absf(box.global_position.y - floor_hit.position.y) < 0.02 and absf(floor_hit.position.y - Starter.FLOOR_Y) < 0.3,
+		"The empty box did not land on the floor (y %.2f)" % box.global_position.y)
+	await stand(bench, player, box.global_position + Vector3(0, 0.3, 0))
+	await capture("jobs-empty-box-aside")
+	expect(bench.interaction_hit(centre()).get("action") == "empty_box", "The empty box on the floor could not be aimed at")
+	key(bench, KEY_E)
+	await create_timer(0.35).timeout
+	var lifted: Transform3D = box.pickup_pose
+	expect(bench.carrying_empty_box(), "E did not lift the empty box off the floor")
+	key(bench, KEY_Q)
+	await create_timer(0.45).timeout
+	expect(box.location == "aside" and box.global_transform.origin.is_equal_approx(lifted.origin), "Q did not put the empty box back")
+
 func settle(bench: Node3D) -> void:
 	for step in range(80):
 		await create_timer(0.05).timeout
@@ -185,6 +223,7 @@ func run() -> void:
 	expect(not packaging.intersects(mat.global_transform * mat.get_aabb()), "The packaging was left on the repair mat")
 	expect(Contract.fits_table(packaging, bench.get_node("RepairDesk/Tabletop")), "The opened packaging overhung the desk")
 	expect(bench.delivery_box.get_node_or_null("AntiStaticSleeve") != null, "The packaging had no anti-static material")
+	await move_empty_box(bench)
 	expect(bench.gpu.transform.is_equal_approx(bench.inspection.home), "The unboxed card did not land in its holder")
 	expect(bench.cleaning.celebrated == ("dust" not in job.faults), "Dust did not match the rolled faults %s" % [job.faults])
 	expect(bench.paste.dried == ("paste" in job.faults) and bench.paste.seated, "Paste did not match the rolled faults %s" % [job.faults])

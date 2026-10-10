@@ -116,36 +116,40 @@ func run() -> void:
 	bench.camera_rig.movement_override = Vector2.ZERO
 	expect(bench.camera_rig.body.global_position.x < Room.WALL_X.x - 0.5, "Walked out through the window (x %.2f)" % bench.camera_rig.body.global_position.x)
 
-	# 09:00: the morning sun is behind the shop; the room keeps its authored light.
-	await at_time(bench, 9.0)
+	# The room is lit evenly by its own lights at every hour; only the view outside changes.
 	var environment: Environment = bench.get_node("Environment").environment
-	expect(day.state.daylight > 0.99 and is_equal_approx(environment.ambient_light_energy, 0.65) and is_equal_approx(bench.get_node("FillLight").light_energy, 0.5),
-		"The morning room light changed from the authored values")
-	expect(day.state.sun_beam == 0.0, "Morning sun shone in through the west window")
-	expect(is_equal_approx(bench.get_node("KeyLight").light_energy, 1.8), "The workshop key light changed")
+	var template = load("res://scenes/workbench.tscn").instantiate()
+	var authored: Environment = template.get_node("Environment").environment
+	template.free()
+	var room_light := func() -> Vector3:
+		return Vector3(environment.ambient_light_energy, bench.get_node("FillLight").light_energy, bench.get_node("KeyLight").light_energy)
+	await at_time(bench, 9.0)
+	var morning: Vector3 = room_light.call()
+	expect(day.state.daylight > 0.99 and is_equal_approx(morning.x, authored.ambient_light_energy), "The morning room light changed from the authored values")
+	expect(bench.find_child("WindowSunbeam", true, false) == null and bench.find_children("*", "SpotLight3D", true, false).is_empty(),
+		"Daylight was still simulated through the window")
+	expect(bench.find_children("*", "OmniLight3D", true, false).all(func(lamp): return lamp.light_energy < 0.5), "A lamp lit the room unevenly")
 	await stand(bench, Vector3(10.0, -4.43, -7.0), Vector3(Room.WALL_X.x, 4.6, -7.0))
 	await capture("outside-morning")
 	await stand(bench, Vector3(27.0, -4.43, -7.0), Vector3(Room.WALL_X.x + 20.0, 1.0, -7.0))
 	await capture("outside-close")
-	# Afternoon: the low western sun reaches in through the window.
 	await at_time(bench, 17.5)
-	expect(day.state.sun_beam > 1.0 and day.state.sun_dir.x > 0.5, "No afternoon sunbeam through the window")
+	expect(room_light.call().is_equal_approx(morning), "The room light changed in the afternoon")
 	await stand(bench, Vector3(26.0, -4.43, 10.0), Vector3(9.0, -4.5, -12.0))
-	await capture("outside-sunbeam")
+	await capture("outside-room-afternoon")
 	await at_time(bench, 18.8)
 	await stand(bench, Vector3(10.0, -4.43, -7.0), Vector3(Room.WALL_X.x, 4.6, -7.0))
 	await capture("outside-sunset")
-	# Night: the sky darkens, stars come out and the room dims; the workshop lamps stay on.
+	# Night: the sky darkens and stars come out; the room stays as bright as by day.
 	await at_time(bench, 22.5)
-	expect(day.state.night > 0.9 and day.state.daylight < 0.01 and day.state.sun_beam == 0.0, "It was not night at 22:30")
-	expect(environment.ambient_light_energy < 0.45 and bench.get_node("FillLight").light_energy < 0.2, "The room did not dim at night")
-	expect(bench.get_node("KeyLight").light_energy > 1.3 and bench.get_node("KeyLight").light_energy < 1.8, "The workshop lamps went out or did not dim at night")
+	expect(day.state.night > 0.9 and day.state.daylight < 0.01, "It was not night at 22:30")
+	expect(room_light.call().is_equal_approx(morning), "The room light changed at night")
 	var lights: ShaderMaterial = bench.scenery.meshes["WindowLights"].material_override
 	expect(lights.get_shader_parameter("glow") == 1.0 and lights.get_shader_parameter("night") > 0.9, "The village windows did not light up at night")
 	await capture("outside-night")
 	await at_time(bench, 9.0)
 	var fresh = load("res://scenes/workbench.tscn").instantiate()
-	expect(is_equal_approx(fresh.get_node("Environment").environment.ambient_light_energy, 0.65), "A later workbench inherited this one's room light")
+	expect(is_equal_approx(fresh.get_node("Environment").environment.ambient_light_energy, authored.ambient_light_energy), "A later workbench inherited this one's room light")
 	fresh.free()
 
 	# Closing time is announced once, as the clock passes 21:00.

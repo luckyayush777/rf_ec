@@ -1,12 +1,12 @@
 extends Node
 ## Time of day from the shop clock (`repair_jobs.shop_minutes`): sun and moon, sky and haze
-## colours for `outdoor_scenery.gd`, a sunbeam through the right-wall window, and a dimmer room
-## at night. The workshop's key light only dims a little, so repairs remain readable. Leaving through
-## the front door (`end_day`) fades out, skips to 09:00 the next day and stands the player back
-## at the bench. Created by `workbench.gd` as `DayCycle` in first-person play only.
+## colours for `outdoor_scenery.gd`. The view outside changes; the room does not. The workshop
+## is lit evenly by its own lights at every hour, with no daylight coming in through the window;
+## the lighting upgrade only brightens it a little. Leaving through the front door (`end_day`)
+## fades out, skips to 09:00 the next day and stands the player back at the bench. Created by
+## `workbench.gd` as `DayCycle` in first-person play only.
 signal notice(text: String)
 
-const Room = preload("res://scripts/shop_interior.gd")
 const Jobs = preload("res://scripts/repair_jobs.gd")
 ## Sunrise and sunset, in hours. The window faces west (+X), so the sun comes in after noon.
 const SUNRISE := 6.0
@@ -23,16 +23,8 @@ const KEYS := [
 	[19.5, "2a3a60", "b2627c", "7d5c72", "d07a6a", 0.35, "4c4a66", 0.45],
 	[20.5, "121c34", "2c3654", "273249", "8fa3d1", 0.22, "26324a", 0.9],
 	[24.0, "0b1424", "1b2840", "1a2538", "8fa3d1", 0.22, "1e2a40", 1.0]]
-## Room light by night (x) and by day (y); daytime values are the scene's authored ones. At
-## night the key light is the shop's own lamps: a little dimmer and warmer, never off.
-const AMBIENT_ENERGY := Vector2(0.3, 0.65)
-const FILL_ENERGY := Vector2(0.04, 0.5)
-const FILL_NIGHT := Color(0.42, 0.48, 0.72)
-const KEY_ENERGY := Vector2(1.35, 1.8)
-const KEY_NIGHT := Color(1.0, 0.86, 0.68)
-## Strongest sunbeam through the window, and how far out the beam's source sits.
-const SUN_BEAM_ENERGY := 14.0
-const SUN_BEAM_DISTANCE := 70.0
+## The purchased workshop lighting scales the scene's authored room light by this much.
+const LIGHTING_UPGRADE := 1.2
 const FADE_TIME := 0.7
 const DARK_TIME := 1.2
 
@@ -41,10 +33,9 @@ var jobs: Node
 var scenery: Node3D
 var environment: Environment
 var fill: DirectionalLight3D
-var fill_day: Color
 var key_light: DirectionalLight3D
-var key_day: Color
-var sun_beam: SpotLight3D
+## The scene's authored ambient, fill and key energies.
+var base_energy := Vector3.ZERO
 var overlay: CanvasLayer
 var curtain: ColorRect
 var title: Label
@@ -60,21 +51,13 @@ func configure(world: Node3D, shop_jobs: Node, outdoor: Node3D) -> void:
 	bench = world
 	jobs = shop_jobs
 	scenery = outdoor
-	# A private copy: later workbench instances (tests) must not inherit this one's night.
+	# A private copy: later workbench instances (tests) must not inherit this one's upgrade.
 	var world_environment: WorldEnvironment = bench.get_node("Environment")
 	world_environment.environment = world_environment.environment.duplicate()
 	environment = world_environment.environment
 	fill = bench.get_node("FillLight")
-	fill_day = fill.light_color
 	key_light = bench.get_node("KeyLight")
-	key_day = key_light.light_color
-	sun_beam = SpotLight3D.new()
-	sun_beam.name = "WindowSunbeam"
-	sun_beam.spot_range = 150.0
-	sun_beam.spot_angle = 11.0
-	sun_beam.spot_attenuation = 0.4
-	sun_beam.shadow_enabled = true
-	bench.add_child(sun_beam)
+	base_energy = Vector3(environment.ambient_light_energy, fill.light_energy, key_light.light_energy)
 	overlay = CanvasLayer.new()
 	overlay.name = "DayTransition"
 	overlay.layer = 20
@@ -119,7 +102,7 @@ static func sample(at_hour: float) -> Array:
 		return mixed
 	return KEYS[0]
 
-## Lighting for the current shop time, pushed to the sky, scenery and room.
+## The outside for the current shop time, pushed to the sky and scenery, and the room's light.
 func update() -> void:
 	var now := hour()
 	var key := sample(now)
@@ -133,26 +116,10 @@ func update() -> void:
 		"ambient_color": key[6], "night": key[7], "sun_visible": smoothstep(-0.03, 0.02, sun.y),
 		"cloud_shift": jobs.shop_minutes * 0.004, "daylight": daylight}
 	scenery.apply(state)
-	environment.ambient_light_energy = lerpf(AMBIENT_ENERGY.x, AMBIENT_ENERGY.y, daylight)
-	fill.light_energy = lerpf(FILL_ENERGY.x, FILL_ENERGY.y, daylight)
-	fill.light_color = FILL_NIGHT.lerp(fill_day, daylight)
-	key_light.light_energy = lerpf(KEY_ENERGY.x, KEY_ENERGY.y, daylight)
-	key_light.light_color = KEY_NIGHT.lerp(key_day, daylight)
-	if bench.progression_enabled and (bench.shop == null or not bench.shop.owns("lighting")):
-		environment.ambient_light_energy *= 0.42
-		fill.light_energy *= 0.25
-		key_light.light_energy *= 0.3
-	# The sun only reaches in through the west window in the afternoon.
-	var entry := clampf(sun.x * 3.0, 0.0, 1.0) * clampf(sun.y * 6.0, 0.0, 1.0)
-	var window := Vector3((Room.WALL_X.x + Room.WALL_X.y) * 0.5, (Room.SILL_Y + Room.WINDOW_TOP) * 0.5,
-		(Room.WINDOW_Z.x + Room.WINDOW_Z.y) * 0.5)
-	sun_beam.visible = entry > 0.01
-	sun_beam.light_energy = SUN_BEAM_ENERGY * entry * strength
-	sun_beam.light_color = light
-	state.sun_beam = sun_beam.light_energy if sun_beam.visible else 0.0
-	if sun_beam.visible:
-		sun_beam.global_position = window + sun * SUN_BEAM_DISTANCE
-		sun_beam.look_at(window, Vector3.UP if absf(sun.y) < 0.98 else Vector3.FORWARD)
+	var room := base_energy * (LIGHTING_UPGRADE if bench.shop != null and bench.shop.owns("lighting") else 1.0)
+	environment.ambient_light_energy = room.x
+	fill.light_energy = room.y
+	key_light.light_energy = room.z
 	# Closing time is a reminder, not a lock-out.
 	var minute := fmod(jobs.shop_minutes, 1440.0)
 	if last_minute >= 0.0 and last_minute < Jobs.CLOSING_MINUTE and minute >= Jobs.CLOSING_MINUTE:

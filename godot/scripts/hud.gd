@@ -544,15 +544,17 @@ func set_menu_open(value: bool) -> void:
 	cleaning_panel.visible = value and (tool_overlay == null or not tool_overlay.visible)
 	reticle.visible = not value
 
-## `parcel` is the delivery box's location; "held" means it is being carried.
+## `parcel` is the delivery box's location; "held" means it is being carried, "empty" that the
+## emptied box is.
 func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Node, captured: bool, seated: bool = false, parcel := "") -> void:
 	if not fps_mode: return
 	set_menu_open(not captured)
 	var action: String = hit.get("action", "")
 	var prompt := ""
 	if seated: action = "seated"
-	if parcel == "held":
+	if parcel in ["held", "empty"]:
 		prompt = ("E / Click: set the parcel down here" if action == "desk" else "Carry the parcel to the repair desk") + "   |   Q: put it back on the hatch"
+		if parcel == "empty": prompt = "E / Click: set the empty box down on the floor or desk   |   Q: put it back"
 		interaction_hint.text = (prompt + "\nWASD: move   Mouse: look   Tab/Esc: release mouse") if captured else "Mouse released — Tab/Esc to resume"
 		return
 	match action:
@@ -560,6 +562,7 @@ func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Nod
 		"computer": prompt = "E / Click: use the shop computer"
 		"delivery_box": prompt = "E / Click: open the box"
 		"parcel": prompt = "E / Click: pick up the parcel"
+		"empty_box": prompt = "E / Click: pick up the empty box and move it aside"
 		"exit_door": prompt = "E / Click: leave the shop and end the day"
 		"sealed_box": prompt = "Thermal camera, still sealed"
 		"screw", "screw_hole": prompt = "E: pick up GPU  |  Click: focus" if tools.equipped_tool != "" else "Screwdriver required"

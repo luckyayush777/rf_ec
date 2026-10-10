@@ -53,7 +53,8 @@ func run() -> void:
 	expect(shop.owned.keys() == ["air-blower"], "Starter shop owned more than the dusting tool")
 	expect(not bench.testing_station.available and not shop.equipment["test-station"].visible and not bench.queue_monitor.visible, "Unbought testing equipment was on the floor")
 	expect(not bench.testing_station.attach(), "The unowned test station could be used")
-	expect(bench.day_cycle.environment.ambient_light_energy < 0.3, "Starter room was not dim")
+	expect(bench.day_cycle.environment.ambient_light_energy > 0.6, "Starter room was not evenly lit")
+	expect(bench.find_child("BenchTaskLight", true, false) == null, "A lamp pooled light over the starter bench")
 	var table: MeshInstance3D = bench.get_node("RepairDesk/Tabletop")
 	var bounds := table.global_transform * table.get_aabb()
 	expect(bounds.size.x <= 12.01 and bounds.size.z <= 8.01, "Starter bench kept the oversized dimensions")
@@ -145,6 +146,7 @@ func run() -> void:
 	await stand(bench, Vector3(20, -4.35, 2), Vector3(26, 0, -10))
 	expect(shop.begin_placement("test-station"), "Could not begin equipment placement")
 	expect(not shop.preview_at(Vector3(18, -4.5, -5)) and not shop.finish_placement(), "Equipment could overlap the repair desk")
+	expect(not shop.place_audio.playing, "A rejected placement played the build thud")
 	expect(not shop.preview_at(Vector3(32, -4.5, -7)), "Equipment could block the delivery hatch")
 	key(bench, KEY_R)
 	expect(not shop.preview_at(Vector3(26.7, -4.5, -11.5)), "Station could face into an inaccessible window aisle")
@@ -161,6 +163,8 @@ func run() -> void:
 	expect(bench.camera_rig.captured and shop.placement_id == "test-station", "Focus recovery accidentally placed equipment")
 	await capture("progression-equipment-placement")
 	expect(shop.finish_placement() and bench.testing_station.available, "Placed station remained unusable")
+	expect(shop.place_audio.playing and shop.place_audio.bus == &"BuildPlace", "Placing equipment made no build thud")
+	shop.place_audio.stop()
 	shop.set_process(true)
 	var station: Node3D = shop.equipment["test-station"]
 	var placed_pose := station.global_transform
@@ -200,6 +204,7 @@ func run() -> void:
 	var back_wall: Node3D = bench.get_node("ShopInterior/StarterShell/StarterBackWall")
 	var wall_z := back_wall.global_position.z
 	expect(shop.purchase("shop-expansion") and shop.expansions == 1 and not shop.owns("shop-expansion"), "First expansion slot could not be bought")
+	expect(shop.place_audio.playing and shop.place_audio.pitch_scale < 0.9, "The expansion was built without a heavier build thud")
 	expect(is_equal_approx(back_wall.global_position.z, wall_z - 10.0), "Expansion did not move the back wall")
 	await physics_frame
 	await physics_frame
@@ -215,10 +220,10 @@ func run() -> void:
 	expect(shop.begin_placement("queue-display") and shop.preview_at(Vector3(20, -4.5, -32)) and not shop.preview_at(Vector3(20, -4.5, -38)), "The second slot did not extend the floor by one strip")
 	shop.cancel_placement()
 	await stand(bench, Vector3(19, -4.35, 6.5), Vector3(21, 0, -5))
-	await capture("progression-equipped-dim")
-	var dim: float = bench.day_cycle.environment.ambient_light_energy
+	await capture("progression-equipped-standard-light")
+	var standard: float = bench.day_cycle.environment.ambient_light_energy
 	expect(shop.purchase("lighting") and shop.purchase("refurbishment"), "Room upgrades could not be bought")
-	expect(bench.day_cycle.environment.ambient_light_energy > dim * 2, "Lighting purchase did not brighten the shop")
+	expect(bench.day_cycle.environment.ambient_light_energy > standard * 1.1, "Lighting purchase did not brighten the shop")
 	await capture("progression-upgraded-room")
 	await stand(bench, Vector3(17, -4.35, 4), bench.computer.screen.global_position)
 	bench.computer.use()

@@ -42,10 +42,13 @@ var rest := Transform3D.IDENTITY
 var brand := "Lotac"
 var parked := false
 ## Where the parcel is: "" (not delivered), "outside" (behind the hatch shutter), "sill" (on the
-## hatch counter), "held" (carried under the camera) or "desk" (on the repair desk, openable).
+## hatch counter), "held" (carried under the camera), "desk" (on the repair desk: openable, or
+## once `parked` the emptied box) or "aside" (the empty box set down on the floor or desk).
 var location := ""
 ## True while a carry or set-down move is under way.
 var moving := false
+## Where the box was lifted from, so Q can put it straight back.
+var pickup_pose := Transform3D.IDENTITY
 var print_labels: Array[Label3D] = []
 var brand_labels: Array[Label3D] = []
 var unbox_audio: AudioStreamPlayer
@@ -320,6 +323,7 @@ func land_on_sill() -> void:
 ## Lifts the parcel into both hands: it rides under the camera (so aim rays pass it) at `pose`.
 func carry(holder: Node3D, pose: Transform3D) -> Signal:
 	if motion != null: motion.kill()
+	pickup_pose = global_transform
 	location = "held"
 	moving = true
 	set_meta("action", "")
@@ -331,12 +335,13 @@ func carry(holder: Node3D, pose: Transform3D) -> Signal:
 
 ## Puts the parcel down at a world transform under `parent`: on the repair desk it becomes the
 ## box to open (and `rest` follows it); back on the hatch counter it waits to be carried again.
+## The emptied box goes "aside" anywhere clear and can be picked up again.
 func set_down(parent: Node3D, at: Transform3D, where: String) -> Signal:
 	if motion != null: motion.kill()
 	moving = true
 	reparent(parent)
 	location = where
-	set_meta("action", "delivery_box" if where == "desk" else "parcel")
+	set_meta("action", "empty_box" if where == "aside" else "delivery_box" if where == "desk" else "parcel")
 	if where == "desk": rest = parent.global_transform.affine_inverse() * at
 	motion = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	motion.tween_property(self, "global_transform", at, 0.35)
@@ -362,16 +367,18 @@ func _exit_tree() -> void:
 func cradle_point() -> Vector3:
 	return to_global(Vector3(0, WALL + FOAM_HEIGHT + 0.030, 0))
 
+## Slides the emptied box clear of the work; from then on it can be carried aside.
 func park_at(destination: Vector3) -> Signal:
 	if motion != null: motion.kill()
 	parked = true
-	set_meta("action", "")
+	set_meta("action", "empty_box")
 	motion = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	motion.tween_property(self, "global_position", destination, 0.45)
 	return motion.finished
 
 func take_away() -> void:
 	if motion != null: motion.kill()
+	set_meta("action", "")
 	motion = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	motion.tween_property(self, "scale", Vector3.ONE * 0.01, 0.25)
 	motion.finished.connect(func():

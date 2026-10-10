@@ -52,17 +52,9 @@ static func prepare(bench: Node3D) -> void:
 	bench.queue_monitor.hide()
 	bench.camera_rig.spawn_position = Vector3(17, -4.35, 3)
 	bench.camera_rig.respawn()
-	# A tired wooden top and an old rubber mat, with a useful pool of light over the work.
+	# A tired wooden top and an old rubber mat.
 	desk.get_node("Tabletop").material_override = Room.flat(Color("514334"), 0.95)
 	mat.material_override = Room.flat(Color("303f39"), 0.95)
-	var lamp := OmniLight3D.new()
-	lamp.name = "BenchTaskLight"
-	lamp.position = Vector3(-3.0, 2.8, -1.7)
-	lamp.light_color = Color("ffce8a")
-	lamp.light_energy = 1.8
-	lamp.omni_range = 10.0
-	lamp.shadow_enabled = true
-	desk.add_child(lamp)
 
 static func enclose(bench: Node3D) -> void:
 	var room: Node3D = bench.get_node("ShopInterior")
@@ -112,10 +104,11 @@ static func enclose(bench: Node3D) -> void:
 		room.add_block(shell, "FloorWear", Vector3(0.4 + fmod(index * 0.63, 1.5), 0.003, 0.12), Vector3(x, FLOOR_Y + 0.005, z), stain)
 	for index in range(5):
 		room.add_block(shell, "WallWear", Vector3(0.008, 0.4 + index * 0.14, 2.4), Vector3(10.51, -2.2 + index * 0.36, -13 + index * 4.3), stain)
+	Room.shadowless(shell)
 
 ## Knocks through the back wall for expansion slot `expansions` (1-based): one more strip of
 ## floor, side walls and ceiling across the full room width. The back wall moves with its
-## existing collision; the new pieces get their own. A lintel and a lamp mark each strip.
+## existing collision; the new pieces get their own. A lintel and a ceiling fixture mark each strip.
 static func expand(bench: Node3D, expansions: int) -> void:
 	var room: Node3D = bench.get_node("ShopInterior")
 	var shell: Node3D = room.get_node("StarterShell")
@@ -129,21 +122,13 @@ static func expand(bench: Node3D, expansions: int) -> void:
 		room.piece(shell, "AnnexLeftWall", Vector3(10, FLOOR_Y, far), Vector3(10.5, 10.5, near), plaster),
 		room.piece(shell, "AnnexRightWall", Vector3(Room.WALL_X.x, FLOOR_Y, far), Vector3(Room.WALL_X.y, 10.5, near), plaster),
 		room.piece(shell, "AnnexCeiling", Vector3(10, 10.5, far), Vector3(33.8, 10.8, near), plaster)]
-	pieces[3].cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	for piece in pieces: piece.create_trimesh_collision()
 	# Ceiling-high only, so it never blocks walking or equipment.
 	room.piece(shell, "AnnexLintel", Vector3(10.5, 9.6, near + 0.1), Vector3(33, 10.5, near + 0.6), wood)
 	room.piece(shell, "CeilingBeam", Vector3(10.5, 10, far + 5.0), Vector3(33, 10.5, far + 5.35), wood)
 	shell.get_node("StarterBackWall").position.z -= EXPANSION_DEPTH
-	var fixture: MeshInstance3D = room.add_block(shell, "AnnexLamp", Vector3(1.6, 0.18, 0.5), Vector3(21.75, 9.9, far + 5.6), Room.flat(Color("e9dcc0"), 0.4))
-	fixture.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var lamp := OmniLight3D.new()
-	lamp.name = "AnnexLight"
-	lamp.position = Vector3(0, -0.6, 0)
-	lamp.light_color = Color("ffe2b8")
-	lamp.light_energy = 1.2
-	lamp.omni_range = 16.0
-	fixture.add_child(lamp)
+	room.add_block(shell, "AnnexLamp", Vector3(1.6, 0.18, 0.5), Vector3(21.75, 9.9, far + 5.6), Room.flat(Color("e9dcc0"), 0.4))
+	Room.shadowless(shell)
 
 static func refurbish(bench: Node3D) -> void:
 	var room: Node3D = bench.get_node("ShopInterior")

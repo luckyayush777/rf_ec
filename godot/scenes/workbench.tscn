@@ -34,8 +34,8 @@ background_mode = 1
 background_color = Color(0.085, 0.1, 0.12, 1)
 sky = SubResource("Sky")
 ambient_light_source = 3
-ambient_light_color = Color(0.78, 0.83, 0.93, 1)
-ambient_light_energy = 0.65
+ambient_light_color = Color(0.94, 0.93, 0.9, 1)
+ambient_light_energy = 0.85
 reflected_light_source = 2
 tonemap_mode = 2
 
@@ -61,16 +61,22 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20.8, 0, 0.2)
 environment = SubResource("Environment")
 
 [node name="KeyLight" type="DirectionalLight3D" parent="." unique_id=2074760674]
-transform = Transform3D(0.81915206, 0.46984634, -0.32898995, 0, 0.57357645, 0.81915206, 0.57357645, -0.6710101, 0.46984634, 0, 0, 0)
-light_color = Color(1, 0.94, 0.84, 1)
-light_energy = 1.8
+transform = Transform3D(0.866025, -0.482963, 0.12941, 0, 0.258819, 0.965926, -0.5, -0.836516, 0.224144, 0, 0, 0)
+light_color = Color(1, 0.97, 0.92, 1)
+light_energy = 1.3
 shadow_enabled = true
 directional_shadow_max_distance = 90.0
 
 [node name="FillLight" type="DirectionalLight3D" parent="." unique_id=546121353]
-transform = Transform3D(-0.70710677, -0.4055798, 0.579228, 0, 0.81915206, 0.57357645, -0.70710677, 0.4055798, -0.579228, 0, 0, 0)
-light_color = Color(0.74, 0.84, 1, 1)
-light_energy = 0.5
+transform = Transform3D(-0.866025, 0.321394, -0.383022, 0, 0.766044, 0.642788, 0.5, 0.55667, -0.663414, 0, 0, 0)
+light_color = Color(0.97, 0.98, 1, 1)
+light_energy = 0.55
+
+[node name="BounceLight" type="DirectionalLight3D" parent="." unique_id=1739520446]
+transform = Transform3D(1, 0, 0, 0, 0.173648, -0.984808, 0, 0.984808, 0.173648, 0, 0, 0)
+light_color = Color(1, 0.97, 0.92, 1)
+light_energy = 0.35
+light_specular = 0.0
 
 [node name="CameraRig" type="Node3D" parent="." unique_id=309331580]
 script = ExtResource("5")

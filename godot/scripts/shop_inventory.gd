@@ -4,6 +4,11 @@ signal changed
 signal notice(text: String)
 const Contract = preload("res://scripts/asset_contract.gd")
 const Starter = preload("res://scripts/starter_shop.gd")
+const AudioMix = preload("res://scripts/audio_mix.gd")
+## A heavy build-mode thud as equipment lands; each expansion slot plays it lower and heavier.
+const PLACE_SOUND = preload("res://assets/sounds/build_place.wav")
+const PLACE_GAIN_DB := -3.0
+const EXPANSION_PITCH := 0.78
 const CATALOG := {
 	"air-blower": {"name": "Air blower", "price": 35, "section": "Tools", "description": "Starter tool. Clean the exterior fan without opening the card."},
 	"screwdriver": {"name": "Precision screwdriver", "price": 30, "section": "Tools", "description": "Open the cooler and fan for internal service."},
@@ -40,10 +45,18 @@ var original_pose := Transform3D.IDENTITY
 var footprint: MeshInstance3D
 var footprint_material: StandardMaterial3D
 var placement_valid := false
+var place_audio: AudioStreamPlayer
+var muted := false
 
 func configure(world: Node3D, repair_jobs: Node) -> void:
 	bench = world
 	jobs = repair_jobs
+	place_audio = AudioStreamPlayer.new()
+	place_audio.name = "BuildPlaceSound"
+	place_audio.stream = PLACE_SOUND
+	place_audio.volume_db = PLACE_GAIN_DB
+	place_audio.bus = AudioMix.BUILD_PLACE
+	add_child(place_audio)
 	for id in bench.tools.TOOLS: bench.tools.set_locked(id, not owns(id))
 	var station := Node3D.new()
 	station.name = "TestingEquipment"
@@ -112,6 +125,7 @@ func purchase(id: String) -> bool:
 		expansions += 1
 		title += " %d/%d" % [expansions, Starter.MAX_EXPANSIONS]
 		Starter.expand(bench, expansions)
+		play_place(EXPANSION_PITCH)
 	else: owned[id] = true
 	purchases.push_front({"id": id, "name": title, "price": item.price, "paid": 0 if unlimited_funds else item.price})
 	if id in bench.tools.TOOLS: bench.tools.set_locked(id, false)
@@ -186,6 +200,8 @@ func valid_position(node: Node3D) -> bool:
 		if not floor_area().encloses(aisle): return false
 		for obstacle in obstacles:
 			if aisle.intersects(obstacle): return false
+	# An empty box left on the floor keeps its spot.
+	if bench.delivery_box.visible and bench.delivery_box.location == "aside": obstacles.append(room_rect(bench.delivery_box))
 	var player: Vector3 = bench.camera_rig.body.global_position
 	obstacles.append(Rect2(Vector2(player.x, player.z) - Vector2.ONE * 0.9, Vector2.ONE * 1.8))
 	for obstacle in obstacles:
@@ -226,10 +242,21 @@ func finish_placement() -> bool:
 		bench.testing_station.equipment_yaw = equipment[id].rotation.y
 	placement_id = ""
 	footprint.hide()
+	play_place()
 	notice.emit("%s placed. Use MOVE in the shop to rearrange it." % CATALOG[id].name)
 	changed.emit()
 	jobs.changed.emit()
 	return true
+
+## Slightly re-pitched each time so repeated placements do not sound identical.
+func play_place(pitch := 1.0) -> void:
+	if muted: return
+	place_audio.pitch_scale = pitch * randf_range(0.94, 1.06)
+	place_audio.play()
+
+func set_muted(value: bool) -> void:
+	muted = value
+	if muted: place_audio.stop()
 
 func cancel_placement() -> void:
 	if placement_id == "": return
