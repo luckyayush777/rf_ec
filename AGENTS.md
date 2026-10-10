@@ -61,6 +61,7 @@ For shared asset authoring/sync, use the Assets section below and `models/README
 - Run `python godot/tools/sync_assets.py` after model exports. It copies the four GLBs and extracts part definitions and SHA-256 hashes into `godot/assets/gpu-parts.json`. Commit asset copies and metadata together; do not hand-edit generated metadata.
 - Audio lives directly in `godot/assets/`; sync does not overwrite it. Preserve `godot/ASSET_CREDITS.md`, `.import` settings and `.gd.uid` files.
 - `godot/tests/fixtures/service-rules.json` contains 1,024 frozen expected decisions from the retired reference implementation. Do not regenerate expected results from the implementation under test. Add focused Godot cases for new rule behavior.
+- `.gitattributes` stores `.blend`, `.glb`, audio, fonts and `.aup4` in Git LFS. New binary types belong there too; a file that reads as a short `version https://git-lfs...` pointer needs `git lfs pull`.
 - `artifacts/`, `godot/.godot/`, and `godot/build/` are ignored outputs. Do not edit caches to implement changes.
 
 ## Validation

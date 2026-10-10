@@ -2,6 +2,8 @@
 
 A first-person GPU repair game built with Godot 4.7.2, GDScript and the Compatibility renderer.
 
+Models, audio and fonts are stored with [Git LFS](https://git-lfs.com/). Install it (`git lfs install`) before cloning, or run `git lfs pull` in an existing clone; without it those files are small text pointers and Godot cannot import them.
+
 Open [godot/project.godot](godot/project.godot) in Godot and press **F5**. The included assets are ready to use; no Node, npm, TypeScript or Blender installation is needed to play.
 
 Walk around the workshop, inspect and disassemble the GPU, select tools from the toolbox, clean internal dust, and compare surface heat with the thermal camera under test-board load.
