@@ -71,7 +71,7 @@ func refresh() -> void:
 		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		head.add_child(name_label)
 		head.add_child(UI.label("$%d" % job.pay if jobs.is_tech(job) else "BILLED", 40, Color("#8ee0a8"), true))
-		inner.add_child(UI.label(job.model + ("  ·  TECH REFERRAL" if jobs.is_tech(job) else "  ·  CUSTOMER, WANTS IT IN " + jobs.duration_text(job.due).to_upper()), 28, Color("#d5dde4")))
+		inner.add_child(UI.label(job.model + ("  ·  TECH REFERRAL" if jobs.is_tech(job) else "  ·  QUOTE $%d, WANTS IT BACK %s" % [job.quote, jobs.due_text(job).to_upper()]), 28, Color("#d5dde4")))
 		inner.add_child(UI.label("IN BOX  ·  OPEN IT ON THE DESK" if job.state == "boxed" else "ON BENCH  ·  " +
 			("TAGGED: " + ", ".join(jobs.fault_labels(job.faults)).to_upper() if jobs.is_tech(job) else "DIAGNOSING"), 32, accent, true))
 		var complaint := UI.label("\"%s\"" % job.complaint, 24, Color("#d5dde4"))
@@ -81,5 +81,5 @@ func refresh() -> void:
 	var result: Dictionary = jobs.last_result
 	var rating: Vector2 = jobs.shop_rating()
 	footer.text = "%d/%d slots in use" % [jobs.queue.size(), jobs.MAX_QUEUE] + ("" if rating.y == 0 else
-		"   ·   Rating %.1f/5 (%d)" % [rating.x, rating.y]) + ("" if result.is_empty() else
+		"   ·   Satisfaction %.1f/5 (%d)" % [rating.x, rating.y]) + ("" if result.is_empty() else
 		"   ·   Last: #%d %s, %s" % [result.id, result.customer, "paid $%d" % result.amount if result.paid else "returned unfixed"])

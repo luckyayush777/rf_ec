@@ -41,6 +41,8 @@ const TRAY_COOLER_ROW_Z := 4.12
 const DEBUG_LAYOUT_GAP := 0.3
 ## Controller guard for part state the rules do not track (a fan's pulled rotor); returns a reason or "".
 var refit_block: Callable = func(_id: String) -> String: return ""
+## Same for taking a screw out: megacorp glue over its head (gpu_glue.gd); returns a reason or "".
+var screw_block: Callable = func(_id: String) -> String: return ""
 var busy: bool:
 	get: return moving or not active_screw.is_empty()
 
@@ -142,8 +144,9 @@ func debug_disassemble() -> bool:
 
 ## Inverse of debug_disassemble from any partial state: heatsink then fan seated (so paste and
 ## bearing react as on a normal refit), every screw tightened home and the cable plugged in.
-func debug_reassemble() -> bool:
-	if not OS.is_debug_build() or busy or not can_use.call(): return false
+## `anywhere` skips the reach check (the debug fix-and-return works from the Escape menu).
+func debug_reassemble(anywhere := false) -> bool:
+	if not OS.is_debug_build() or busy or (not anywhere and not can_use.call()): return false
 	for id in ["cooler-assembly", "fan-assembly"]:
 		if id in removed and refit_block.call(id) != "": return false
 	audio.stop()
@@ -254,6 +257,10 @@ func begin_screw(id: String) -> bool:
 	var check := decision("refit" if reinstall else "remove", id)
 	if not check.allowed:
 		notice.emit(check.reason)
+		return false
+	var sealed: String = "" if reinstall else screw_block.call(id)
+	if sealed != "":
+		notice.emit(sealed)
 		return false
 	if not turns.has(id):
 		turns[id] = {"progress": 0.0, "reinstall": reinstall, "from": contract.objects[id].global_transform}

@@ -230,7 +230,7 @@ func run() -> void:
 	expect(bench.bearing.dry == ("bearing" in job.faults), "Bearing did not match the rolled faults %s" % [job.faults])
 	expect(jobs.problems() == job.faults, "Problems %s did not match the rolled faults %s" % [jobs.problems(), job.faults])
 	var status: Array[Dictionary] = preload("res://scripts/repair_status.gd").rows(bench)
-	expect(status[0].label == "Job" and ", ".join(job.faults) in status[0].detail and status.size() == 7,"The debug status did not show the rolled faults")
+	expect(status[0].label == "Job" and ", ".join(job.faults) in status[0].detail and status.size() == 8,"The debug status did not show the rolled faults")
 	await capture("jobs-queue-monitor")
 
 	# Returning needs the card assembled and set down; a held card is refused.

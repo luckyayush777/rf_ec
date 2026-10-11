@@ -12,7 +12,17 @@ const GOOD_CONTACT := 0.9
 static func rows(bench: Node3D) -> Array[Dictionary]:
 	if not bench.gpu.visible: return [job(bench.jobs)]
 	return [job(bench.jobs), dust(bench.cleaning), paste(bench.paste), bearing(bench.bearing),
-		connector(bench.connector), assembly(bench.service), test(bench)]
+		connector(bench.connector), glue(bench.glue), assembly(bench.service), test(bench)]
+
+## Megacorp warranty glue: not a fault the customer sees, but the screws stay stuck until it is off.
+static func glue(seals: Node) -> Dictionary:
+	if seals.initial == 0: return row("Warranty glue", DONE, "None on this card")
+	if seals.sealed.is_empty(): return row("Warranty glue", DONE, "All %d blobs sucked off" % seals.initial)
+	var soft := 0
+	for id in seals.sealed:
+		if seals.is_soft(id): soft += 1
+	return row("Warranty glue", FAULT if seals.progress() <= 0.0 and soft == 0 else PARTIAL,
+		"%d of %d screws still glued · %d soft · %s removed" % [seals.sealed.size(), seals.initial, soft, percent(seals.progress())])
 
 ## Debug-set damage only for now: jobs do not roll it and it cannot be repaired yet.
 static func connector(edge: Node) -> Dictionary:
@@ -26,8 +36,9 @@ static func connector(edge: Node) -> Dictionary:
 static func job(jobs: Node) -> Dictionary:
 	var active: Dictionary = jobs.active()
 	if active.is_empty(): return row("Job", INFO, "No card on the bench · balance $%d" % jobs.balance)
-	return row("Job", INFO, "#%d %s (%s) · %s · faults: %s · %s" % [active.id, active.customer, active.source,
-		"in the box" if active.state == "boxed" else "on the bench", ", ".join(active.faults), jobs.value_text(active)])
+	return row("Job", INFO, "#%d %s (%s) · %s · faults: %s · %s%s" % [active.id, active.customer, active.source,
+		"in the box" if active.state == "boxed" else "on the bench", ", ".join(active.faults), jobs.value_text(active),
+		"" if jobs.is_tech(active) else " · quote $%d · %s" % [active.quote, jobs.due_text(active)]])
 
 static func row(label: String, state: String, detail: String) -> Dictionary:
 	return {"label": label, "state": state, "detail": detail}

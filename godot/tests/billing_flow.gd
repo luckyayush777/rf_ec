@@ -71,12 +71,37 @@ func run() -> void:
 		"Tag colours did not follow the fault count")
 	expect(Jobs.billed_minutes(0.0) == 15 and Jobs.billed_minutes(15.0) == 15 and Jobs.billed_minutes(15.5) == 30 and Jobs.billed_minutes(61.0) == 75,
 		"Labour was not billed in started quarter hours")
-	expect(Jobs.rate(true, 60, 65, 90.0, 120).stars == 5, "An on-time, fair job did not get five stars")
-	expect(Jobs.rate(true, 60, 65, 170.0, 120).stars == 4, "A job up to 1.5x late did not lose one star")
-	expect(Jobs.rate(true, 120, 65, 90.0, 120).stars == 3, "A bill up to 2x fair did not lose two stars")
-	expect(Jobs.rate(true, 400, 65, 600.0, 120).stars == 1, "Ratings fell below one star")
-	expect(Jobs.rate(false, 60, 65, 10.0, 120).stars == 1, "An unfixed card was rated above one star")
-	expect("Cheap" in " ".join(Jobs.rate(true, 40, 65, 10.0, 120).remarks), "A cheap bill was not remarked on")
+	# Satisfaction = price satisfaction + time satisfaction, out of 5.
+	var luck := RandomNumberGenerator.new()
+	luck.seed = 7
+	expect(Jobs.price_penalty(65, 65) == 0 and Jobs.price_penalty(40, 65) == 0 and Jobs.price_penalty(71, 65) == 0 and
+		Jobs.price_penalty(72, 65) == 1 and Jobs.price_penalty(78, 65) == 2 and Jobs.price_penalty(130, 65) == 10,
+		"Every full 10% over the quote did not cost one point")
+	var on_time: Dictionary = Jobs.rate(true, 65, 65, 1, luck)
+	expect(on_time.stars == 5 and on_time.tip == 0 and on_time.bonus == 0 and "on time" in " ".join(on_time.remarks),
+		"A next-day job at the quote was not a plain five: %s" % [on_time])
+	expect(Jobs.rate(true, 60, 65, 2, luck).stars == 4 and Jobs.rate(true, 60, 65, 3, luck).stars == 3, "Each day late did not cost one point")
+	expect(Jobs.rate(true, 78, 65, 1, luck).stars == 3, "A bill 20% over the quote did not cost two points")
+	expect(Jobs.rate(true, 79, 65, 3, luck).stars == 1, "Price and time penalties did not add up")
+	expect(Jobs.rate(true, 400, 65, 9, luck).stars == 1, "Satisfaction fell below one")
+	var unfixed_rating: Dictionary = Jobs.rate(false, 40, 65, 0, luck)
+	expect(unfixed_rating.stars == 1 and unfixed_rating.tip == 0, "An unfixed card was rated above one or tipped")
+	expect("Under the quote" in " ".join(Jobs.rate(true, 40, 65, 1, luck).remarks), "A bill under the quote was not remarked on")
+	# Same day: half tip, half raise satisfaction by one or two (which offsets an overcharge).
+	var tips := 0
+	var raised := {}
+	for roll in range(400):
+		var same_day: Dictionary = Jobs.rate(true, 78, 65, 0, luck)
+		expect("Same day" in same_day.remarks[0], "A same-day return was not remarked on")
+		if same_day.tip > 0:
+			tips += 1
+			expect(same_day.bonus == 0 and same_day.stars == 3 and same_day.tip >= Jobs.MIN_TIP and same_day.tip <= roundi(78 * Jobs.TIP_SHARE.y),
+				"A same-day tip came with %s" % [same_day])
+		else:
+			expect(same_day.bonus in [1, 2] and same_day.stars == 3 + same_day.bonus, "A same-day bonus was %s" % [same_day])
+			raised[same_day.bonus] = true
+	expect(absf(tips / 400.0 - Jobs.SAME_DAY_TIP_CHANCE) < 0.08 and raised.size() == 2, "Same-day tips came %d of 400 times, bonuses %s" % [tips, raised.keys()])
+	expect(Jobs.rate(true, 65, 65, 0, luck).stars == 5, "A same-day bonus raised satisfaction past five")
 	var materials = Materials.new()
 	materials.add("thermal-paste", 0.3)
 	materials.add("ipa-pad", 1.0)
@@ -109,9 +134,12 @@ func run() -> void:
 		if jobs.is_tech(offer):
 			var fault_pay := 0
 			for kind in offer.faults: fault_pay += jobs.FAULTS[kind].pay
-			expect(offer.pay == fault_pay and offer.complaint != "" and not offer.has("due"), "A tech's offer was not priced by its diagnosed faults")
+			expect(offer.pay == fault_pay and offer.complaint != "" and not offer.has("quote") and offer.home == "", "A tech's offer was not priced by its diagnosed faults")
 		else:
-			expect(offer.pay == 0 and offer.complaint in jobs.NOTES and offer.due >= jobs.DUE_BASE, "A customer's offer had a price or symptoms")
+			var fault_pay := 0
+			for kind in offer.faults: fault_pay += jobs.FAULTS[kind].pay
+			expect(offer.pay == 0 and offer.complaint in jobs.NOTES and offer.quote == jobs.DIAGNOSIS_FEE + fault_pay and offer.home != "" and
+				jobs.neighbourhood.home(offer.home).resident == offer.customer, "A customer's offer had a price, symptoms or no household")
 	await capture_page(bench, "billing-portal-board")
 
 	# A tech's card arrives tagged: green for one fault, yellow for two, a red card for three.
@@ -150,6 +178,10 @@ func run() -> void:
 	expect(tech_result.paid and tech_result.amount == tech_job.pay and jobs.balance == before + tech_job.pay and tech_result.stars == 0,
 		"The tech job paid %s with stars %s" % [tech_result.get("amount"), tech_result.get("stars")])
 	expect(jobs.shop_rating().y == 0, "A tech rated the shop")
+	expect(jobs.kaching_audio.playing and jobs.kaching_audio.bus == &"Payment" and jobs.kaching_audio.stream != null, "Getting paid did not ring the register")
+	await create_timer(jobs.TIP_DELAY + 0.1).timeout
+	expect(not jobs.tip_audio.playing, "A tech with no tip played the tip motif")
+	jobs.kaching_audio.stop()
 
 	# A customer's card: a note, no tag; the shop bills diagnosis, labour and materials.
 	jobs.offers[0] = jobs.make_job(["bearing"], "customer")
@@ -183,11 +215,23 @@ func run() -> void:
 	jobs.set_labor_rate(jobs.DEFAULT_LABOR_RATE)
 	before = jobs.balance
 	var expected: int = jobs.bill(job).dollars
+	expect(expected < job.quote and jobs.due_text(job) == "by end of tomorrow", "The bill %d was not under the quote %d, or it was due %s" % [expected, job.quote, jobs.due_text(job)])
 	var result: Dictionary = jobs.return_card()
-	expect(result.paid and result.amount == expected and jobs.balance == before + expected, "The customer paid %s, not the bill %d" % [result.get("amount"), expected])
-	expect(result.stars == 5 and "on time" in result.feedback, "A quick, fairly priced repair rated %s: %s" % [result.stars, result.feedback])
+	# Same day: the customer pays the bill and either tips or is happier still (capped at five).
+	expect(result.paid and result.amount == expected + result.tip and jobs.balance == before + expected + result.tip,
+		"The customer paid %s, not the bill %d plus the tip %d" % [result.get("amount"), expected, result.get("tip")])
+	expect(result.stars == 5 and result.days == 0 and "Same day" in result.feedback, "A same-day repair under the quote rated %s: %s" % [result.stars, result.feedback])
+	expect(jobs.neighbourhood.home(job.home).state == "green", "A five-star household did not turn green")
+	expect(jobs.kaching_audio.playing, "The customer's payment did not ring the register")
+	await create_timer(jobs.TIP_DELAY + 0.1).timeout
+	expect(jobs.tip_audio.playing == (result.tip > 0) and jobs.tip_audio.bus == &"Tip", "The tip motif played %s for a tip of $%d" % [jobs.tip_audio.playing, result.tip])
+	jobs.play_payment(true)
+	await create_timer(jobs.TIP_DELAY + 0.1).timeout
+	expect(jobs.kaching_audio.playing and jobs.tip_audio.playing, "A tipped payment did not follow the ka-ching with the motif")
+	jobs.kaching_audio.stop()
+	jobs.tip_audio.stop()
 	expect(result.materials.size() == 3 and not result.bill.is_empty(), "The ledger entry lost its bill or materials")
-	# Slow and expensive: the customer marks the shop down.
+	# Days late and far over the quote: the customer marks the shop right down.
 	jobs.offers[0] = jobs.make_job(["dust"], "customer")
 	var slow: Dictionary = jobs.offers[0]
 	jobs.accept(slow.id)
@@ -196,10 +240,12 @@ func run() -> void:
 	await settle(bench)
 	bench.debug_clean_gpu()
 	jobs.set_labor_rate(150)
-	jobs.shop_minutes += slow.due * 2.5
+	jobs.shop_minutes += 3 * 1440.0
+	expect(jobs.due_text(slow) == "2 days late", "Three days in, the card read %s" % jobs.due_text(slow))
 	var slow_result: Dictionary = jobs.return_card()
-	expect(slow_result.paid and slow_result.stars == 1 and ("expensive" in slow_result.feedback.to_lower() or "robbery" in slow_result.feedback.to_lower()),
+	expect(slow_result.paid and slow_result.stars == 1 and slow_result.tip == 0 and slow_result.days == 3 and "robbery" in slow_result.feedback.to_lower(),
 		"A late, overpriced repair rated %s: %s" % [slow_result.stars, slow_result.feedback])
+	expect(jobs.neighbourhood.home(slow.home).state == "red", "An unhappy household did not stay red")
 	expect(is_equal_approx(jobs.shop_rating().x, 3.0) and jobs.shop_rating().y == 2, "Shop rating was %s" % [jobs.shop_rating()])
 	# Unfixed: no payment, one star.
 	jobs.offers[0] = jobs.make_job(["dust"], "customer")
@@ -208,7 +254,9 @@ func run() -> void:
 	await jobs.unbox()
 	await settle(bench)
 	before = jobs.balance
+	jobs.kaching_audio.stop()
 	var unfixed: Dictionary = jobs.return_card()
+	expect(not jobs.kaching_audio.playing, "An unpaid return rang the register")
 	expect(not unfixed.paid and jobs.balance == before and unfixed.stars == 1, "An unfixed customer card paid or rated above one star")
 	# Nothing is recorded with no card on the bench.
 	bench.bearing.consumed.emit("bearing-oil", 1.0)

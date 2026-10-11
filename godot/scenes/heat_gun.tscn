@@ -1,0 +1,122 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="KitHeat"]
+resource_name = "Kit heat"
+albedo_color = Color(0.81, 0.35, 0.18, 1)
+roughness = 0.5
+
+[sub_resource type="StandardMaterial3D" id="KitCharcoal"]
+resource_name = "Kit charcoal"
+albedo_color = Color(0.17, 0.2, 0.21, 1)
+roughness = 0.75
+
+[sub_resource type="StandardMaterial3D" id="KitIvory"]
+resource_name = "Kit ivory"
+albedo_color = Color(0.93, 0.87, 0.76, 1)
+roughness = 0.6
+
+[sub_resource type="StandardMaterial3D" id="KitSteel"]
+resource_name = "Kit steel"
+albedo_color = Color(0.67, 0.74, 0.77, 1)
+metallic = 0.7
+roughness = 0.35
+
+[sub_resource type="CapsuleMesh" id="Body"]
+material = SubResource("KitHeat")
+radius = 0.27
+height = 1.55
+radial_segments = 24
+rings = 6
+
+[sub_resource type="CylinderMesh" id="Nozzle"]
+material = SubResource("KitSteel")
+top_radius = 0.16
+bottom_radius = 0.2
+height = 0.72
+radial_segments = 24
+rings = 1
+
+[sub_resource type="CylinderMesh" id="NozzleLip"]
+material = SubResource("KitCharcoal")
+top_radius = 0.175
+bottom_radius = 0.175
+height = 0.06
+radial_segments = 24
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Band"]
+material = SubResource("KitIvory")
+top_radius = 0.282
+bottom_radius = 0.282
+height = 0.09
+radial_segments = 24
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Vent"]
+material = SubResource("KitCharcoal")
+top_radius = 0.22
+bottom_radius = 0.24
+height = 0.12
+radial_segments = 24
+rings = 1
+
+[sub_resource type="CapsuleMesh" id="Handle"]
+material = SubResource("KitCharcoal")
+radius = 0.15
+height = 0.95
+radial_segments = 16
+rings = 4
+
+[sub_resource type="BoxMesh" id="Trigger"]
+material = SubResource("KitIvory")
+size = Vector3(0.09, 0.22, 0.12)
+
+[sub_resource type="CylinderMesh" id="Foot"]
+material = SubResource("KitIvory")
+top_radius = 0.2
+bottom_radius = 0.22
+height = 0.08
+radial_segments = 20
+rings = 1
+
+[node name="HeatGun" type="Node3D"]
+
+[node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(-4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, 0, 1, -0.12, 0.25, 0)
+mesh = SubResource("Body")
+
+[node name="Nozzle" type="MeshInstance3D" parent="."]
+transform = Transform3D(-4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, 0, 1, 0.98, 0.25, 0)
+mesh = SubResource("Nozzle")
+
+[node name="NozzleLip" type="MeshInstance3D" parent="."]
+transform = Transform3D(-4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, 0, 1, 1.35, 0.25, 0)
+mesh = SubResource("NozzleLip")
+
+[node name="Band" type="MeshInstance3D" parent="."]
+transform = Transform3D(-4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, 0, 1, 0.42, 0.25, 0)
+mesh = SubResource("Band")
+
+[node name="Vent" type="MeshInstance3D" parent="."]
+transform = Transform3D(-4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, 0, 1, -0.87, 0.25, 0)
+mesh = SubResource("Vent")
+
+[node name="Handle" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.9689124, 0.247404, 0, -0.247404, 0.9689124, 0, 0, 0, 1, -0.3, -0.27, 0)
+mesh = SubResource("Handle")
+
+[node name="Trigger" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.05, -0.06, 0)
+mesh = SubResource("Trigger")
+
+[node name="Foot" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, -0.74, 0)
+mesh = SubResource("Foot")
+
+[node name="HeatLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.25, 0.28)
+pixel_size = 0.006
+text = "HOT AIR"
+font_size = 28
+outline_size = 0
+modulate = Color(0.93, 0.87, 0.76, 1)

@@ -34,6 +34,8 @@ const BRIGHT := Color("#c6ffd8")
 const DIM := Color("#23824a")
 const FAINT := Color("#0e3a1e")
 const PAGE_KEYS := {KEY_F1: "board", KEY_F2: "bench", KEY_F3: "ledger", KEY_F4: "shop"}
+const Neighbourhood = preload("res://scripts/neighbourhood.gd")
+const GLUE_WARNING := Neighbourhood.MEGACORP + " WARRANTY GLUE OVER THE SCREWS: HEAT GUN, THEN SUCTION PEN"
 
 @onready var screen: MeshInstance3D = $Screen
 var viewport: SubViewport
@@ -406,7 +408,7 @@ func wrapped(value: String, size: int, width: float, color: Color = PHOSPHOR) ->
 
 func build_board() -> void:
 	content.add_child(text("OPEN REPAIR REQUESTS", 20, BRIGHT, true))
-	content.add_child(text("TECHS PAY THE POSTED PRICE. CUSTOMERS PAY YOUR BILL AND RATE YOU.", 13, DIM))
+	content.add_child(text("TECHS PAY THE POSTED PRICE. CUSTOMERS PAY YOUR BILL; HOW HAPPY THEY ARE COLOURS THE MAP (N).", 13, DIM))
 	for offer in jobs.offers:
 		var tech: bool = jobs.is_tech(offer)
 		var missing: Array = jobs.missing_equipment(offer)
@@ -416,9 +418,12 @@ func build_board() -> void:
 		var details := VBoxContainer.new()
 		details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(details)
-		details.add_child(text("#%d  %s  %s" % [offer.id, ("TECH " if tech else "") + offer.customer.to_upper(), offer.model.to_upper()], 14, DIM))
+		var place: String = jobs.home_text(offer)
+		details.add_child(text("#%d  %s  %s" % [offer.id, ("TECH " if tech else "") + offer.customer.to_upper() + ("" if place == "" else ", " + place.to_upper()),
+			offer.model.to_upper()], 14, DIM))
 		details.add_child(wrapped("> " + offer.complaint if tech else "> NOTE: \"%s\"" % offer.complaint, 15, 470))
 		if offer.get("exterior_clean", false): details.add_child(text("STARTER CLEANING / BLOWER ONLY", 13, BRIGHT))
+		if not offer.get("glued", []).is_empty(): details.add_child(text(GLUE_WARNING, 13, BRIGHT))
 		if not missing.is_empty(): details.add_child(wrapped("NEEDS: " + ", ".join(missing).to_upper(), 13, 470, BRIGHT))
 		if tech:
 			details.add_child(text("DIAGNOSED: %d FAULT%s TAGGED ON THE BOX" % [offer.faults.size(), "" if offer.faults.size() == 1 else "S"], 13, DIM))
@@ -430,9 +435,10 @@ func build_board() -> void:
 		pay.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		side.add_child(pay)
 		if not tech:
-			var due := text("WITHIN " + jobs.duration_text(offer.due).to_upper(), 13, DIM)
-			due.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			side.add_child(due)
+			for line in ["QUOTE $%d" % offer.quote, jobs.due_text(offer).to_upper()]:
+				var due := text(line, 13, DIM)
+				due.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				side.add_child(due)
 		var accept := term_button("LOCKED" if not missing.is_empty() else "BENCH FULL" if jobs.bench_full() else "ACCEPT", 16)
 		accept.disabled = jobs.bench_full() or not missing.is_empty()
 		accept.name = "Accept%d" % offer.id
@@ -446,9 +452,12 @@ func build_bench() -> void:
 	if not jobs.last_result.is_empty():
 		var result: Dictionary = jobs.last_result
 		var banner := card(BRIGHT if result.paid else PHOSPHOR)
-		banner.add_child(text(("** JOB #%d RETURNED TO %s - PAID $%d **" if result.paid else "!! JOB #%d RETURNED TO %s - NO PAYMENT !!") %
-			([result.id, result.customer.to_upper(), result.amount] if result.paid else [result.id, result.customer.to_upper()]), 16, BRIGHT, true))
-		banner.add_child(wrapped("> " + result.feedback + ("" if result.stars == 0 else "  [%s %d/5]" % [jobs.stars_text(result.stars), result.stars]), 15, 700))
+		banner.add_child(text(("** JOB #%d RETURNED TO %s - PAID $%d%s **" if result.paid else "!! JOB #%d RETURNED TO %s - NO PAYMENT !!") %
+			([result.id, result.customer.to_upper(), result.amount, " INCL. $%d TIP" % result.tip if result.get("tip", 0) > 0 else ""] if result.paid else
+			[result.id, result.customer.to_upper()]), 16, BRIGHT, true))
+		banner.add_child(wrapped("> " + result.feedback + ("" if result.stars == 0 else "  [SATISFACTION %s %d/5]" % [jobs.stars_text(result.stars), result.stars]), 15, 700))
+		for zone in result.get("opened", []):
+			banner.add_child(wrapped("WORD GETS AROUND: %s NOW TRUSTS YOUR BENCH. NEW CUSTOMERS ON THE BOARD." % zone.to_upper(), 15, 700, BRIGHT))
 	var job: Dictionary = jobs.active()
 	if job.is_empty():
 		content.add_child(text("BENCH EMPTY. ACCEPT A REQUEST ON THE JOB BOARD.", 16))
@@ -473,8 +482,12 @@ func build_bench() -> void:
 		info.add_child(text("PAYS $%d WHEN THE CARD COMES BACK WORKING" % job.pay, 14, DIM))
 	else:
 		info.add_child(wrapped("NOTE: \"%s\"" % job.complaint, 15, width))
-		info.add_child(text(("WANTS IT WITHIN %s - %s" % [jobs.duration_text(job.due), jobs.due_text(job)]).to_upper(), 14, DIM))
+		var place: String = jobs.home_text(job)
+		if place != "": info.add_child(text("LIVES IN %s" % place.to_upper(), 14, DIM))
+		info.add_child(text("QUOTE $%d - WANTS IT BACK %s" % [job.quote, jobs.due_text(job).to_upper()], 14, DIM))
+		info.add_child(wrapped("EVERY 10% OVER THE QUOTE AND EVERY DAY LATE COSTS A POINT. SAME DAY MAY EARN A TIP.", 13, width, DIM))
 		build_bill(job, columns)
+	if not job.get("glued", []).is_empty(): info.add_child(wrapped(GLUE_WARNING, 14, width, BRIGHT))
 	var send := term_button("RETURN CARD TO CUSTOMER", 17)
 	send.name = "ReturnCard"
 	send.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN

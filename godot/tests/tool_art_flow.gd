@@ -18,7 +18,8 @@ func run() -> void:
 	bench.camera_rig.set_physics_process(false)
 	bench.hud.audio_save_timer.stop()
 	for id in bench.tools.TOOLS:
-		if id == "screwdriver": continue
+		# The glue tools came after the restyle, so they have no pre-restyle envelope to keep.
+		if id == "screwdriver" or id in bench.tools.GLUE_TOOLS: continue
 		var tool: Node3D = bench.tools.tool_node(id)
 		var old: Dictionary = baseline[str(tool.name)]
 		var bounds := Contract.bounds_in(tool)

@@ -20,7 +20,9 @@ const TOOL_SCENES := {
 	"fan-oiler": "res://scenes/fan_oiler.tscn",
 	"loupe": "res://scenes/loupe.tscn",
 	"thermal-camera": "res://scenes/thermal_camera.tscn",
-	"dev-blower": "res://scenes/dev_blower.tscn"}
+	"dev-blower": "res://scenes/dev_blower.tscn",
+	"heat-gun": "res://scenes/heat_gun.tscn",
+	"suction-pen": "res://scenes/suction_pen.tscn"}
 
 var views := {}
 var turntables := {}
@@ -52,6 +54,7 @@ func make_model(id: String, shop: Node) -> Node3D:
 		"lighting": return lamp_prop()
 		"refurbishment": return paint_prop()
 		"shop-expansion": return floor_prop()
+		"map-display": return copy(shop.bench.map_display) if shop.bench.map_display != null else null
 	return null
 
 ## A look-alike of live furniture: no scripts, screens' viewports, collision, sound or lights.

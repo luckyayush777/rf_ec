@@ -1,0 +1,103 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="KitSuction"]
+resource_name = "Kit suction"
+albedo_color = Color(0.25, 0.55, 0.6, 1)
+roughness = 0.5
+
+[sub_resource type="StandardMaterial3D" id="KitCharcoal"]
+resource_name = "Kit charcoal"
+albedo_color = Color(0.17, 0.2, 0.21, 1)
+roughness = 0.75
+
+[sub_resource type="StandardMaterial3D" id="KitIvory"]
+resource_name = "Kit ivory"
+albedo_color = Color(0.93, 0.87, 0.76, 1)
+roughness = 0.6
+
+[sub_resource type="StandardMaterial3D" id="KitWindow"]
+resource_name = "Kit window"
+albedo_color = Color(0.55, 0.2, 0.28, 1)
+roughness = 0.15
+
+[sub_resource type="StandardMaterial3D" id="KitRubber"]
+resource_name = "Kit rubber"
+albedo_color = Color(0.08, 0.08, 0.09, 1)
+roughness = 0.9
+
+[sub_resource type="CapsuleMesh" id="Body"]
+material = SubResource("KitSuction")
+radius = 0.16
+height = 1.25
+radial_segments = 20
+rings = 4
+
+[sub_resource type="CylinderMesh" id="Grip"]
+material = SubResource("KitCharcoal")
+top_radius = 0.172
+bottom_radius = 0.172
+height = 0.5
+radial_segments = 20
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Window"]
+material = SubResource("KitWindow")
+top_radius = 0.165
+bottom_radius = 0.165
+height = 0.3
+radial_segments = 20
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Nose"]
+material = SubResource("KitIvory")
+top_radius = 0.035
+bottom_radius = 0.13
+height = 0.5
+radial_segments = 20
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Cup"]
+material = SubResource("KitRubber")
+top_radius = 0.06
+bottom_radius = 0.04
+height = 0.07
+radial_segments = 16
+rings = 1
+
+[sub_resource type="BoxMesh" id="Button"]
+material = SubResource("KitIvory")
+size = Vector3(0.16, 0.06, 0.1)
+
+[node name="SuctionPen" type="Node3D"]
+
+[node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(-4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, 0, 1, -0.2, 0, 0)
+mesh = SubResource("Body")
+
+[node name="Grip" type="MeshInstance3D" parent="."]
+transform = Transform3D(-4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, 0, 1, 0.12, 0, 0)
+mesh = SubResource("Grip")
+
+[node name="Window" type="MeshInstance3D" parent="."]
+transform = Transform3D(-4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, 0, 1, -0.5, 0, 0)
+mesh = SubResource("Window")
+
+[node name="Nose" type="MeshInstance3D" parent="."]
+transform = Transform3D(-4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, 0, 1, 0.63, 0, 0)
+mesh = SubResource("Nose")
+
+[node name="Cup" type="MeshInstance3D" parent="."]
+transform = Transform3D(-4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0, 0, 1, 0.9, 0, 0)
+mesh = SubResource("Cup")
+
+[node name="Button" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, 0.17, 0)
+mesh = SubResource("Button")
+
+[node name="SuctionLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, -0.2, 0.165, 0)
+pixel_size = 0.005
+text = "SUCTION"
+font_size = 28
+outline_size = 0
+modulate = Color(0.93, 0.87, 0.76, 1)

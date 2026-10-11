@@ -130,7 +130,8 @@ func configure(owner_bench: Node3D) -> void:
 	build_work_tools()
 	for item in [["Flip part", "flip"], ["Return tool", "return"], ["Screwdriver", "screwdriver"], ["Air blower", "air-blower"], ["Dev blower", "dev-blower"],
 			["Spudger", "spudger"], ["IPA wipe", "ipa-wipe"], ["Paste syringe", "paste-syringe"], ["Fan oiler", "fan-oiler"],
-			["Loupe", "loupe"], ["Thermal camera (stand)", "thermal-camera"], ["Empty hands", ""], ["Close / Esc", "close"]]:
+			["Loupe", "loupe"], ["Thermal camera (stand)", "thermal-camera"], ["Heat gun (stand)", "heat-gun"], ["Suction pen", "suction-pen"],
+			["Empty hands", ""], ["Close / Esc", "close"]]:
 		var button := Button.new()
 		button.text = item[0]
 		button.custom_minimum_size.y = 42
@@ -163,6 +164,8 @@ func configure(owner_bench: Node3D) -> void:
 		if mode == "service": status.text = message)
 	bench.bearing.opened_changed.connect(func():
 		if mode == "service": frame_view())
+	bench.glue.notice.connect(func(message: String):
+		if mode == "service": status.text = message)
 	overlay.hide()
 
 func work_part(parent: Node3D, mesh: Mesh, at: Vector3, material: Material, turn := Vector3.ZERO) -> MeshInstance3D:
@@ -355,6 +358,9 @@ func frame_view() -> void:
 		status.text = "FAN SERVICE  /  " + ("Click the rotor to refit it" if "fan-rotor" in bench.bearing.opened else
 			"Click the hub to pull the rotor out" if "hub-label" in bench.bearing.opened else
 			"Click the hub sticker to peel it off") + "   •   RMB drag: rotate   •   Wheel: zoom"
+	if mode == "service" and bench.tools.equipped_tool in bench.tools.GLUE_TOOLS:
+		status.text = "WARRANTY GLUE  /  " + ("Hold LMB to heat every blob facing you until they go soft and glossy; flip for the other side" if bench.tools.equipped_tool == "heat-gun" else
+			"Hold LMB on softened glue to suck it off") + ("" if not bench.glue.sealed.is_empty() else ". No glue left on this card") + "   •   RMB drag: rotate   •   Wheel: zoom"
 	if mode == "service" and loupe_view():
 		status.text = "LOUPE  /  Click: centre and magnify   •   Wheel: zoom   •   RMB drag: rotate"
 		if subject == bench.gpu:
@@ -434,6 +440,9 @@ func view_input(event: InputEvent) -> void:
 					magnify_at(event.position)
 				elif mode == "service" and bench.tools.blower_equipped():
 					bench.cleaning.begin()
+				elif mode == "service" and bench.tools.equipped_tool in bench.tools.GLUE_TOOLS:
+					bench.glue.begin()
+					if bench.glue.sealed.is_empty(): status.text = "There is no glue on this card."
 				elif mode == "service" and bench.tools.equipped_tool in bench.tools.SURFACE_TOOLS:
 					bench.paste.begin()
 					bench.bearing.begin()
@@ -481,6 +490,7 @@ func _input(event: InputEvent) -> void:
 			bench.service.end_screw()
 			bench.paste.end()
 			bench.bearing.end()
+			bench.glue.end()
 		if event.button_index == MOUSE_BUTTON_RIGHT: rotating = false
 
 func request_close() -> void:
@@ -515,6 +525,18 @@ func bearing_under_pointer(delta: float) -> void:
 	var hit: Dictionary = pick.surface_hit_at(cleaning_pointer)
 	if hit.is_empty() or not contains_subject(hit.mesh): return
 	bench.bearing.work_at(hit, delta)
+
+## The heat gun blows along the view, warming every blob on the facing side of the part; the
+## suction pen works the blob under the pointer.
+func glue_under_pointer(delta: float) -> void:
+	if mode != "service" or not bench.glue.working or not bench.ready_for_action(): return
+	if bench.glue.work_kind == "heat":
+		bench.glue.heat_from(-camera.global_basis.z, delta)
+		return
+	if not Rect2(Vector2.ZERO, surface.size).has_point(cleaning_pointer): return
+	var hit: Dictionary = pick.surface_hit_at(cleaning_pointer)
+	if hit.is_empty() or not contains_subject(hit.mesh): return
+	bench.glue.work_at(hit, delta)
 
 func paste_progress() -> float:
 	var part := bearing_face()
@@ -558,6 +580,7 @@ func _process(delta: float) -> void:
 	paste_under_pointer(delta)
 	place_work_tool(delta)
 	bearing_under_pointer(delta)
+	glue_under_pointer(delta)
 	var id: String = bench.service.active_screw
 	if id != "": selected_screw = id
 	puff_view.visible = bench.cleaning.puffs.visible
@@ -568,4 +591,4 @@ func _process(delta: float) -> void:
 		(lens.get_node("Magnification") as Label).text = "%d×" % maxi(1, roundi(2.0 / zoom))
 	elif zoom < VIEW_ZOOM:
 		zoom = VIEW_ZOOM
-	progress.value = subject_cleaning_progress() * 100 if bench.tools.blower_equipped() else paste_progress() * 100 if bench.tools.equipped_tool in bench.tools.SURFACE_TOOLS else bench.service.turns[selected_screw].progress * 100 if bench.service.turns.has(selected_screw) else 0
+	progress.value = subject_cleaning_progress() * 100 if bench.tools.blower_equipped() else paste_progress() * 100 if bench.tools.equipped_tool in bench.tools.SURFACE_TOOLS else bench.glue.progress() * 100 if bench.tools.equipped_tool in bench.tools.GLUE_TOOLS else bench.service.turns[selected_screw].progress * 100 if bench.service.turns.has(selected_screw) else 0

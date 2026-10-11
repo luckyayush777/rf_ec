@@ -9,6 +9,7 @@
 [ext_resource type="PackedScene" path="res://scenes/paste_syringe.tscn" id="PasteSyringeScene"]
 [ext_resource type="PackedScene" path="res://scenes/fan_oiler.tscn" id="FanOilerScene"]
 [ext_resource type="PackedScene" path="res://scenes/loupe.tscn" id="LoupeScene"]
+[ext_resource type="PackedScene" path="res://scenes/suction_pen.tscn" id="SuctionPenScene"]
 
 [node name="Toolbox" type="Node3D"]
 script = ExtResource("ToolRoll")
@@ -32,3 +33,5 @@ position = Vector3(0, 0.57, 0.05)
 [node name="FanOiler" parent="." instance=ExtResource("FanOilerScene")]
 
 [node name="Loupe" parent="." instance=ExtResource("LoupeScene")]
+
+[node name="SuctionPen" parent="." instance=ExtResource("SuctionPenScene")]

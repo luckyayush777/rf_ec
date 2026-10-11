@@ -8,11 +8,20 @@ const PASTE_TOOLS := ["spudger", "ipa-wipe", "paste-syringe"]
 const SURFACE_TOOLS := PASTE_TOOLS + ["fan-oiler"]
 ## Hand tools that only look: the jeweller's loupe magnifies the focus view.
 const VIEW_TOOLS := ["loupe"]
-const TOOLS := ["screwdriver", "air-blower", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler", "loupe"]
+## Megacorp glue removal in focus (gpu_glue.gd): the heat gun softens it, the suction pen sucks it off.
+const GLUE_TOOLS := ["heat-gun", "suction-pen"]
+const TOOLS := ["screwdriver", "air-blower", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler", "loupe",
+	"heat-gun", "suction-pen"]
+## Tools that live on their own bench stand instead of a roll pocket. The heat gun's cradle is
+## built here under the repair desk (so it moves with it) at a desk-local spot.
+const STANDS := {"thermal-camera": "ThermalCameraStand", "heat-gun": "HeatGunStand"}
+const STAND_SCENES := {"heat-gun": "res://scenes/heat_gun.tscn"}
+const STAND_LABELS := {"heat-gun": "HEAT GUN"}
+const STAND_TOOL_SCALE := 0.45
 ## The shop air blower is the regular cleaning tool; the debug-only Dev blower clears a wide spot.
 const BLOWERS := ["air-blower", "dev-blower"]
 ## Roll-pocket tools and their node names in scenes/toolbox.tscn.
-const ROLL_NODES := {"screwdriver": "Screwdriver", "air-blower": "AirBlower", "dev-blower": "DevBlower", "spudger": "Spudger", "ipa-wipe": "IpaWipe", "paste-syringe": "PasteSyringe", "fan-oiler": "FanOiler", "loupe": "Loupe"}
+const ROLL_NODES := {"screwdriver": "Screwdriver", "air-blower": "AirBlower", "dev-blower": "DevBlower", "spudger": "Spudger", "ipa-wipe": "IpaWipe", "paste-syringe": "PasteSyringe", "fan-oiler": "FanOiler", "loupe": "Loupe", "suction-pen": "SuctionPen"}
 const EQUIP_NOTICES := {
 	"screwdriver": "Screwdriver equipped. Click the GPU for a close-up, then hold a screw to turn it.",
 	"air-blower": "Air blower equipped. Click a part for a close-up, then hold and sweep the jet over the dust. Air carries into the fins and spins the fan.",
@@ -22,9 +31,12 @@ const EQUIP_NOTICES := {
 	"ipa-wipe": "IPA wipe equipped. Hold and rub the scraped surfaces to lift the remaining film.",
 	"paste-syringe": "Paste syringe equipped. Click the bare die, then hold to squeeze; drag to lay a line.",
 	"fan-oiler": "Fan oiler equipped. Click the detached fan, pull its rotor, then hold on the bearing for a drop.",
-	"loupe": "Loupe equipped. Click the GPU to look over its gold fingers; click to magnify, wheel to zoom."}
+	"loupe": "Loupe equipped. Click the GPU to look over its gold fingers; click to magnify, wheel to zoom.",
+	"heat-gun": "Heat gun equipped. Click the GPU, then hold LMB to heat every glue blob facing you until they turn soft and glossy.",
+	"suction-pen": "Suction pen equipped. Click the GPU, then hold LMB on softened glue to suck it off."}
 const NAMES := {"screwdriver": "screwdriver", "air-blower": "air blower", "dev-blower": "Dev blower", "thermal-camera": "thermal camera",
-	"spudger": "spudger", "ipa-wipe": "IPA wipe", "paste-syringe": "paste syringe", "fan-oiler": "fan oiler", "loupe": "loupe"}
+	"spudger": "spudger", "ipa-wipe": "IPA wipe", "paste-syringe": "paste syringe", "fan-oiler": "fan oiler", "loupe": "loupe",
+	"heat-gun": "heat gun", "suction-pen": "suction pen"}
 const RETURN_NOTICES := {
 	"screwdriver": "Screwdriver returned. Hands are free for the fan cable.",
 	"air-blower": "Air blower returned.",
@@ -32,7 +44,10 @@ const RETURN_NOTICES := {
 	"thermal-camera": "Thermal camera returned."}
 
 var locations := {"screwdriver": "toolbox", "air-blower": "toolbox", "dev-blower": "toolbox", "thermal-camera": "stand",
-	"spudger": "toolbox", "ipa-wipe": "toolbox", "paste-syringe": "toolbox", "fan-oiler": "toolbox", "loupe": "toolbox"}
+	"spudger": "toolbox", "ipa-wipe": "toolbox", "paste-syringe": "toolbox", "fan-oiler": "toolbox", "loupe": "toolbox",
+	"heat-gun": "stand", "suction-pen": "toolbox"}
+## Stand-mounted tools' stand nodes, by tool id.
+var stands: Dictionary = {}
 var location: String:
 	get: return locations["screwdriver"]
 	set(value): locations["screwdriver"] = value
@@ -87,8 +102,58 @@ func configure(box: Node3D, view_camera: Camera3D, scene: Node3D, allowed: Calla
 	thermal_camera.set_meta("action", "thermal-camera")
 	nodes["thermal-camera"] = thermal_camera
 	homes["thermal-camera"] = thermal_home
+	stands["thermal-camera"] = thermal_stand
+	for id in STAND_SCENES:
+		build_stand(id, world.get_node("RepairDesk"))
 	can_use = allowed
 	toolbox.set_meta("action", "toolbox")
+
+## A small rubber-footed cradle on the repair desk holding a stand tool, labelled on its plinth.
+## The starter shop moves it with `place_stands`.
+func build_stand(id: String, desk: Node3D) -> void:
+	var stand := Node3D.new()
+	stand.name = STANDS[id]
+	desk.add_child(stand)
+	var rubber := StandardMaterial3D.new()
+	rubber.albedo_color = Color("2a3134")
+	rubber.roughness = 0.9
+	var ivory := StandardMaterial3D.new()
+	ivory.albedo_color = Color("ece0c4")
+	ivory.roughness = 0.6
+	for piece in [[Vector3(1.3, 0.08, 0.6), Vector3(0, 0.04, 0), rubber], [Vector3(0.1, 0.24, 0.42), Vector3(-0.38, 0.2, 0), ivory],
+			[Vector3(0.1, 0.24, 0.42), Vector3(0.36, 0.2, 0), ivory]]:
+		var mesh := BoxMesh.new()
+		mesh.size = piece[0]
+		var block := MeshInstance3D.new()
+		block.mesh = mesh
+		block.material_override = piece[2]
+		block.position = piece[1]
+		stand.add_child(block)
+	var plate := Label3D.new()
+	plate.name = "StandLabel"
+	plate.text = STAND_LABELS[id]
+	plate.pixel_size = 0.004
+	plate.font_size = 26
+	plate.outline_size = 0
+	plate.modulate = Color("ece0c4")
+	plate.position = Vector3(0, 0.05, 0.302)
+	stand.add_child(plate)
+	var tool: Node3D = load(STAND_SCENES[id]).instantiate()
+	tool.name = "HeatGun"
+	stand.add_child(tool)
+	tool.scale = Vector3.ONE * STAND_TOOL_SCALE
+	# The gun stands on its foot between the cradles.
+	tool.position = Vector3(0, 0.42, 0)
+	tool.set_meta("action", id)
+	stands[id] = stand
+	nodes[id] = tool
+	homes[id] = tool.transform
+	place_stands(desk, false)
+
+## Desk-local spot for the heat gun's stand: right of the mat and in front of the unrolled tool
+## roll in the starter shop, behind the roll at the right end of the full-size fixture desk.
+func place_stands(_desk: Node3D, starter: bool) -> void:
+	if stands.has("heat-gun"): stands["heat-gun"].position = Vector3(4.65, 0.0, 0.15) if starter else Vector3(7.6, 0.0, -1.6)
 
 func tool_node(id: String) -> Node3D:
 	return nodes.get(id, screwdriver)
@@ -107,7 +172,9 @@ func set_locked(id: String, value: bool) -> void:
 	if value: locked.append(id)
 	else: locked.erase(id)
 	tool_node(id).set_meta("shop_locked", value)
-	tool_node(id).visible = not value and (id == "thermal-camera" or open)
+	tool_node(id).visible = not value and (STANDS.has(id) or open)
+	# A glue tool's cradle arrives with the tool; the thermal stand is shown on purchase.
+	if STAND_SCENES.has(id): stands[id].visible = not value
 	changed.emit()
 
 func toggle_box() -> void:
@@ -147,9 +214,9 @@ func return_tool() -> void:
 	if busy or id == "" or not can_use.call(id): return
 	busy = true
 	changed.emit()
-	if id != "thermal-camera" and not open: await move_lid(true)
-	set_tool_location(id, "stand" if id == "thermal-camera" else "toolbox")
-	tool_node(id).reparent(thermal_stand if id == "thermal-camera" else toolbox, true)
+	if not STANDS.has(id) and not open: await move_lid(true)
+	set_tool_location(id, "stand" if STANDS.has(id) else "toolbox")
+	tool_node(id).reparent(stands[id] if STANDS.has(id) else toolbox, true)
 	await move_tool(id, tool_home(id))
 	busy = false
 	changed.emit()
@@ -203,7 +270,7 @@ func blower_equipped() -> bool:
 ## The equipped tool works in a part's focus view (click the part to open it).
 func focus_tool() -> bool:
 	var id := equipped_tool
-	return id == "screwdriver" or id in BLOWERS or id in SURFACE_TOOLS or id in VIEW_TOOLS
+	return id == "screwdriver" or id in BLOWERS or id in SURFACE_TOOLS or id in VIEW_TOOLS or id in GLUE_TOOLS
 
 ## The held blower's nozzle axis in world space.
 func blower_axis() -> Vector3:
@@ -225,5 +292,5 @@ func blower_points_at(point: Vector3) -> bool:
 
 func _process(_delta: float) -> void:
 	var id := equipped_tool
-	if (id == "screwdriver" or id in SURFACE_TOOLS or id in VIEW_TOOLS) and not busy:
+	if (id == "screwdriver" or id in SURFACE_TOOLS or id in VIEW_TOOLS or id in GLUE_TOOLS) and not busy:
 		tool_node(id).transform = held_pose(id)

@@ -359,5 +359,50 @@ func run() -> void:
 	bench.computer.leave()
 	bench.queue_free()
 	for frame in range(10): await process_frame
-	print("PASS: starter ownership, real website purchase, finite/unlimited wallet, finishable blower job, locks, equipment placement/cancel, rotated test station, tray, build view placement/stash, catalog previews, square shop expansions and room upgrades" if failures.is_empty() else "FAIL: " + str(failures))
+	await kit_out()
+	print("PASS: starter ownership, real website purchase, finite/unlimited wallet, finishable blower job, locks, equipment placement/cancel, rotated test station, tray, build view placement/stash, catalog previews, square shop expansions, room upgrades and debug kit-out" if failures.is_empty() else "FAIL: " + str(failures))
 	quit(0 if failures.is_empty() else 1)
+
+## Debug kit-out from the menu: everything bought free of charge, every square built, the
+## equipment set down by the repair desk, and every tool can be taken up and put back.
+func kit_out() -> void:
+	var bench = load("res://scenes/workbench.tscn").instantiate()
+	bench.progression_enabled = true
+	root.add_child(bench)
+	await process_frame
+	bench.camera_rig.set_physics_process(false)
+	var shop: Node = bench.shop
+	shop.set_unlimited(false)
+	var balance: int = bench.jobs.balance
+	bench.hud.debug_kit_out_requested.emit()
+	for id in shop.CATALOG: expect(shop.owns(id), "Kit-out left %s unbought" % id)
+	expect(shop.expansions == StarterShop.MAX_EXPANSIONS, "Kit-out built %d expansions" % shop.expansions)
+	expect(not shop.unlimited_funds and bench.jobs.balance == balance, "Kit-out charged the wallet or changed its setting")
+	var desk: Vector3 = shop.equipment["repair-desk"].global_position
+	for id in shop.equipment:
+		expect(shop.placed.get(id, false) and shop.equipment[id].visible and shop.valid_position(shop.equipment[id]), "Kit-out left %s unplaced or misplaced" % id)
+		var at: Vector3 = shop.equipment[id].global_position
+		expect(Vector2(at.x - desk.x, at.z - desk.z).length() < 20.0, "Kit-out set %s down far from the repair desk" % id)
+	expect(bench.testing_station.available and bench.map_display.visible and bench.tools.thermal_stand.is_visible_in_tree(), "Kit-out left the station, map screen or thermal stand unusable")
+	var job: Dictionary = bench.jobs.make_job(["dust", "paste", "bearing"], "customer")
+	job.glued = bench.service.fan_screws.duplicate()
+	expect(bench.jobs.missing_equipment(job).is_empty(), "A glued all-fault job still needed: %s" % [bench.jobs.missing_equipment(job)])
+	expect(bench.tools.locked.is_empty(), "Kit-out left tools locked: %s" % [bench.tools.locked])
+	bench.tool_menu_open = true
+	for id in bench.tools.TOOLS:
+		await bench.tools.equip(id)
+		expect(bench.tools.equipped_tool == id, "The %s could not be taken up after kit-out" % id)
+		await bench.tools.return_tool()
+		expect(bench.tools.equipped_tool == "" and bench.tools.tool_location(id) in ["toolbox", "stand"], "The %s did not go back" % id)
+	bench.tool_menu_open = false
+	# A second press changes nothing.
+	expect(shop.debug_kit_out() and shop.expansions == StarterShop.MAX_EXPANSIONS and shop.stored_ids().is_empty(), "A second kit-out failed or changed the shop")
+	key(bench, KEY_B)
+	await create_timer(0.65).timeout
+	await capture("progression-kit-out-plan")
+	key(bench, KEY_B)
+	await create_timer(0.65).timeout
+	await stand(bench, Vector3(17, -4.35, 6), desk + Vector3(4, 0, -4))
+	await capture("progression-kit-out-room")
+	bench.queue_free()
+	for frame in range(10): await process_frame

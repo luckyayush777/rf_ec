@@ -33,7 +33,9 @@ func run() -> void:
 	expect(hud.repair_speed_panel.is_visible_in_tree(), "Escape menu did not expose debug repair speeds")
 	var screen := Rect2(Vector2.ZERO, root.get_visible_rect().size)
 	expect(screen.encloses(hud.repair_speed_panel.get_global_rect()), "Repair speed controls extend outside the window")
-	expect(hud.repair_speed_sliders.size() == 3, "Expected dust, IPA and scraping controls")
+	expect(hud.repair_speed_sliders.size() == 4, "Expected dust, IPA, scraping and glue suction controls")
+	expect(hud.glue_soft_slider != null and hud.glue_soft_slider.value == bench.glue.DEFAULT_SOFT_TIME and bench.glue.soft_time == bench.glue.DEFAULT_SOFT_TIME,
+		"The glue soft-time control did not start at its default")
 	for slider in hud.repair_speed_sliders.values():
 		expect(slider.value == 1.0 and slider.focus_mode == Control.FOCUS_NONE, "Fixture did not start at baseline with mouse-only sliders")
 	hud.repair_speed_sliders.scrape.value = 4.0
@@ -97,18 +99,47 @@ func run() -> void:
 	hud.repair_speed_sliders.dust.value = 4.0
 	faster = cleaning.clean_at(surface.mesh, point, Vector3.UP, 0.02, 0.2)
 	expect(baseline > 0.0 and absf(faster / baseline - 4.0) < 0.1, "Dust multiplier did not speed up actual mask removal")
+	# Glue: suction speed scales the soft blob's removal; the soft time sets how long it stays soft.
+	var glue: Node = bench.glue
+	var screw: String = bench.service.fan_screws[0]
+	glue.set_sealed([screw])
+	glue.seals[screw].heat = 1.0
+	glue.work_kind = "suck"
+	glue.working = true
+	var hit := {"point": glue.world_centre(screw), "mesh": glue.seals[screw].root.get_child(0)}
+	hud.set_repair_speed("suction", 1.0)
+	glue.work_at(hit, 0.1)
+	baseline = 1.0 - glue.seals[screw].amount
+	glue.seals[screw].amount = 1.0
+	hud.repair_speed_sliders.suction.value = 2.5
+	glue.work_at(hit, 0.1)
+	faster = 1.0 - glue.seals[screw].amount
+	expect(glue.debug_suck_speed == 2.5 and baseline > 0.0 and absf(faster / baseline - 2.5) < 0.01, "Suction multiplier did not speed up glue removal")
+	glue.end()
+	glue.seals[screw].amount = 1.0
+	hud.glue_soft_slider.value = 120.0
+	expect(glue.soft_time == 120.0 and hud.glue_soft_value.text == "120 s", "The glue soft-time slider did not apply live")
+	glue._process(110.0)
+	expect(glue.is_soft(screw), "Glue set to stay soft 120 s hardened sooner")
+	glue._process(15.0)
+	expect(not glue.is_soft(screw), "Glue set to stay soft 120 s stayed soft longer")
+	glue.set_sealed([])
 	# Persistence and reset are driven by the menu controls.
 	hud.save_repair_speeds()
 	hud.set_repair_speed("dust", 1.0)
 	hud.set_repair_speed("wipe", 1.0)
 	hud.set_repair_speed("scrape", 1.0)
+	hud.set_repair_speed("suction", 1.0)
+	hud.set_glue_soft_time(30.0)
 	hud.load_repair_speeds()
-	expect(cleaning.debug_clear_speed == 4.0 and paste.debug_wipe_speed == 3.0 and paste.debug_scrape_speed == 4.0, "Saved tuning did not restore all rates")
+	expect(cleaning.debug_clear_speed == 4.0 and paste.debug_wipe_speed == 3.0 and paste.debug_scrape_speed == 4.0 and glue.debug_suck_speed == 2.5 and glue.soft_time == 120.0,
+		"Saved tuning did not restore all rates")
 	if "--capture" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
 		await RenderingServer.frame_post_draw
 		root.get_texture().get_image().save_png("res://build/repair-speeds.png")
 	hud.repair_speed_reset.pressed.emit()
-	expect(cleaning.debug_clear_speed == 1.0 and paste.debug_wipe_speed == 1.0 and paste.debug_scrape_speed == 1.0 and bearing.debug_wipe_speed == 1.0, "Reset did not restore every authored rate")
+	expect(cleaning.debug_clear_speed == 1.0 and paste.debug_wipe_speed == 1.0 and paste.debug_scrape_speed == 1.0 and bearing.debug_wipe_speed == 1.0 and
+		glue.debug_suck_speed == 1.0 and glue.soft_time == glue.DEFAULT_SOFT_TIME, "Reset did not restore every authored rate")
 	hud.set_menu_open(false)
 	expect(not hud.repair_speed_panel.is_visible_in_tree(), "Speed controls remained visible during play")
 	DirAccess.remove_absolute(hud.repair_speed_settings_path)

@@ -26,6 +26,7 @@ SUITES = {
     'walking': ['first_person_flow'],
     'outside': ['outside_flow'],
     'progression': ['progression_flow'],
+    'neighbourhood': ['neighbourhood_flow', 'billing_flow'],
 }
 
 

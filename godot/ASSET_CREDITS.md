@@ -38,6 +38,16 @@ The four sounds below were cut from Freesound previews, mixed to mono 44.1 kHz, 
 
 License: https://creativecommons.org/licenses/by/4.0/
 
+The two megacorp-glue tool loops were cut from Freesound previews, both licensed **CC0 1.0** (https://creativecommons.org/publicdomain/zero/1.0/): decoded to mono 44.1 kHz, second-order high-pass, an equal-power crossfade from each loop's end into its start, peak-normalised and stored as 16-bit PCM WAV.
+
+- `assets/sounds/heat_gun.wav` loops while the heat gun's trigger is held, re-pitched as its motor winds up and coasts down. It is the steady blowing of **"Hair Dryer / Hairdryer" by Breviceps** (a heat gun is a hotter hair dryer): 4.0-18.0 s, 90 Hz high-pass and 9 kHz low-pass, 0.5 s crossfade, -3 dBFS peak, 13.5 s. Source: https://freesound.org/s/457028/
+- `assets/sounds/suction_pen.wav` loops while the suction pen is held, louder while it sucks up soft glue. It is **"Dental tube sucking in mouthwash, suction pipe.wav" by mht23SD**: 0.6-4.6 s, 120 Hz high-pass, 0.3 s crossfade, -2 dBFS peak, 3.7 s. Source: https://freesound.org/s/707322/
+
+The two payment one-shots were cut from Freesound previews, both licensed **CC0 1.0** (https://creativecommons.org/publicdomain/zero/1.0/): decoded to mono 44.1 kHz, high-passed, a 5 ms fade-in and a squared fade-out, peak-normalised and stored as 16-bit PCM WAV.
+
+- `assets/sounds/payment_kaching.wav` plays whenever a returned card is paid for. It is the first 1.8 s of **"Cash Register Purchase" by Zott820** (60 Hz high-pass, 0.6 s fade-out, -2 dBFS peak). Source: https://freesound.org/s/209578/
+- `assets/sounds/payment_tip.wav` follows the ka-ching 0.45 s later when a customer tips. It is the first 2.4 s of **"Success Jingle" by Kastenfrosch** (80 Hz high-pass, 0.5 s fade-out, -4 dBFS peak). Source: https://freesound.org/s/521949/
+
 `assets/shop-interior.glb` is the repository-authored workshop, exported from `models/shop-interior.blend`. Visual references and export instructions are recorded in `models/shop-interior.md`; no third-party model or photo textures are embedded.
 
 `assets/fonts/PermanentMarker-Regular.ttf` is **Permanent Marker** by Font Diner, licensed under the Apache License 2.0 (`assets/fonts/LICENSE-PermanentMarker.txt`). Techs write fault tags with it. `assets/fonts/Caveat-Variable.ttf` is **Caveat** by The Caveat Project Authors, licensed under the SIL Open Font License 1.1 (`assets/fonts/OFL-Caveat.txt`). Customer notes and tech signatures use it. Both come from the Google Fonts repository (https://github.com/google/fonts).

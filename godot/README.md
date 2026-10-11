@@ -7,6 +7,7 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 ## Implemented
 
 - **Repair jobs**: play opens on an empty bench. Take a job on the shop computer's internal portal; a few seconds later the parcel comes in through the delivery hatch under the window. Carry it to the repair desk, open it, diagnose and fix the card, then return it from the portal to get paid. See [Repair jobs](#repair-jobs).
+- **The neighbourhood and the megacorp**: customers are households on a map. Each starts red with a broken card and turns yellow or green by how satisfied the repair left it (price against their quote, and how many days it took). Enough happy households open the next zone and its customers. Locked zones are turf of the megacorp CSI, which starts gluing its cards' screws shut; soften the glue with the heat gun and suck it off with the suction pen. N shows the map; a wall screen for it is sold in the shop. See [The neighbourhood and the megacorp](#the-neighbourhood-and-the-megacorp).
 - **The view outside and the time of day**: the shop sits at the top of a flower meadow in a cozy alpine valley. A three-bay window in the right wall looks past soft pines and a wooden fence, down to a lake and a village on the far shore, over pine-forested hills to snow-capped mountains and a hazy skyline. The sky follows the shop clock: morning, a western sunset straight out of the window, then a night of stars, moon and lit village windows. Afternoon sun throws a window-shaped patch into the room; at night the room dims and the workshop lamps turn warmer. Leaving through the front door ends the day. See [Day and night](#day-and-night).
 - Rounded, stylized 710 / 2GB DDR3 GPU with rounded fins and larger capacitors/screw heads, retaining its original component hierarchy and 12 separate worn-pad residue meshes. Delivered cards use one of three consistent brand palettes: **Lotac** (teal, cream and orange), **Vsus** (navy and mint), or **CSI** (charcoal, plum and red). Each brand has matching printed retail packaging; components, specifications and repair behaviour are shared.
 - Imported workshop interior with a brick back wall, painted side wall, tiled floor, a delivery window in the right wall, background instrument bench, oscilloscope, labelled parts bins, soldering station, stool and trolley. The runtime is enclosed for first-person play; the editor keeps a cutaway overview. The props are scenery. See [room authoring](../models/shop-interior.md).
@@ -33,13 +34,13 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 - The Escape menu opens with collapsed sections: **Dust & diagnostics**, **Assembly**, **Fault setup**, **Repair speeds**, **Lighting** and **Sound**. Click a header to expand or collapse its subpanel; expanded groups scroll inside the menu when needed. The five debug sections appear only in debug builds.
 - **Lighting (debug)**: **Escape → Lighting → Scene light** scales the room lights and the light on the view outside together, from 0.2x to 1.6x. Play starts at 0.75x of the authored rig. The level persists in `user://bench_lighting.cfg`; automated fixtures ignore it.
 - The frame rate shows in the top-right corner.
-- Debug builds have **Clean GPU** and **Advance clock 1 h** (to look at the evening and night sky) under **Dust & diagnostics** and **Disassemble GPU** / **Reassemble GPU** under **Assembly**. Clean GPU clears every dust mask; a connected test monitor recovers as the card cools (dried paste still throttles it). Disassemble GPU unplugs the cable, moves all eight screws into their tray rows, and lays the heatsink and fan out on the mat just left of the card; normal refitting still works afterward. Disassembly is available when the GPU is set down and off the test board.
+- Debug builds have **Clean GPU**, **Advance clock 1 h** (to look at the evening and night sky) , **Fix card and return it (paid)** and **Kit out shop (buy and place everything)** under **Dust & diagnostics**. Kit-out buys every tool and upgrade and all three expansions at no cost (left of the room, behind it, and behind-left), then sets the test station and queue display down on the nearest clear floor beside the repair desk; hands must be empty and build view closed. The last one strips any glue, reassembles the card, clears every fault and returns it through the normal portal return, so the client pays (and a customer scores it) as usual; the card must be unboxed, set down and off the test board. Debug builds also have **Disassemble GPU** / **Reassemble GPU** under **Assembly**. Clean GPU clears every dust mask; a connected test monitor recovers as the card cools (dried paste still throttles it). Disassemble GPU unplugs the cable, moves all eight screws into their tray rows, and lays the heatsink and fan out on the mat just left of the card; normal refitting still works afterward. Disassembly is available when the GPU is set down and off the test board.
 - Low-density dust remains visible until its mask is fully erased. In debug builds, the bottom **highlight dust** button toggles a magenta view of remaining dust through parts. If dust remains 30 seconds after equipping the Dev blower, this view turns on automatically. Rotate, flip or remove parts to expose dust before cleaning it.
 - Pointer release, Escape and window focus loss pause active screw turns. Tool/cable/inspection changes are blocked during active service animations.
 - Screwdriver, blowers and cleaning jingles share a sound toggle; see [asset credits](ASSET_CREDITS.md).
 - **Repair status overlay** (debug builds, developer aid): expand **Escape → Dust & diagnostics** and switch on **Repair status overlay**; the choice is remembered. It lists the Job (including the rolled faults the customer only hints at), then Dust, Thermal paste, Fan bearing, Assembly and the live Test run readout, each red (broken or untouched), yellow (in progress) or green (done), with hidden truth such as paste contact percentage. It stays visible during play and above focus views.
-- **Repair speeds (debug)**: expand **Escape → Repair speeds** and adjust **Dust clearing**, **IPA wiping**, or **Paste scraping**. Each multiplier ranges from 0.1x to 20x; 1x is the original speed and higher values remove material faster. Changes apply immediately and persist in `user://bench_repair_speeds.cfg`. **Reset repair speeds to 1x** restores the baseline. Dust affects both blowers; IPA affects paste residue and fan-shaft gunk. Brush sizes, scrape-before-wipe rules and paste application stay the same. Release builds always use the original rates. Automated fixtures start at 1x regardless of saved play tuning.
-- **Sound mix**: expand **Escape → Sound** for a Master slider and one slider per sound (fan quiet/loud loops, bearing grind, air blower motor, Dev blower air, screwdriver, clean jingle, GPU seating, monitor button, racing game, sticker peel, spudger scrape, IPA wipe, paste squeeze, bearing oil drop, unboxing, card set down, delivery hatch shutter, shop PC keys and mouse), from silent to 200%. Changes apply live. Run from the editor, they save into `default_bus_layout.tres`, so they can be committed and are also editable in the editor's bottom **Audio** tab; exported builds save them to user settings.
+- **Repair speeds (debug)**: expand **Escape → Repair speeds** and adjust **Dust clearing**, **IPA wiping**, **Paste scraping** or **Glue suction**, and **Glue stays soft** (how many seconds heated megacorp glue stays soft, 10-180 s, default 60). Each multiplier ranges from 0.1x to 20x; 1x is the original speed and higher values remove material faster. Changes apply immediately and persist in `user://bench_repair_speeds.cfg`. **Reset repair speeds to 1x** restores the baseline (and 60 s for the glue). Dust affects both blowers; IPA affects paste residue and fan-shaft gunk. Brush sizes, scrape-before-wipe rules and paste application stay the same. Release builds always use the original rates. Automated fixtures start at 1x regardless of saved play tuning.
+- **Sound mix**: expand **Escape → Sound** for a Master slider and one slider per sound (fan quiet/loud loops, bearing grind, air blower motor, Dev blower air, screwdriver, clean jingle, GPU seating, monitor button, racing game, sticker peel, spudger scrape, IPA wipe, paste squeeze, bearing oil drop, heat gun, suction pen, payment ka-ching, tip motif, unboxing, card set down, delivery hatch shutter, equipment placed, shop PC keys and mouse), from silent to 200%. Changes apply live. Run from the editor, they save into `default_bus_layout.tres`, so they can be committed and are also editable in the editor's bottom **Audio** tab; exported builds save them to user settings.
 - Service-rule evaluator, exercised against 1,024 checked-in expected decisions and used by the live cable/screw controller.
 
 ## Controls
@@ -71,6 +72,8 @@ Developed and checked with **Godot 4.7.2**, using **GDScript and the Compatibili
 | Rotate / place / refit assembly | RMB + mouse / E on clear repair tabletop / Q; cooler refits before fan |
 | Clean dust | Equip the air blower, click a part for focus, hold LMB and sweep the jet over exposed surfaces; remove assemblies to reach internal dust. Debug builds also have the wide-footprint Dev blower. |
 | Thermal camera | After buying it from F4 Shop: E on the orange camera on the repair desk; hold RMB for its larger viewfinder |
+| Neighbourhood map | N toggles the map over the view (walking carries on underneath). The bought wall screen beside the window shows the same map. |
+| Remove megacorp glue | After buying them: E on the heat gun on its stand at the right of the bench (or take the suction pen from the tool roll's last pocket), then click the GPU for focus. Heat gun: hold LMB and every glue blob facing you warms until it glows soft (flip the part for the other side). Suction pen: hold LMB on soft glue to suck it off. Q returns the gun to its stand and the pen to the roll. See [Megacorp warranty glue](#megacorp-warranty-glue). |
 | Repaste | With the heatsink removed, equip spudger / IPA wipe / paste syringe and click the GPU or detached heatsink. Hold LMB on the framed die or base to scrape, wipe or squeeze. See [Repasting](#repasting). |
 | Oil the fan bearing | In focus on the detached fan: click the hub sticker, then the hub to pull the rotor. Hold LMB along the shaft with the IPA wipe, then on the bearing with the fan oiler. Click the rotor to refit it. See [Fan bearing](#fan-bearing). |
 | Place / retrieve a tool | E on clear repair tabletop / E on placed tool |
@@ -93,11 +96,12 @@ Play opens in a small, worn workshop with an empty bench and an air blower. **Un
    accepted card, its status, the customer's running bill and the return button) and
    **Ledger** (balance, customer rating and returned jobs), and **Shop** (tools, equipment and room upgrades). The header shows the shop
    clock. **Accept** puts the request on your bench. Locked requests list the equipment you need; buy tools and place a test station to unlock them. Requests come from two kinds of client
-   (see [Clients, bills and ratings](#clients-bills-and-ratings)):
+   (see [Clients, bills and satisfaction](#clients-bills-and-satisfaction)):
    - **Techs** have already diagnosed the card. They describe the symptoms, pay a posted
      price, and tag the box with the faults they found.
-   - **Customers** only leave a note such as "fix it". You diagnose the card and bill them,
-     and they rate you.
+   - **Customers** are households on the [neighbourhood map](#the-neighbourhood-and-the-megacorp)
+     and only leave a note such as "fix it". You diagnose the card and bill them; the board
+     shows their quote and when they want it back, and their satisfaction colours their home.
 2. **Fetch and unbox it.** About 2.5 seconds after you accept, the roller shutter on the
    delivery hatch under the right-wall window rattles up, a branded retail box slides in
    onto the counter and the shutter comes back down, with distinct recorded sounds for each
@@ -113,8 +117,9 @@ Play opens in a small, worn workshop with an empty bench and an air blower. **Un
    nothing useful, so you diagnose the card yourself.
 4. **Return it** from **My bench** once it is reassembled, with its fan cable
    connected, and set down. The courier takes it. If nothing is wrong with the card,
-   a tech pays the posted price and a customer pays your bill and rates you. Otherwise
-   they report what is still wrong and pay nothing (a customer also gives one star). This includes problems you caused, such as refitting the
+   a tech pays the posted price and a customer pays your bill (plus any tip) and scores their
+   satisfaction. Otherwise they report what is still wrong and pay nothing (a customer's
+   satisfaction is also one of five). This includes problems you caused, such as refitting the
    heatsink over too little paste.
 
 The bench holds **one card** at a time (`MAX_QUEUE` in `scripts/repair_jobs.gd`). The
@@ -143,17 +148,17 @@ Which faults is uniform. Adding a fault type keeps the same *r*, so many-fault c
 get rarer still (with four types: 62.1 / 24.5 / 9.6 / 3.8%). Every card has at least
 one fault, and everything not rolled starts healthy: clean, freshly pasted, oiled.
 A tech pays $40 for dust, $60 for paste and $45 for the bearing they diagnosed.
-An exterior-fan-cleaning referral always remains available for $25 and needs only the air blower; its internal surfaces start clean. The initial board also shows locked repaste and customer bearing work. Progress, purchases and equipment positions live in memory only; there is no save yet. More bench slots are pending.
+An exterior-fan-cleaning referral always remains available for $25 and needs only the air blower; its internal surfaces start clean. The initial board also shows locked repaste and customer bearing work. The board holds three requests, plus one more for each further zone of the neighbourhood the shop has opened. Progress, purchases and equipment positions live in memory only; there is no save yet. More bench slots are pending.
 
 ### Buying and arranging equipment
 
 Use the PC and press **F4** for **Bench Supply**, or click its Shop tab. Scroll the page; Tools, Equipment and Workshop select departments. **Unlimited funds** starts on. Switch it off to have purchases subtract from your wallet. Prices are provisional and purchases last until you close the game.
 
-- Tools: air blower $35 (already owned), screwdriver $30, spudger $12, IPA kit $18, paste syringe $25, fan oiler $20, loupe $45, thermal camera $350, and Dev blower $500 in development builds. Hand tools fill their roll pockets; the thermal camera goes on its bench stand. Consumable refills are included for now.
+- Tools: air blower $35 (already owned), screwdriver $30, spudger $12, IPA kit $18, paste syringe $25, fan oiler $20, loupe $45, thermal camera $350, heat gun $40, suction pen $30, and Dev blower $500 in development builds. Hand tools fill their roll pockets; the thermal camera and heat gun arrive on their own bench stands. Consumable refills are included for now.
 Every item has a card with a product shot; hover a card to turn the item on its turntable.
 
 - Equipment: testing station $400 (table, board and monitor together) and queue display $120. Bought equipment waits in storage. **PLACE** (or **MOVE** once placed) opens build view holding it.
-- Workshop: lighting $150 and paint/bench refinishing $250 improve the starter room. **Shop expansion** ($600 each, three squares) is bought in build view: **BUILD** opens it ready to plop one down.
+- Workshop: lighting $150 and paint/bench refinishing $250 improve the starter room. The neighbourhood map screen ($90) goes up on the window wall beside the window, between it and the front corner. **Shop expansion** ($600 each, three squares) is bought in build view: **BUILD** opens it ready to plop one down.
 
 ### Build view
 
@@ -163,19 +168,20 @@ Press **B** with empty hands (or use BUILD / PLACE / MOVE on the website) to loo
 - **Equipment:** click a placed piece (or **MOVE** in the panel) to pick it up. The repair desk and shop computer move the same way but stay in the shop (no stash); clear the desk first (card refitted, tools put away, test station empty) and everything on it rides along. Each workstation keeps standing room clear in front of it. Move the mouse to a clear spot, **R** rotates and click places it on a green footprint. **X** (or **STASH**) puts it back in storage; stored pieces are listed with **PLACE**. The door, hatch, other furniture, you and the station's working aisle must remain clear. Empty the test station before moving it.
 - **WASD** / middle drag pans, the wheel zooms, **Esc**, **Q** or right-click steps back, and **B** returns to first person.
 
-Start with the **$25 exterior fan clean**; it needs only the blower and always replenishes. Full repairs need their listed service tools and a placed test station. Customer diagnosis also needs the thermal camera. Buying a station without placing it does not unlock its jobs.
+Start with the **$25 exterior fan clean**; it needs only the blower and always replenishes. Full repairs need their listed service tools and a placed test station. Customer diagnosis also needs the thermal camera, and a megacorp card glued shut needs the heat gun and suction pen. Buying a station without placing it does not unlock its jobs.
 
-### Clients, bills and ratings
+### Clients, bills and satisfaction
 
 Half of all requests come from techs (`TECH_SHARE`). The opening board always starts with one,
 so the first card arrives tagged with its faults, which acts as a soft tutorial. Techs do not
-rate the shop yet.
+score the shop yet. A customer request comes from a red household in the shop's zone that has
+no card on the board or bench yet; when none is free, the request goes to a tech instead.
 
 **Shop clock.** Play time runs at half a shop minute per second (30 shop minutes per real
 minute) from 09:00 on day 1, so the 09:00-21:00 working day takes 24 real minutes. The
 portal header shows it. At 21:00 a notice reminds you to close; leaving through the front
-door skips to 09:00 the next day. Cards, parcels and customers' deadlines carry over, and
-deadlines keep counting through the night.
+door skips to 09:00 the next day. Cards and parcels carry over, and a customer's days keep
+counting overnight.
 
 **Customer bills** are itemised on **My bench** while you work:
 
@@ -188,15 +194,74 @@ deadlines keep counting through the night.
   (paste faces) or per shaft-wipe press, and one oil drop per drop. The catalogue in
   `scripts/bill_of_materials.gd` is ready for spare parts once they exist.
 
-The customer pays the total in whole dollars.
+The customer pays the total in whole dollars. Every paid return rings a cash register ka-ching; a tip adds a short happy motif just after it (recorded CC0 sounds, see [asset credits](ASSET_CREDITS.md)).
 
-**Ratings.** A customer starts at five stars and loses up to three for lateness. They wait from
-acceptance to return, and the board shows how long they will wait (two hours plus 90 minutes
-per hidden fault plus some slack). They lose another star at 1.5x the due time, at 2x and beyond.
-They also lose up to three for price compared with what they consider fair: the diagnosis fee
-plus the fault prices a tech would pay. Bills up to 1.2x fair cost nothing, then a star each at
-1.5x, 2x and beyond. The minimum is one star. The ledger shows each customer's stars and the
-shop's average; the queue display shows the average too. Ratings do not affect jobs yet.
+**Satisfaction.** A customer's satisfaction (out of 5) is their price satisfaction plus their
+time satisfaction (`rate` in `scripts/repair_jobs.gd`). There is no repair-quality score: a
+card that still has a problem simply goes back unpaid at one of five.
+
+- **Price:** their *quote* is what they expect to pay: the $20 diagnosis fee plus the fault
+  prices a tech would pay. Every full 10% billed over the quote costs one point
+  (`OVERCHARGE_STEP`); a bill at or under it costs nothing.
+- **Time:** shop days from accepting the job to returning it. A customer expects the card back
+  by the end of the next day (`EXPECTED_DAYS`); each day later costs one point. The board and
+  bench page show the quote and "by end of tomorrow", "by end of today" or how many days late.
+- **Same day:** a card returned on the day it was accepted earns, half the time, a tip of 10-25%
+  of the bill (at least $2), and otherwise one or two extra points (`SAME_DAY_*`, `TIP_SHARE`),
+  which can make up for an overcharge. Satisfaction stays between one and five.
+
+The ledger shows each customer's satisfaction and the shop's average; the queue display shows
+the average too. Satisfaction colours the customer's household on the neighbourhood map.
+
+## The neighbourhood and the megacorp
+
+The shop works for the households of a small valley (`scripts/neighbourhood.gd`), drawn on the
+neighbourhood map: press **N** anywhere for it, or buy the wall screen. Every household owns one
+card and starts **red** (a broken card, and an unhappy home). A customer job comes from a red
+household; when its card goes back, the household turns **green** at a satisfaction of 4 or 5,
+**yellow** at 3, and stays **red** below that (an unhappy household can call again).
+
+The shop's zone starts as **Lakeside Lane** (five households). Locked zones are megacorp turf.
+The map is one continuous low-poly valley, a turf map in the manner of San Andreas: every
+scrap of land is tinted by who holds it (your zones green, CSI turf purple, the CSI campus
+round its tower always theirs), and the next zone flashes red as contested. A zone opens once the zones already open hold either enough
+green households or enough happy ones (yellow or green):
+
+| Zone | Households | Opens at |
+| --- | --- | --- |
+| Lakeside Lane | 5 | start |
+| Old Town | 6 | 2 green or 3 happy |
+| Hillside | 7 | 5 green or 7 happy |
+
+Opening a zone brings its households onto the job board, which also grows by one request. The
+map's side panel counts each zone's red/yellow/green homes, the progress toward the next zone,
+and what the megacorp is up to. The land itself loses its grey wash as more of the
+shop's households turn happy, and a white ring marks a household whose card is on the board
+or the bench.
+
+**The megacorp** is the GPU maker **CSI** for now. In progression play its cards can arrive with
+warranty glue over their screws: half its cards with one zone open, 75% with two and every card
+with three, when the cooler screws are glued too. Exterior cleaning jobs are never glued. A
+glued card says so on the board and bench page and needs the heat gun and suction pen.
+
+### Megacorp warranty glue
+
+Plum blobs of hard glue cover the glued screws, and the screwdriver cannot turn them until the
+glue is off (`scripts/gpu_glue.gd`):
+
+1. **Heat gun** (its stand at the right of the bench): click the GPU for focus and hold LMB.
+   Its motor winds up with the recorded hot-air loop and the hot air covers the whole side of
+   the part you are looking at: every blob facing you warms at once (squarely facing ones
+   fastest), and about 2.5 s turns them soft and glossy, glowing hot. Blobs on the far side stay
+   cold; flip the part for those.
+2. **Suction pen**: hold LMB on a soft blob; it shrinks away in about 1.6 s with a slurping
+   loop. Hard glue refuses ("rock hard"). Soft glue cools and hardens again after 60 s, so heat
+   the side, swap tools (T) and suck the blobs off one by one.
+3. With the glue gone, the screwdriver works as usual. The focus bar shows how much glue is off.
+
+Debug builds have **Glue screws shut (megacorp)** under **Escape → Fault setup**, **Glue
+suction** (a speed multiplier) and **Glue stays soft** (10-180 s) under **Escape → Repair
+speeds**, and a Warranty glue row in the repair status overlay.
 
 ## Day and night
 
@@ -362,7 +427,7 @@ and silent while the link is down.
 
 ## Pending gameplay
 
-Edge-connector repairs (cleaning, re-gluing, bodge wires) and rolling connector faults in jobs, paste thickness/mounting pressure, directional pad scraping, comparison view, further progression (more bench slots, more expansion slots or shapes and saving), volumetric dust (shell layers or detachable felt clumps), fan wear from overspinning and general interaction highlights are pending. Outside, there is nothing to do yet beyond the view: the door only ends the day, parcels arrive by the hatch with no modelled courier, and there is no weather, seasons or night-time event. Imported pad remnants are geometry only. Replacement pads have no gameplay yet. The racing feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
+Customers who train models on their cards, more neighbourhood zones and nastier megacorp tricks, households whose fixed cards break again, a repair-quality part of satisfaction, edge-connector repairs (cleaning, re-gluing, bodge wires) and rolling connector faults in jobs, paste thickness/mounting pressure, directional pad scraping, comparison view, further progression (more bench slots, more expansion slots or shapes and saving), volumetric dust (shell layers or detachable felt clumps), fan wear from overspinning and general interaction highlights are pending. Outside, there is nothing to do yet beyond the view: the door only ends the day, parcels arrive by the hatch with no modelled courier, and there is no weather, seasons or night-time event. Imported pad remnants are geometry only. Replacement pads have no gameplay yet. The racing feed simulates GPU performance; it does not measure actual rendering FPS or diagnose electrical faults.
 
 No deployment workflow or export preset is configured.
 
@@ -401,7 +466,10 @@ For request-to-owner navigation, see [the task router](../AGENTS.md#task-router)
 | `scripts/thermal_camera.gd`, `shaders/thermal_surface.gdshader`, `scenes/thermal_camera.tscn` | Pickup instrument, separate depth-tested thermal world, display, spot readout and fixed palette. |
 | `scripts/gpu_inspection.gd` | Whole-GPU inspection state and exact home-transform restoration. |
 | `scripts/repair_status.gd` | Debug-only repair status rows (job and rolled faults, dust, paste, bearing, assembly, test run) for the Escape-menu overlay. |
-| `scripts/repair_jobs.gd` | Job offers from techs and customers, fault-count odds and rolling, the one-card queue, delivery with box paperwork (through the hatch in play) and unboxing, per-job fault setup, shop clock and next-day rollover, bill of materials recording, customer bills at the labour rate, ratings, return checks and payment. |
+| `scripts/repair_jobs.gd` | Job offers from techs and customers (households), fault-count odds and rolling, megacorp glue rolls, the one-card queue, delivery with box paperwork (through the hatch in play) and unboxing, per-job fault setup, shop clock and next-day rollover, bill of materials recording, customer bills at the labour rate, quotes and satisfaction (price + time, same-day tips), return checks, payment and zone unlocks. |
+| `scripts/neighbourhood.gd` | Households, zones and their unlock thresholds, green/yellow/red from satisfaction, picking the next customer, and the megacorp's glue odds. |
+| `scripts/neighbourhood_map.gd`, `scripts/map_display.gd` | The turf map shared by the N overlay and the wall screen (generated low-poly terrain, territory tints and borders); the bought wall screen beside the window. |
+| `scripts/gpu_glue.gd`, `scenes/heat_gun.tscn`, `scenes/suction_pen.tscn` | Megacorp warranty glue over the screws (heat, cool-down, suction, screw guard, recorded loops) and the two native tool scenes (the heat gun on its desk stand, the suction pen in the tool roll). |
 | `scripts/bill_of_materials.gd` | Per-job bill of materials: catalogue (consumables now, spare parts later), quantities and costs in cents. |
 | `scenes/shop_computer.tscn`, `scripts/shop_computer.gd`, `shaders/crt_screen.gdshader` | Retro shop PC (CRT, beige 486 cabinet, keyboard, ball mouse); green-phosphor portal page in a SubViewport drawn through the curved CRT shader, camera settle and in-world click routing that follows the glass curvature. |
 | `scenes/job_queue_monitor.tscn`, `scripts/job_queue_monitor.gd` | Job-queue display on a floor stand behind the repair desk. |
@@ -470,6 +538,7 @@ $godotExe = 'C:\Users\user\Desktop\ayush.dev\godot\Godot_v4.7.2-stable_win64_con
 & $godotExe --headless --path godot --script res://tests/gpu_brand_flow.gd
 & $godotExe --headless --path godot --script res://tests/edge_connector_flow.gd
 & $godotExe --headless --path godot --script res://tests/outside_flow.gd
+& $godotExe --headless --path godot --script res://tests/neighbourhood_flow.gd
 
 # Run the game, or open the editor.
 & $godotExe --path godot

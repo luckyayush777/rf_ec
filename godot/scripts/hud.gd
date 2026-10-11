@@ -8,7 +8,10 @@ const LIGHT_SETTINGS := "user://bench_lighting.cfg"
 const LIGHT_RANGE := Vector2(0.2, 1.6)
 ## Frames-per-second readout, top right, refreshed this often (seconds).
 const FPS_REFRESH := 0.25
-const REPAIR_SPEEDS := [["dust", "Dust clearing"], ["wipe", "IPA wiping"], ["scrape", "Paste scraping"]]
+const REPAIR_SPEEDS := [["dust", "Dust clearing"], ["wipe", "IPA wiping"], ["scrape", "Paste scraping"], ["suction", "Glue suction"]]
+const Glue = preload("res://scripts/gpu_glue.gd")
+## Seconds heated glue stays soft, set in the Repair speeds section (debug).
+const GLUE_SOFT_RANGE := Vector2(10.0, 180.0)
 const MIN_REPAIR_SPEED := 0.1
 const MAX_REPAIR_SPEED := 20.0
 signal tool_selected(id: String)
@@ -37,8 +40,12 @@ signal debug_repaste_requested
 signal debug_dry_bearing_requested
 signal debug_oil_bearing_requested
 signal debug_connector_requested
+signal debug_glue_requested
+signal debug_fix_return_requested
+signal debug_kit_out_requested
 signal debug_advance_clock_requested
 signal debug_repair_speed_changed(id: String, multiplier: float)
+signal debug_glue_soft_time_changed(seconds: float)
 signal debug_light_changed(level: float)
 
 var inspect_button: Button
@@ -102,11 +109,17 @@ var repair_speed_panel: VBoxContainer
 var repair_speed_sliders: Dictionary = {}
 var repair_speed_values: Dictionary = {}
 var repair_speed_reset: Button
+var glue_soft_slider: HSlider
+var glue_soft_value: Label
 var repair_speed_settings_path := REPAIR_SPEED_SETTINGS
 var menu_sections: Dictionary = {}
 var menu_section_buttons: Dictionary = {}
 var menu_column: VBoxContainer
 var menu_scroll: ScrollContainer
+## N toggles the neighbourhood map over the view.
+const MAP_MARGIN := 40.0
+var map_backdrop: ColorRect
+var map_overlay: Control
 
 func _ready() -> void:
 	var panel := PanelContainer.new()
@@ -221,6 +234,10 @@ func _ready() -> void:
 	debug_clean_button.pressed.connect(func(): debug_clean_requested.emit())
 	# The section is debug-only, so this is too: a quick look at the evening and night sky.
 	make_button("Advance clock 1 h", cleaning_column).pressed.connect(func(): debug_advance_clock_requested.emit())
+	# Skips the repair: the card on the bench is fixed and returned through the normal payment.
+	make_button("Fix card and return it (paid)", cleaning_column).pressed.connect(func(): debug_fix_return_requested.emit())
+	# Buys every tool, upgrade and expansion and sets the equipment down by the repair desk.
+	make_button("Kit out shop (buy and place everything)", cleaning_column).pressed.connect(func(): debug_kit_out_requested.emit())
 	var assembly_section := build_menu_section("assembly", "Assembly", true)
 	debug_disassemble_button = make_button("Disassemble GPU", assembly_section)
 	debug_disassemble_button.visible = OS.is_debug_build()
@@ -246,6 +263,10 @@ func _ready() -> void:
 	var debug_connector_button := make_button("Cycle edge connector damage", faults_section)
 	debug_connector_button.visible = OS.is_debug_build()
 	debug_connector_button.pressed.connect(func(): debug_connector_requested.emit())
+	# Megacorp warranty glue over every seated screw, as at the biggest zone.
+	var debug_glue_button := make_button("Glue screws shut (megacorp)", faults_section)
+	debug_glue_button.visible = OS.is_debug_build()
+	debug_glue_button.pressed.connect(func(): debug_glue_requested.emit())
 	repair_toggle = CheckButton.new()
 	repair_toggle.text = "Repair status overlay"
 	repair_toggle.focus_mode = Control.FOCUS_NONE
@@ -335,6 +356,33 @@ func build_repair_speed_controls(parent: Control) -> void:
 			value_label.text = "%.1fx" % value
 			debug_repair_speed_changed.emit(id, value)
 			save_repair_speeds())
+	# How long heated megacorp glue stays soft, in seconds rather than a multiplier.
+	var soft_row := HBoxContainer.new()
+	repair_speed_panel.add_child(soft_row)
+	var soft_label := Label.new()
+	soft_label.text = "Glue stays soft"
+	soft_label.custom_minimum_size.x = 140
+	soft_row.add_child(soft_label)
+	glue_soft_slider = HSlider.new()
+	glue_soft_slider.min_value = GLUE_SOFT_RANGE.x
+	glue_soft_slider.max_value = GLUE_SOFT_RANGE.y
+	glue_soft_slider.step = 5.0
+	glue_soft_slider.value = Glue.DEFAULT_SOFT_TIME
+	glue_soft_slider.focus_mode = Control.FOCUS_NONE
+	glue_soft_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	glue_soft_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	glue_soft_slider.custom_minimum_size.x = 180
+	soft_row.add_child(glue_soft_slider)
+	glue_soft_value = Label.new()
+	glue_soft_value.text = "%d s" % Glue.DEFAULT_SOFT_TIME
+	glue_soft_value.custom_minimum_size.x = 58
+	glue_soft_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	soft_row.add_child(glue_soft_value)
+	glue_soft_slider.value_changed.connect(func(value: float):
+		if not OS.is_debug_build(): return
+		glue_soft_value.text = "%d s" % value
+		debug_glue_soft_time_changed.emit(value)
+		save_repair_speeds())
 	var hint := Label.new()
 	hint.text = "1x = current speed. Higher = faster. Saved between runs."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -344,7 +392,15 @@ func build_repair_speed_controls(parent: Control) -> void:
 	repair_speed_reset.pressed.connect(func():
 		if not OS.is_debug_build(): return
 		for entry in REPAIR_SPEEDS: set_repair_speed(entry[0], 1.0)
+		set_glue_soft_time(Glue.DEFAULT_SOFT_TIME)
 		save_repair_speeds())
+
+func set_glue_soft_time(seconds: float) -> void:
+	if not OS.is_debug_build() or glue_soft_slider == null: return
+	if not is_finite(seconds): seconds = Glue.DEFAULT_SOFT_TIME
+	glue_soft_slider.set_value_no_signal(clampf(seconds, GLUE_SOFT_RANGE.x, GLUE_SOFT_RANGE.y))
+	glue_soft_value.text = "%d s" % glue_soft_slider.value
+	debug_glue_soft_time_changed.emit(glue_soft_slider.value)
 
 func set_repair_speed(id: String, value: float) -> void:
 	if not OS.is_debug_build() or not repair_speed_sliders.has(id): return
@@ -362,12 +418,15 @@ func load_repair_speeds() -> void:
 	for entry in REPAIR_SPEEDS:
 		var value: Variant = settings.get_value("speeds", entry[0], 1.0)
 		set_repair_speed(entry[0], float(value) if value is float or value is int else 1.0)
+	var soft: Variant = settings.get_value("glue", "soft_time", Glue.DEFAULT_SOFT_TIME)
+	set_glue_soft_time(float(soft) if soft is float or soft is int else Glue.DEFAULT_SOFT_TIME)
 
 func save_repair_speeds() -> void:
 	if not OS.is_debug_build(): return
 	var settings := ConfigFile.new()
 	for entry in REPAIR_SPEEDS:
 		settings.set_value("speeds", entry[0], repair_speed_sliders[entry[0]].value)
+	settings.set_value("glue", "soft_time", glue_soft_slider.value)
 	settings.save(repair_speed_settings_path)
 
 ## Debug whole-scene light level: room lights and the light on the outdoor view together.
@@ -660,7 +719,7 @@ func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Nod
 		"test_board": prompt = "E: connect / remove GPU"
 		"monitor_power": prompt = "E: monitor power"
 		"toolbox": prompt = "E / Click: unroll tool bag"
-		"screwdriver", "air-blower", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler", "loupe": prompt = "E: pick up " + action.replace("-", " ")
+		"screwdriver", "air-blower", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler", "loupe", "heat-gun", "suction-pen": prompt = "E: pick up " + action.replace("-", " ")
 		"cable": prompt = "E: connect / disconnect fan cable"
 		"assembly": prompt = "E: inspect GPU / lift loosened assembly"
 		"desk":
@@ -670,7 +729,7 @@ func update_reticle(hit: Dictionary, tools: Node, inspection: Node, service: Nod
 	if tools.equipped_tool != "": prompt += "   |   Q: return tool"
 	elif inspection.held or service.held_part != "": prompt += "   |   Q: return/refit"
 	if tools.equipped_tool == "thermal-camera": prompt += "   |   Hold RMB: thermal view"
-	interaction_hint.text = (prompt + "\nWASD: move   Mouse: look   E: interact   " + ("B: build view   " if build_hint else "") + "Tab/Esc: release mouse") if captured else "Mouse released — Tab/Esc to resume"
+	interaction_hint.text = (prompt + "\nWASD: move   Mouse: look   E: interact   " + ("B: build view   " if build_hint else "") + "N: map   Tab/Esc: release mouse") if captured else "Mouse released — Tab/Esc to resume"
 
 ## At the shop computer the cursor works the screen; the pause menu, reticle and hints stay
 ## away (the portal's own footer says how to step away).
@@ -679,6 +738,34 @@ func set_computer_mode(active: bool) -> void:
 	set_menu_open(false)
 	reticle.visible = not active
 	interaction_hint.text = ""
+	if active: show_map(false)
+
+## The neighbourhood map shown with N, centred over the view on a dimmed backdrop.
+func add_map_overlay(map: Control) -> void:
+	map_backdrop = ColorRect.new()
+	map_backdrop.name = "MapBackdrop"
+	map_backdrop.color = Color(0.02, 0.03, 0.04, 0.55)
+	map_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	map_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(map_backdrop)
+	map_overlay = map
+	map.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	map.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for side in ["left", "right", "top", "bottom"]:
+		map.set("offset_" + side, MAP_MARGIN * (1 if side in ["left", "top"] else -1))
+	map_backdrop.add_child(map)
+	map_backdrop.hide()
+
+func toggle_map() -> void:
+	show_map(map_backdrop != null and not map_backdrop.visible)
+
+func show_map(value: bool) -> void:
+	if map_backdrop == null: return
+	map_backdrop.visible = value
+	if value: map_overlay.queue_redraw()
+
+func map_open() -> bool:
+	return map_backdrop != null and map_backdrop.visible
 
 func set_status(text: String) -> void:
 	status_label.text = text

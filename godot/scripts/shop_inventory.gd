@@ -19,11 +19,14 @@ const CATALOG := {
 	"fan-oiler": {"name": "Bearing oil dropper", "price": 20, "section": "Tools", "description": "Service a dry fan bearing. Refills included for now."},
 	"loupe": {"name": "Jeweller's loupe", "price": 45, "section": "Tools", "description": "Magnify contacts and inspect the card."},
 	"thermal-camera": {"name": "Thermal camera", "price": 350, "section": "Tools", "description": "Inspect surface temperatures. Arrives on its bench stand."},
+	"heat-gun": {"name": "Heat gun", "price": 40, "section": "Tools", "description": "Softens megacorp warranty glue over screws. Arrives on its bench stand."},
+	"suction-pen": {"name": "Suction pen", "price": 30, "section": "Tools", "description": "Sucks softened glue off screw heads. Rolls into its tool-roll pocket."},
 	"dev-blower": {"name": "Dev blower", "price": 500, "section": "Tools", "description": "Development tool: fast, broad dust removal."},
 	"test-station": {"name": "GPU testing station", "price": 400, "section": "Equipment", "description": "Test board, monitor and compact table. Place it to unlock repair and diagnosis work."},
 	"queue-display": {"name": "Job queue display", "price": 120, "section": "Equipment", "description": "Freestanding display for your current repair."},
 	"lighting": {"name": "Workshop lighting", "price": 150, "section": "Workshop", "description": "Upgrade the room lights for a brighter workday."},
 	"refurbishment": {"name": "Paint and bench refinish", "price": 250, "section": "Workshop", "description": "Fresh walls, a cleaned floor and a refinished worktop."},
+	"map-display": {"name": "Neighbourhood map screen", "price": 90, "section": "Workshop", "description": "Wall screen beside the window: who you have helped, who still has a broken card, and megacorp turf. N shows the map anywhere."},
 	"shop-expansion": {"name": "Shop expansion", "price": 600, "section": "Workshop", "description": "A 5.2 m square of floor. Plop it against the shop in build view and the wall between is knocked through."}}
 ## Bought repeatedly in build view, one square at a time, up to `Starter.MAX_EXPANSIONS`.
 const EXPANSION := "shop-expansion"
@@ -38,6 +41,13 @@ const FAULT_TOOLS := {
 	"dust": ["air-blower", "screwdriver"],
 	"paste": ["screwdriver", "spudger", "ipa-wipe", "paste-syringe"],
 	"bearing": ["screwdriver", "ipa-wipe", "fan-oiler"]}
+const GLUE_TOOLS := ["heat-gun", "suction-pen"]
+## Debug kit-out squares, tried in order: left of the starter room, behind it, then behind the
+## first, closing a compact block. Taken squares fall back to the nearest that fits.
+const KIT_SQUARES := [Rect2(-15.5, -16.5, 26, 26), Rect2(7, -42.5, 26, 26), Rect2(-19, -42.5, 26, 26)]
+## Debug kit-out placement: floor points tried around the repair desk, nearest first, this far apart.
+const KIT_STEP := 1.5
+const KIT_REACH := 16
 var bench: Node3D
 var jobs: Node
 var owned := {"air-blower": true}
@@ -160,6 +170,7 @@ func purchase(id: String) -> bool:
 	if id == "thermal-camera": bench.tools.thermal_stand.show()
 	if id == "refurbishment": Starter.refurbish(bench)
 	if id == "lighting" and bench.day_cycle != null: bench.day_cycle.update()
+	if id == "map-display" and bench.map_display != null: bench.map_display.show()
 	notice.emit("Purchased %s. %s" % [item.name, "It waits in storage; place it in build view (B)." if equipment.has(id) else "Ready to use."])
 	changed.emit()
 	jobs.changed.emit()
@@ -190,6 +201,52 @@ func build_expansion(square: Rect2) -> bool:
 	jobs.changed.emit()
 	return true
 
+## Debug: buys every catalog item and every expansion square at no cost, then sets each stored
+## piece of equipment down on the clear floor nearest the repair desk, so every tool, stand and
+## station is ready to try. The wallet setting is left as it was.
+func debug_kit_out() -> bool:
+	if not OS.is_debug_build(): return false
+	if not bench.ready_for_action() or placement_id != "":
+		notice.emit("Leave build view before kitting out the shop.")
+		return false
+	if hands_busy(): return false
+	var funds := unlimited_funds
+	var was_muted := muted
+	unlimited_funds = true
+	muted = true
+	for id in CATALOG:
+		if id != EXPANSION: purchase(id)
+	for square in KIT_SQUARES:
+		if expansions < Starter.MAX_EXPANSIONS and Starter.expansion_fits(expansion_squares, square): build_expansion(square)
+	while expansions < Starter.MAX_EXPANSIONS and build_expansion(Starter.expansion_at(expansion_squares, Starter.ROOM.get_center())): pass
+	var stranded: Array[String] = []
+	for id in stored_ids():
+		if not place_near(id, equipment["repair-desk"].global_position): stranded.append(item_name(id))
+	unlimited_funds = funds
+	muted = was_muted
+	play_place()
+	notice.emit("Kitted out: every tool and upgrade bought, %d/%d expansions built%s." % [expansions, Starter.MAX_EXPANSIONS,
+		", equipment placed by the repair desk" if stranded.is_empty() else "; no room for " + ", ".join(stranded) + " (place it in build view)"])
+	changed.emit()
+	jobs.changed.emit()
+	return true
+
+## Places stored equipment on the first clear floor spot nearest `anchor`, trying each quarter
+## turn. Depth counts double, so pieces line up beside the desk rather than behind or in front.
+func place_near(id: String, anchor: Vector3) -> bool:
+	if not begin_placement(id): return false
+	var spots: Array[Vector3] = []
+	for x in range(-KIT_REACH, KIT_REACH + 1):
+		for z in range(-KIT_REACH, KIT_REACH + 1): spots.append(anchor + Vector3(x, 0, z) * KIT_STEP)
+	var reach := func(spot: Vector3) -> float: return Vector2(spot.x - anchor.x, (spot.z - anchor.z) * 2.0).length_squared()
+	spots.sort_custom(func(a: Vector3, b: Vector3): return reach.call(a) < reach.call(b))
+	for turn in range(4):
+		for spot in spots:
+			if preview_at(spot): return finish_placement()
+		rotate_placement()
+	cancel_placement()
+	return false
+
 func missing_for(job: Dictionary) -> Array[String]:
 	var required: Array[String] = []
 	if job.get("exterior_clean", false): required.append("air-blower")
@@ -198,6 +255,10 @@ func missing_for(job: Dictionary) -> Array[String]:
 		if not jobs.is_tech(job): required.append("thermal-camera")
 		for fault in job.faults:
 			for id in FAULT_TOOLS.get(fault, []):
+				if id not in required: required.append(id)
+		# A megacorp card glued shut needs its glue softened and sucked off first.
+		if not job.get("glued", []).is_empty():
+			for id in GLUE_TOOLS:
 				if id not in required: required.append(id)
 	var missing: Array[String] = []
 	for id in required:

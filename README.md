@@ -6,7 +6,7 @@ Models, audio and fonts are stored with [Git LFS](https://git-lfs.com/). Install
 
 Open [godot/project.godot](godot/project.godot) in Godot and press **F5**. The included assets are ready to use; no Node, npm, TypeScript or Blender installation is needed to play.
 
-Walk around the workshop, inspect and disassemble the GPU, select tools from the toolbox, clean internal dust, and compare surface heat with the thermal camera under test-board load.
+Walk around the workshop, inspect and disassemble the GPU, select tools from the toolbox, clean internal dust, and compare surface heat with the thermal camera under test-board load. Fix your neighbourhood's cards to win its households over from the megacorp, whose cards arrive glued shut.
 
 - [Controls, implemented features and validation](godot/README.md)
 - [GPU model authoring and export](models/README.md)

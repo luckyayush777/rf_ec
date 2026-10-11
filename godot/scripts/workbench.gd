@@ -16,6 +16,9 @@ const OutdoorScenery = preload("res://scripts/outdoor_scenery.gd")
 const ShopInventory = preload("res://scripts/shop_inventory.gd")
 const StarterShop = preload("res://scripts/starter_shop.gd")
 const BuildView = preload("res://scripts/build_view.gd")
+const Glue = preload("res://scripts/gpu_glue.gd")
+const NeighbourhoodMap = preload("res://scripts/neighbourhood_map.gd")
+const MapDisplay = preload("res://scripts/map_display.gd")
 ## The parcel rides low in both hands, tilted so its lid (and paperwork) faces the player.
 ## Drawn a little smaller and close, so it neither fills the view nor sinks into the desk.
 ## (0.8 scale, tilted 0.45 rad about X.)
@@ -62,6 +65,11 @@ var closeup: CanvasLayer
 var paste: Node
 var bearing: Node
 var connector: Node
+## Megacorp warranty glue over the screws (gpu_glue.gd).
+var glue: Node
+## The neighbourhood map: N shows it over the view; the bought wall screen shows it too.
+var map_overlay: Control
+var map_display: Node3D
 var gpu_style: Node
 var placement_marker: MeshInstance3D
 var placement_material: StandardMaterial3D
@@ -142,6 +150,13 @@ func _ready() -> void:
 			node.set_meta("action", "desk")
 	testing_station.configure(gpu, testing_desk.find_child("gpu-testing-board", true, false), test_monitor,
 		inspection, service, tools, cleaning)
+	if progression_enabled: tools.place_stands($RepairDesk, true)
+	# Before the picker and thermal viewer cache the card's meshes, so the glue is pickable.
+	glue = Glue.new()
+	glue.name = "Glue"
+	add_child(glue)
+	glue.configure(self)
+	service.screw_block = glue.screw_block
 	picker = Picker.new()
 	picker.configure(self, gpu, camera_rig.camera, service)
 	cleaning.configure(gpu, picker, tools)
@@ -203,8 +218,18 @@ func _ready() -> void:
 		hud.show_light_level(day_cycle.light_scale)
 		# Like repair speeds, a saved light level applies to play, not to fixtures.
 		if get_tree().current_scene == self: hud.load_light_level()
+	# Before the computer, whose catalog photographs the wall screen.
+	if progression_enabled:
+		map_display = MapDisplay.new()
+		map_display.name = "MapDisplay"
+		add_child(map_display)
+		map_display.configure(jobs)
 	computer.configure(self, jobs)
 	queue_monitor.configure(jobs)
+	map_overlay = NeighbourhoodMap.new()
+	map_overlay.name = "NeighbourhoodMap"
+	hud.add_map_overlay(map_overlay)
+	map_overlay.configure(jobs)
 	if job_flow and not progression_enabled: tools.set_locked("thermal-camera", true)
 	else: $ThermalCameraBox.visible = false
 	jobs.notice.connect(hud.set_status)
@@ -228,7 +253,13 @@ func _ready() -> void:
 	hud.debug_dry_bearing_requested.connect(bearing.debug_dry)
 	hud.debug_oil_bearing_requested.connect(bearing.debug_oil)
 	hud.debug_connector_requested.connect(connector.debug_cycle)
+	hud.debug_glue_requested.connect(glue.debug_seal)
+	hud.debug_fix_return_requested.connect(debug_fix_and_return)
+	hud.debug_kit_out_requested.connect(func():
+		if shop != null: shop.debug_kit_out()
+		else: hud.set_status("Kit-out needs the progression shop (play from the main scene)."))
 	hud.debug_repair_speed_changed.connect(set_debug_repair_speed)
+	hud.debug_glue_soft_time_changed.connect(func(seconds: float): if OS.is_debug_build(): glue.soft_time = seconds)
 	hud.debug_advance_clock_requested.connect(func(): if OS.is_debug_build(): jobs.shop_minutes += 60.0)
 	# Fixtures start at authored rates, independent of the developer's saved play tuning.
 	if get_tree().current_scene == self: hud.load_repair_speeds()
@@ -246,6 +277,8 @@ func _ready() -> void:
 		cleaning.set_muted(service.muted)
 		paste.set_muted(service.muted)
 		bearing.set_muted(service.muted)
+		glue.set_muted(service.muted)
+		jobs.set_muted(service.muted)
 		testing_station.set_muted(service.muted)
 		test_monitor.set_muted(service.muted)
 		inspection.set_muted(service.muted)
@@ -268,6 +301,7 @@ func _ready() -> void:
 	test_monitor.notice.connect(hud.set_status)
 	paste.notice.connect(hud.set_status)
 	bearing.notice.connect(hud.set_status)
+	glue.notice.connect(hud.set_status)
 	connector.notice.connect(hud.set_status)
 	refresh_ui()
 	hud.refresh_paste(paste)
@@ -331,6 +365,7 @@ func set_debug_repair_speed(id: String, multiplier: float) -> void:
 		"wipe":
 			paste.debug_wipe_speed = multiplier
 			bearing.debug_wipe_speed = multiplier
+		"suction": glue.debug_suck_speed = multiplier
 
 func debug_clean_gpu() -> void:
 	if not OS.is_debug_build() or not gpu.visible: return
@@ -339,6 +374,8 @@ func debug_clean_gpu() -> void:
 func debug_disassemble_gpu() -> void:
 	if not OS.is_debug_build() or not gpu.visible or not ready_for_action() or inspection.held or testing_station.installed: return
 	cleaning.end()
+	# The shortcut skips the glue along with the screwdriver work.
+	glue.set_sealed([])
 	if service.debug_disassemble():
 		if camera_rig.legacy_test_mode: camera_rig.select_view("repair")
 		hud.set_testing_mode(false)
@@ -350,6 +387,31 @@ func debug_reassemble_gpu() -> void:
 	# A pulled rotor or peeled sticker goes back first; the fan cannot mount open.
 	if not bearing.opened.is_empty(): bearing.close_all()
 	if service.debug_reassemble(): refresh_ui()
+
+## Debug: the card on the bench is repaired at once (glue off, reassembled, every fault fixed)
+## and goes back to its client through the normal return, so it is paid and scored as usual.
+func debug_fix_and_return() -> void:
+	if not OS.is_debug_build(): return
+	var job: Dictionary = jobs.active()
+	if job.is_empty() or job.state != "bench":
+		hud.set_status("Debug: no unboxed card on the bench to fix and return.")
+		return
+	if not ready_for_action() or inspection.held or testing_station.installed:
+		hud.set_status("Debug: set the card down and take it off the test board first.")
+		return
+	cancel_press()
+	if closeup.mode != "": closeup.close()
+	if tools.equipped_tool != "": await tools.return_tool()
+	glue.set_sealed([])
+	if not bearing.opened.is_empty(): bearing.close_all()
+	if not service.removed.is_empty() or not service.cable_connected or not service.turns.is_empty() or service.held_part != "":
+		service.debug_reassemble(true)
+	cleaning.debug_clean()
+	paste.set_fresh()
+	bearing.set_oiled()
+	connector.set_state("ok")
+	var result: Dictionary = jobs.return_card()
+	if result.is_empty(): hud.set_status("Debug: the card could not go back: " + jobs.last_refusal)
 
 func toggle_inspection() -> void:
 	if service.held_part != "": return
@@ -397,6 +459,8 @@ func refresh_ui() -> void:
 			"Click the detached fan, pull its rotor, then hold on the bearing to oil it." if tools.equipped_tool == "fan-oiler" else
 			"Click the clean GPU die, then hold to squeeze fresh paste." if tools.equipped_tool == "paste-syringe" else
 			"Click the GPU to look over its gold fingers through the loupe." if tools.equipped_tool == "loupe" else
+			"Click the GPU, then hold LMB to heat every glue blob facing you until they go soft. Q returns the gun to its stand." if tools.equipped_tool == "heat-gun" else
+			"Click the GPU, then hold on softened glue to suck it off. Q returns the pen to the tool roll." if tools.equipped_tool == "suction-pen" else
 			"RMB + mouse rotates the held part. Aim at a clear table spot and press E to place it; Q refits it." if service.held_part != "" else
 			"GPU in left hand. E places it at the green marker; RMB rotates, F flips, Q returns it to the holder." if inspection.held else
 			"Aim at the GPU or a tool and press E." + ("" if "thermal-camera" in tools.locked else " The orange instrument is the thermal camera."))
@@ -423,6 +487,7 @@ func cancel_press() -> void:
 	cleaning.end()
 	if paste != null: paste.end()
 	if bearing != null: bearing.end()
+	if glue != null: glue.end()
 	testing_station.end_wiggle()
 	dragging_button = 0
 	service_press = false
@@ -503,7 +568,7 @@ func activate(screen_position: Vector2, pickup_with_tool: bool = false) -> void:
 		"sealed_box": hud.set_status("The thermal camera is still sealed in its box. It stays packed for now.")
 		"monitor_power": test_monitor.toggle_power()
 		"test_board": toggle_test_gpu()
-		"screwdriver", "air-blower", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler", "loupe": tools.grab(hit.action)
+		"screwdriver", "air-blower", "dev-blower", "thermal-camera", "spudger", "ipa-wipe", "paste-syringe", "fan-oiler", "loupe", "heat-gun", "suction-pen": tools.grab(hit.action)
 		"toolbox":
 			open_tool_menu()
 		"cable": service.toggle_cable()
@@ -710,6 +775,10 @@ func placement_obstacles(exclude_id: String = "") -> Array:
 		if carton.visible: boxes.append(carton.global_transform * Contract.bounds_in(carton))
 	if tools.thermal_location != "held" and tools.thermal_camera.is_visible_in_tree():
 		boxes.append(tools.thermal_camera.global_transform * Contract.bounds_in(tools.thermal_camera))
+	# The glue tools' cradles (and a tool resting in or beside one) keep their spots.
+	for id in tools.STAND_SCENES:
+		if tools.stands[id].is_visible_in_tree(): boxes.append(tools.stands[id].global_transform * Contract.bounds_in(tools.stands[id]))
+		if tools.tool_location(id) == "desk": boxes.append(tools.tool_node(id).global_transform * Contract.bounds_in(tools.tool_node(id)))
 	return boxes
 
 func _input(event: InputEvent) -> void:
@@ -721,6 +790,7 @@ func _input(event: InputEvent) -> void:
 		cleaning.end()
 		if paste != null: paste.end()
 		if bearing != null: bearing.end()
+		if glue != null: glue.end()
 		testing_station.end_wiggle()
 		if get_viewport().gui_get_hovered_control() != null: cancel_press()
 	if event is InputEventScreenTouch and (event.canceled or (event.pressed and event.index > 0)):
@@ -810,6 +880,10 @@ func first_person_input(event: InputEvent) -> void:
 			hud.set_menu_open(not camera_rig.captured)
 			return
 		if not camera_rig.captured: return
+		# The neighbourhood map overlays the view; walking and carrying carry on beneath it.
+		if event.physical_keycode == KEY_N:
+			hud.toggle_map()
+			return
 		# Both hands are on the parcel: it can only be set down or put back.
 		if carrying_parcel():
 			match event.physical_keycode:
@@ -822,6 +896,7 @@ func first_person_input(event: InputEvent) -> void:
 				if build_view != null:
 					cancel_press()
 					thermal_viewer.aiming = false
+					hud.show_map(false)
 					build_view.open()
 			KEY_E:
 				if (inspection.held or service.held_part != "") and interaction_hit(center).get("action") == "desk": activate(center, true)

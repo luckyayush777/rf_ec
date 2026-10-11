@@ -23,6 +23,10 @@ const OIL_DROP := &"OilDrop"
 const PASTE_SQUEEZE := &"PasteSqueeze"
 const SHUTTER := &"Shutter"
 const BUILD_PLACE := &"BuildPlace"
+const HEAT_GUN := &"HeatGun"
+const SUCTION_PEN := &"SuctionPen"
+const PAYMENT := &"Payment"
+const TIP := &"Tip"
 const CHANNELS := [
 	[MASTER, "Master"],
 	[FAN_QUIET, "Fan, quiet loop"],
@@ -40,10 +44,14 @@ const CHANNELS := [
 	[IPA_WIPE, "IPA wipe"],
 	[PASTE_SQUEEZE, "Paste squeeze"],
 	[OIL_DROP, "Bearing oil drop"],
+	[HEAT_GUN, "Heat gun"],
+	[SUCTION_PEN, "Suction pen"],
 	[UNBOX, "Unboxing"],
 	[SET_DOWN, "Card set down"],
 	[SHUTTER, "Delivery hatch shutter"],
 	[BUILD_PLACE, "Equipment and expansion placed"],
+	[PAYMENT, "Payment ka-ching"],
+	[TIP, "Tip motif"],
 	[PC_INPUT, "Shop PC keys and mouse"]]
 const LAYOUT_PATH := "res://default_bus_layout.tres"
 const USER_PATH := "user://audio_mix.cfg"

@@ -4,9 +4,10 @@ extends Node
 ## request is posted (fault_odds() sets how many).
 ## Two kinds of client send cards. A referring tech has already diagnosed it: they describe the
 ## symptoms, tag the box with the faults they found, and pay the posted price. Techs do not rate
-## the shop yet. A customer only leaves a note ("fix it"); the shop diagnoses it and bills a
-## diagnosis fee, labour at the shop's rate and the materials used, and the customer rates the
-## shop on turnaround and price.
+## the shop yet. A customer is a household on the neighbourhood map (neighbourhood.gd) and only
+## leaves a note ("fix it"); the shop diagnoses it and bills a diagnosis fee, labour at the
+## shop's rate and the materials used. The customer's satisfaction (`rate`) is their price
+## satisfaction plus their time satisfaction, and it colours their household on the map.
 ## A card goes back once it is reassembled and out of hand; nobody pays for a card that is
 ## still broken.
 signal changed
@@ -16,8 +17,17 @@ const RepairStatus = preload("res://scripts/repair_status.gd")
 const Thermal = preload("res://scripts/gpu_thermal.gd")
 const GpuStyle = preload("res://scripts/gpu_style.gd")
 const Materials = preload("res://scripts/bill_of_materials.gd")
+const Neighbourhood = preload("res://scripts/neighbourhood.gd")
+const AudioMix = preload("res://scripts/audio_mix.gd")
+## A cash register rings up every paid return; a tip adds a short happy motif just after it.
+const KACHING = preload("res://assets/sounds/payment_kaching.wav")
+const TIP_SOUND = preload("res://assets/sounds/payment_tip.wav")
+const KACHING_GAIN_DB := -6.0
+const TIP_GAIN_DB := -8.0
+const TIP_DELAY := 0.45
 ## Accepted cards not yet returned. One bench for now, so one card.
 const MAX_QUEUE := 1
+## Requests on the board with the first zone open; each further zone adds one.
 const OFFER_COUNT := 3
 const STARTING_BALANCE := 100
 ## Faults per card: P(k) = (1 - r) * r^(k - 1) / (1 - r^n) for k = 1..n, n = fault types. Each
@@ -25,7 +35,8 @@ const STARTING_BALANCE := 100
 ## rarer still. r = (1 + sqrt(37)) / 18 puts 3 of 3 faults at exactly 10%: 64.6% / 25.4% / 10%.
 const FAULT_RATIO := 0.39348681
 ## A tech pays each diagnosed fault's price. A customer is billed this fee for diagnosis, plus
-## labour and materials; the same fee plus the fault prices is what they think is fair.
+## labour and materials; the same fee plus the fault prices is their quote, what they expect
+## to pay.
 const DIAGNOSIS_FEE := 20
 const FAULTS := {
 	"dust": {"pay": 40, "label": "Dust", "persists": "it still runs hot and the fan roars",
@@ -42,8 +53,6 @@ const FAULTS := {
 			"It started making a gritty buzzing noise last week."]}}
 ## Faults the board does not roll yet (no repair exists) but a customer would still notice.
 const UNROLLED := {"connector": {"persists": "the screen still cuts out"}}
-const CUSTOMERS := ["Priya S.", "Marcus T.", "Elena V.", "Tomasz K.", "Aisha R.", "Jonah W.", "Mei L.",
-	"Diego F.", "Sam O.", "Fatima N.", "Lukas B.", "Grace H."]
 const MODEL := "710 2GB low-profile"
 ## Share of requests referred by techs. The opening board's first request is always one, so
 ## the first card arrives tagged with its faults: the soft tutorial.
@@ -60,18 +69,22 @@ const SHOP_MINUTES_PER_SECOND := 0.5
 const OPENING_MINUTE := 9 * 60
 const CLOSING_MINUTE := 21 * 60
 ## Labour is billed in started quarter hours at the shop's rate (set on the bench page). The
-## default rate and the deadlines below were rescaled with the clock (it used to run at 0.25),
-## so a real minute of work bills and waits the same as before.
+## default rate was rescaled with the clock (it used to run at 0.25), so a real minute of work
+## bills the same as before.
 const BILL_INCREMENT := 15
 const DEFAULT_LABOR_RATE := 20
 const LABOR_STEP := 5
 const LABOR_RANGE := Vector2i(10, 150)
-## A customer wants the card back within a base time plus some per (hidden) fault, plus slack.
-const DUE_BASE := 120
-const DUE_PER_FAULT := 90
-const DUE_SLACK := 120
-## Bills up to this multiple of the fair price cost no stars.
-const FAIR_MARGIN := 1.2
+## Satisfaction is out of 5. Price: every full step of this fraction billed over the quote costs
+## one. Time: a customer expects the card back within this many shop days of accepting it
+## (by the end of the next day); each day later costs one.
+const OVERCHARGE_STEP := 0.10
+const EXPECTED_DAYS := 1
+## A same-day return either earns a tip (this share of the bill, rolled in the range) or raises
+## satisfaction by one or two, half the time each.
+const SAME_DAY_TIP_CHANCE := 0.5
+const TIP_SHARE := Vector2(0.1, 0.25)
+const MIN_TIP := 2
 
 var bench: Node3D
 var box: Node3D
@@ -93,6 +106,13 @@ var next_id := 1041
 var busy := false
 var brand_bag: Array[String] = []
 var last_brand := ""
+## The households the shop works for and how far its influence reaches.
+var neighbourhood := Neighbourhood.new()
+## Megacorp cards arrive glued shut only in progression play; fixtures opt in per job.
+var megacorp_glue := false
+var kaching_audio: AudioStreamPlayer
+var tip_audio: AudioStreamPlayer
+var muted := false
 
 ## Product play starts with an empty bench. Fixtures keep the original three-fault card on
 ## the bench as a walk-in job.
@@ -100,6 +120,19 @@ func configure(world: Node3D, delivery_box: Node3D, empty_bench: bool) -> void:
 	bench = world
 	box = delivery_box
 	rng.randomize()
+	megacorp_glue = bench.progression_enabled
+	kaching_audio = AudioStreamPlayer.new()
+	kaching_audio.name = "PaymentSound"
+	kaching_audio.stream = KACHING
+	kaching_audio.volume_db = KACHING_GAIN_DB
+	kaching_audio.bus = AudioMix.PAYMENT
+	add_child(kaching_audio)
+	tip_audio = AudioStreamPlayer.new()
+	tip_audio.name = "TipSound"
+	tip_audio.stream = TIP_SOUND
+	tip_audio.volume_db = TIP_GAIN_DB
+	tip_audio.bus = AudioMix.TIP
+	add_child(tip_audio)
 	if bench.progression_enabled:
 		offers.append(make_exterior_job())
 		offers.append(make_job(["paste"], "tech"))
@@ -111,6 +144,8 @@ func configure(world: Node3D, delivery_box: Node3D, empty_bench: bool) -> void:
 	else:
 		var walk_in := make_job(FAULTS.keys(), "customer")
 		walk_in.customer = "Walk-in"
+		walk_in.home = ""
+		walk_in.glued = []
 		walk_in.state = "bench"
 		walk_in.accepted_at = shop_minutes
 		walk_in.unboxed_at = shop_minutes
@@ -187,11 +222,18 @@ func next_brand() -> String:
 	return last_brand
 
 ## A request. source: "tech" (diagnosed, tagged, fixed pay) or "customer" (a note, billed);
-## empty rolls it with TECH_SHARE. `customer` is whoever the card goes back to.
+## empty rolls it with TECH_SHARE. `customer` is whoever the card goes back to. A customer card
+## comes from a household in the shop's zone (`home`); a rolled customer becomes a tech
+## referral when no household is free to call.
 func make_job(faults: Array = [], source := "") -> Dictionary:
 	var kinds: Array[String] = []
 	kinds.assign(faults if not faults.is_empty() else roll_faults())
-	if source == "": source = "tech" if rng.randf() < TECH_SHARE else "customer"
+	var rolled := source == ""
+	if rolled: source = "tech" if rng.randf() < TECH_SHARE else "customer"
+	var household: Dictionary = {}
+	if source == "customer":
+		household = neighbourhood.pick(busy_homes(), rng, true)
+		if household.is_empty() and rolled: source = "tech"
 	var fault_pay := 0
 	var symptoms: Array[String] = []
 	for kind in kinds:
@@ -199,17 +241,35 @@ func make_job(faults: Array = [], source := "") -> Dictionary:
 		var lines: Array = FAULTS[kind].symptoms
 		symptoms.append(lines[rng.randi_range(0, lines.size() - 1)])
 	var brand := next_brand()
+	var glued: Array = []
+	if megacorp_glue and brand == Neighbourhood.MEGACORP:
+		glued = neighbourhood.glue_roll(rng, bench.service.fan_screws, bench.service.cooler_screws)
 	var job := {"id": next_id, "source": source, "brand": brand, "model": brand + " " + MODEL, "faults": kinds,
-		"state": "offer", "bom": Materials.new(), "accepted_at": -1.0, "unboxed_at": -1.0}
+		"state": "offer", "bom": Materials.new(), "accepted_at": -1.0, "unboxed_at": -1.0, "glued": glued, "home": ""}
 	if source == "tech":
 		var tech: Array = TECHS[rng.randi_range(0, TECHS.size() - 1)]
 		job.merge({"customer": "%s @ %s" % tech, "signature": tech[0], "pay": fault_pay, "complaint": " ".join(symptoms)})
 	else:
-		job.merge({"customer": CUSTOMERS[rng.randi_range(0, CUSTOMERS.size() - 1)], "pay": 0,
-			"complaint": NOTES[rng.randi_range(0, NOTES.size() - 1)], "fair": DIAGNOSIS_FEE + fault_pay,
-			"due": DUE_BASE + DUE_PER_FAULT * kinds.size() + BILL_INCREMENT * rng.randi_range(0, DUE_SLACK / BILL_INCREMENT)})
+		job.merge({"customer": household.get("resident", "Walk-in"), "home": household.get("id", ""), "pay": 0,
+			"complaint": NOTES[rng.randi_range(0, NOTES.size() - 1)], "quote": DIAGNOSIS_FEE + fault_pay}, true)
 	next_id += 1
 	return job
+
+## Households with a card on the board or the bench already.
+func busy_homes() -> Array:
+	var ids: Array = []
+	for job in offers + queue:
+		if job.get("home", "") != "": ids.append(job.home)
+	return ids
+
+## Requests the board shows: more as the shop's zone grows.
+func offer_count() -> int:
+	return OFFER_COUNT + neighbourhood.unlocked - 1
+
+## Where a customer lives, for the board and bench pages; empty for techs and walk-ins.
+func home_text(job: Dictionary) -> String:
+	var household := neighbourhood.home(job.get("home", ""))
+	return "" if household.is_empty() else neighbourhood.zone_name(household.zone)
 
 func is_tech(job: Dictionary) -> bool:
 	return job.get("source", "") == "tech"
@@ -230,6 +290,8 @@ func bench_full() -> bool:
 func make_exterior_job() -> Dictionary:
 	var job := make_job(["dust"], "tech")
 	job.exterior_clean = true
+	# Nothing is opened, so a glued card would make no difference.
+	job.glued = []
 	job.pay = 25
 	job.complaint = "Exterior fan clean only. Internals checked: no disassembly needed. Blow the dust off the fan and return it."
 	return job
@@ -275,7 +337,7 @@ func unbox() -> void:
 	changed.emit()
 	await box.open()
 	bench.gpu_style.apply_brand(job.brand)
-	apply_faults(job.faults, job.get("exterior_clean", false))
+	apply_faults(job.faults, job.get("exterior_clean", false), job.get("glued", []))
 	var gpu: Node3D = bench.gpu
 	var home: Transform3D = gpu.get_parent().global_transform * bench.inspection.home
 	var bounds: AABB = home * preload("res://scripts/asset_contract.gd").bounds_in(gpu)
@@ -299,8 +361,10 @@ func unbox() -> void:
 		if is_tech(job) else "%s's note says: \"%s\"" % [job.customer, job.complaint]))
 	changed.emit()
 
-## Lays out the card's faults; everything not rolled starts healthy.
-func apply_faults(faults: Array, exterior_only := false) -> void:
+## Lays out the card's faults; everything not rolled starts healthy. `glued` lists the screws a
+## megacorp sealed under glue.
+func apply_faults(faults: Array, exterior_only := false, glued: Array = []) -> void:
+	bench.glue.set_sealed(glued)
 	bench.cleaning.reset_dust("dust" in faults, exterior_only)
 	if "paste" in faults: bench.paste.reset_dried()
 	else: bench.paste.set_fresh()
@@ -345,35 +409,61 @@ func return_card() -> Dictionary:
 		return {}
 	var labor := labor_minutes(active())
 	var turnaround := delivery_minutes(active())
+	var days := days_taken(active())
 	var invoice := {} if is_tech(active()) else bill(active())
 	var job: Dictionary = queue.pop_front()
 	var left := problems()
 	var paid := left.is_empty()
 	var amount: int = (job.pay if is_tech(job) else invoice.dollars) if paid else 0
-	balance += amount
 	var complaints: Array[String] = []
 	for kind in left: complaints.append((FAULTS[kind] if FAULTS.has(kind) else UNROLLED[kind]).persists)
 	var said := " and ".join(complaints)
 	var feedback: String = "Works perfectly, thanks!" if paid else said.left(1).to_upper() + said.substr(1) + "."
 	# Techs do not rate the shop (stars 0).
 	var stars := 0
+	var tip := 0
+	var opened: Array[String] = []
 	if not is_tech(job):
-		var rating := rate(paid, invoice.dollars, job.fair, turnaround, job.due)
+		var rating := rate(paid, invoice.dollars, job.quote, days, rng)
 		stars = rating.stars
+		tip = rating.tip
 		if paid: feedback = "Works perfectly! " + " ".join(rating.remarks)
+		if job.home != "": opened = neighbourhood.record(job.home, stars)
+	amount += tip
+	balance += amount
+	if amount > 0: play_payment(tip > 0)
 	last_result = {"id": job.id, "source": job.source, "customer": job.customer, "brand": job.brand, "model": job.model,
-		"paid": paid, "amount": amount, "left": left, "faults": job.faults, "feedback": feedback, "stars": stars,
-		"bill": invoice, "materials": job.bom.lines(), "labor_minutes": labor, "turnaround": turnaround}
+		"paid": paid, "amount": amount, "tip": tip, "left": left, "faults": job.faults, "feedback": feedback, "stars": stars,
+		"bill": invoice, "materials": job.bom.lines(), "labor_minutes": labor, "turnaround": turnaround, "days": days,
+		"home": job.get("home", "")}
 	ledger.push_front(last_result)
 	last_refusal = ""
 	bench.cleaning.end()
 	bench.gpu.visible = false
 	box.take_away()
-	notice.emit("Job #%d returned to %s. %s%s" % [job.id, job.customer,
+	var message := "Job #%d returned to %s. %s%s%s" % [job.id, job.customer,
 		"Paid $%d." % amount if paid else "They say %s. No payment." % said,
-		"" if stars == 0 else " Rated %d/5." % stars])
+		" Tipped $%d." % tip if tip > 0 else "", "" if stars == 0 else " Satisfaction %d/5." % stars]
+	for zone in opened:
+		message += " Word gets around: %s now trusts your bench, and its households will call. %s is not pleased." % [zone, Neighbourhood.MEGACORP]
+		while offers.size() < offer_count(): offers.append(make_job())
+	last_result.opened = opened
+	# After the refresh, so the room's status line keeps this news rather than its idle hint.
 	changed.emit()
+	notice.emit(message)
 	return last_result
+
+## Ka-ching for the money; with a tip, the little motif follows as the register rings out.
+func play_payment(tipped: bool) -> void:
+	if muted: return
+	kaching_audio.play()
+	if tipped: get_tree().create_timer(TIP_DELAY).timeout.connect(func(): if not muted: tip_audio.play())
+
+func set_muted(value: bool) -> void:
+	muted = value
+	if muted:
+		kaching_audio.stop()
+		tip_audio.stop()
 
 # --- Time, bills and ratings -----------------------------------------------------------------
 
@@ -400,17 +490,36 @@ func bill(job: Dictionary) -> Dictionary:
 	for line in lines: total += line.cents
 	return {"lines": lines, "cents": total, "dollars": roundi(total / 100.0)}
 
-## A customer's stars: five, less up to three each for lateness against what they asked for and
-## for a bill above what they think is fair. A card that is still broken gets one star.
-static func rate(fixed: bool, bill_dollars: int, fair: int, minutes: float, due: int) -> Dictionary:
-	if not fixed: return {"stars": 1, "remarks": []}
-	var lateness := minutes / maxf(due, 1.0)
-	var late := 0 if lateness <= 1.0 else 1 if lateness <= 1.5 else 2 if lateness <= 2.0 else 3
-	var markup := bill_dollars / maxf(fair, 1.0)
-	var pricey := 0 if markup <= FAIR_MARGIN else 1 if markup <= 1.5 else 2 if markup <= 2.0 else 3
-	var remarks: Array[String] = [["Back on time.", "A bit slower than I hoped.", "Took far too long.", "Took forever."][late],
-		("Cheap, too!" if markup < 0.8 else "Fair price.") if pricey == 0 else ["", "Bit pricey.", "Way too expensive.", "Daylight robbery."][pricey]]
-	return {"stars": clampi(5 - late - pricey, 1, 5), "remarks": remarks}
+## Shop days from accepting the job to now: 0 for a same-day return.
+func days_taken(job: Dictionary) -> int:
+	if job.is_empty() or job.accepted_at < 0.0: return 0
+	return day() - (floori(job.accepted_at) / 1440 + 1)
+
+## How many satisfaction points a bill over the quote costs: one per full OVERCHARGE_STEP.
+static func price_penalty(bill_dollars: int, quote: int) -> int:
+	if bill_dollars <= quote: return 0
+	return floori((bill_dollars - quote) / maxf(quote, 1.0) / OVERCHARGE_STEP + 0.0001)
+
+## A customer's satisfaction out of 5: their price satisfaction plus their time satisfaction.
+## Each full 10% billed over the quote costs one; each shop day past EXPECTED_DAYS costs one.
+## A same-day return either earns a tip or raises satisfaction by one or two (rolled with
+## `luck`). A card that is still broken gets one and no tip.
+static func rate(fixed: bool, bill_dollars: int, quote: int, days: int, luck: RandomNumberGenerator) -> Dictionary:
+	if not fixed: return {"stars": 1, "tip": 0, "bonus": 0, "price_penalty": 0, "late_days": 0, "remarks": []}
+	var pricey := price_penalty(bill_dollars, quote)
+	var late := maxi(0, days - EXPECTED_DAYS)
+	var tip := 0
+	var bonus := 0
+	if days <= 0:
+		if luck.randf() < SAME_DAY_TIP_CHANCE: tip = maxi(MIN_TIP, roundi(bill_dollars * luck.randf_range(TIP_SHARE.x, TIP_SHARE.y)))
+		else: bonus = luck.randi_range(1, 2)
+	var remarks: Array[String] = []
+	remarks.append("Same day! Here's a little extra." if tip > 0 else "Same day! Brilliant." if days <= 0 else
+		"Back on time." if late == 0 else "A day late." if late == 1 else "%d days late." % late)
+	if pricey == 0: remarks.append("Under the quote, too!" if bill_dollars < quote else "Right on the quote.")
+	else: remarks.append(["Bit over the quote.", "Well over the quote.", "Way over the quote."][pricey - 1] if pricey <= 3 else "Daylight robbery.")
+	return {"stars": clampi(5 - pricey - late + bonus, 1, 5), "tip": tip, "bonus": bonus, "price_penalty": pricey,
+		"late_days": late, "remarks": remarks}
 
 ## Average customer stars and how many ratings it is from; 0.0 before the first.
 func shop_rating() -> Vector2:
@@ -426,11 +535,19 @@ func shop_rating() -> Vector2:
 func value_text(job: Dictionary) -> String:
 	return "$%d" % job.pay if is_tech(job) else "$%d billed" % bill(job).dollars if job.state == "bench" else "billed"
 
-## How long the customer is still prepared to wait; empty for techs.
+## The shop day by which the customer expects their card back.
+func due_day(job: Dictionary) -> int:
+	var accepted: float = job.accepted_at if job.get("accepted_at", -1.0) >= 0.0 else shop_minutes
+	return floori(accepted) / 1440 + 1 + EXPECTED_DAYS
+
+## When the customer expects the card back, from now; empty for techs.
 func due_text(job: Dictionary) -> String:
 	if is_tech(job): return ""
-	var left: float = job.due - delivery_minutes(job)
-	return "due in " + duration_text(left) if left >= 0.0 else duration_text(-left) + " late"
+	var left := due_day(job) - day()
+	if left < 0: return "%d day%s late" % [-left, "" if left == -1 else "s"]
+	if left == 0: return "by end of today"
+	if left == 1: return "by end of tomorrow"
+	return "by end of day %d" % due_day(job)
 
 func set_labor_rate(rate_per_hour: int) -> void:
 	labor_rate = clampi(rate_per_hour, LABOR_RANGE.x, LABOR_RANGE.y)
